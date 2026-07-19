@@ -961,6 +961,10 @@ export function Workspace({
     );
   }
 
+  const connectionsHref = `/settings/connections?returnTo=${encodeURIComponent(
+    `/documents/${documentId}`,
+  )}`;
+
   return (
     <main
       className="workspace-shell"
@@ -997,6 +1001,15 @@ export function Workspace({
           )}
           <Link className="judge-button" href="/arena">
             Arena
+          </Link>
+          <Link
+            className="secondary-button connections-button"
+            href={connectionsHref}
+            aria-label="Configure provider connections"
+            title="Configure provider connections"
+          >
+            <span className="connections-label">Connections</span>
+            <span className="connections-icon" aria-hidden="true">⚙</span>
           </Link>
           <button
             className="icon-button"
@@ -1475,6 +1488,7 @@ export function Workspace({
             <LocalParserSheet
               info={localRunner.info}
               runs={state.runs}
+              connectionsHref={connectionsHref}
               onClose={() => setPickerOpen(false)}
               onRun={(parser, options) => {
                 void requestLocalParse(parser, options);
@@ -1501,6 +1515,7 @@ export function Workspace({
           componentName={pendingRunOptions.componentName}
           schema={pendingRunOptions.schema}
           availability={pendingRunOptions.availability}
+          connectionsHref={connectionsHref}
           submitting={runOptionsSubmitting}
           onCancel={cancelRunOptions}
           onConfirm={confirmRunOptions}
@@ -2692,11 +2707,13 @@ const LOCAL_PARSER_META: Record<
 function LocalParserSheet({
   info,
   runs,
+  connectionsHref,
   onClose,
   onRun,
 }: {
   info: LocalRunnerInfo;
   runs: Record<ParserId, string>;
+  connectionsHref: string;
   onClose: () => void;
   onRun: (parser: ParserId, options: Record<string, unknown>) => void;
 }) {
@@ -2888,6 +2905,16 @@ function LocalParserSheet({
             <div className="parser-selection-availability" role="status">
               <strong>Unavailable in this environment</strong>
               <span>{selectedAvailability.disabledReason}</span>
+              {selectedAvailability.reasons?.some(
+                (reason) => reason.code === "connection-unavailable",
+              ) && (
+                <Link
+                  className="secondary-button connection-settings-link"
+                  href={connectionsHref}
+                >
+                  Configure connection
+                </Link>
+              )}
             </div>
           )}
           <RunOptionFields

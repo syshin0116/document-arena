@@ -48,13 +48,16 @@ export function UploadLanding() {
       <header className="landing-header">
         <Brand />
         <nav className="landing-nav" aria-label="Product surfaces">
-          <Link className="quiet-button" href="/arena">
+          <Link className="quiet-button landing-secondary-link" href="/arena">
             Arena
           </Link>
-          <Link className="quiet-button" href="/leaderboard">
+          <Link className="quiet-button landing-secondary-link" href="/leaderboard">
             Leaderboard
           </Link>
-          <Link className="quiet-button" href="/documents/demo">
+          <Link className="quiet-button landing-connections-link" href="/settings/connections">
+            Connections
+          </Link>
+          <Link className="quiet-button landing-demo-link" href="/documents/demo">
             Open demo
             <span aria-hidden="true">↗</span>
           </Link>

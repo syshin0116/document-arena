@@ -104,8 +104,46 @@ in `work/runs/`.
 |---|---|---|
 | [OpenDataLoader PDF](https://github.com/opendataloader-project/opendataloader-pdf) 2.5.0 | Deterministic digital-PDF, native element geometry, CPU | ✅ Runnable |
 | [MinerU](https://github.com/opendatalab/MinerU) 3.4.4 | Pipeline profile, layout + OCR | ✅ Runnable |
-| [Azure Document Intelligence](https://learn.microsoft.com/azure/ai-services/document-intelligence/) | prebuilt-layout, cloud OCR, strong on Korean · needs `AZURE_DI_*` in `.env` | ✅ Runnable (remote) |
+| [Azure Document Intelligence](https://learn.microsoft.com/azure/ai-services/document-intelligence/) | prebuilt-layout, cloud OCR, strong on Korean · bring your own endpoint and key | ✅ Runnable (remote) |
 | LightOnOCR, Docling, PaddleOCR, … | See the [parser landscape](docs/PARSER_LANDSCAPE.md) | Planned |
+
+### Bring your own provider connection
+
+Open `/settings/connections` while the local runner is running, then enter the
+endpoint and key from your own provider account. UI-entered credentials are
+sent only to the loopback runner, kept in runner memory for that session, and
+injected only into a component that declares the matching connection type.
+During a run they are container environment variables and are visible to a
+local user who already has permission to inspect the Docker daemon.
+The runner does not put them in browser storage, run options, retained
+artifacts, or component logs: credentialed output is scanned before retention
+and component events are reduced to runner-owned progress fields.
+
+On a fresh clone, build the Azure adapter image before starting the runner:
+
+```sh
+make azure-di-image
+make runner-serve
+```
+
+The UI's **configured** status means the complete connection passed the
+manifest-declared local validation policy. It does not call Azure, verify the
+key, confirm authorization, or predict provider billing/quota errors.
+
+For a persistent developer setup, the runner still accepts ignored local
+environment values such as `AZURE_DI_ENDPOINT` and `AZURE_DI_KEY` from `.env`.
+Never put real credentials in `.env.example` or any tracked file.
+
+Endpoint validation prevents common accidental misconfiguration and restricts
+the configured Azure endpoint to a reviewed host suffix. A reviewed remote
+extension still receives Docker bridge network access; this MVP does not have
+an egress proxy/firewall that can contain a compromised extension. Only run
+trusted remote extension images with provider credentials.
+
+The allowed-Origin check protects browser requests from ordinary cross-site
+request forgery; it is not authentication for local processes. The local MVP
+trusts processes running as the same user. Do not expose port 8799 or the Docker
+daemon to other users or machines.
 
 A component integrates as a self-contained extension package — an OCI image, a
 declarative `component.json` manifest, an options schema, and an adapter that

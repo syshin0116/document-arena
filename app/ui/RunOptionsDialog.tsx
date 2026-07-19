@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useEffect,
   useId,
@@ -462,6 +463,7 @@ export function RunOptionsDialog({
   componentName,
   schema,
   availability,
+  connectionsHref,
   submitting = false,
   onCancel,
   onConfirm,
@@ -469,6 +471,7 @@ export function RunOptionsDialog({
   componentName: string;
   schema: RunOptionsSchema | null;
   availability: RunAvailability;
+  connectionsHref?: string;
   submitting?: boolean;
   onCancel: () => void;
   onConfirm: (options: Record<string, unknown>) => void;
@@ -569,6 +572,17 @@ export function RunOptionsDialog({
               ) : (
                 <span>{availability.disabledReason}</span>
               )}
+              {connectionsHref &&
+                availability.reasons?.some(
+                  (reason) => reason.code === "connection-unavailable",
+                ) && (
+                  <Link
+                    className="secondary-button connection-settings-link"
+                    href={connectionsHref}
+                  >
+                    Configure connection
+                  </Link>
+                )}
             </div>
           )}
           {schema?.title && <p className="run-options-schema-title">{schema.title}</p>}

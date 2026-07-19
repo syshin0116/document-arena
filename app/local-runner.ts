@@ -135,6 +135,99 @@ export type LocalRunnerInfo = {
   components?: LocalRunnerComponent[];
 };
 
+export type RunnerConnectionField = {
+  name: string;
+  label?: string;
+  description?: string;
+  placeholder?: string;
+  format?: "uri" | "text";
+  secret?: boolean;
+  minLength?: number;
+  maxLength?: number;
+};
+
+export type RunnerConnection = {
+  type: string;
+  title?: string;
+  description?: string;
+  configured: boolean;
+  source: "session" | "environment" | null;
+  fields: RunnerConnectionField[];
+};
+
+type RunnerConnectionsResponse = {
+  connections: RunnerConnection[];
+};
+
+async function runnerJsonError(
+  response: Response,
+  fallback: string,
+): Promise<Error> {
+  const body = (await response.json().catch(() => null)) as
+    | { error?: unknown }
+    | null;
+  return new Error(
+    typeof body?.error === "string" && body.error.trim()
+      ? body.error
+      : fallback,
+  );
+}
+
+export async function listRunnerConnections(): Promise<RunnerConnection[]> {
+  const response = await fetch(`${LOCAL_RUNNER_ORIGIN}/v1/connections`, {
+    headers: { accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(2000),
+  });
+  if (!response.ok) {
+    throw await runnerJsonError(
+      response,
+      `Local runner returned ${response.status}.`,
+    );
+  }
+  const body = (await response.json()) as Partial<RunnerConnectionsResponse>;
+  return Array.isArray(body.connections) ? body.connections : [];
+}
+
+export async function configureRunnerConnection(
+  type: string,
+  values: Record<string, string>,
+): Promise<void> {
+  const response = await fetch(
+    `${LOCAL_RUNNER_ORIGIN}/v1/connections/${encodeURIComponent(type)}`,
+    {
+      method: "PUT",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ values }),
+    },
+  );
+  if (!response.ok) {
+    throw await runnerJsonError(
+      response,
+      `Local runner returned ${response.status}.`,
+    );
+  }
+}
+
+export async function clearRunnerConnection(type: string): Promise<void> {
+  const response = await fetch(
+    `${LOCAL_RUNNER_ORIGIN}/v1/connections/${encodeURIComponent(type)}`,
+    {
+      method: "DELETE",
+      headers: { accept: "application/json" },
+    },
+  );
+  if (!response.ok) {
+    throw await runnerJsonError(
+      response,
+      `Local runner returned ${response.status}.`,
+    );
+  }
+}
+
 export function runnerComponent(
   info: LocalRunnerInfo | null,
   componentId: string,

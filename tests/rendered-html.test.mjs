@@ -148,8 +148,34 @@ test("server-renders the focused PDF upload experience", async () => {
   assert.match(html, /Blind-battle votes stay on this\s*device too/);
   assert.match(html, /href="\/arena"/);
   assert.match(html, /href="\/leaderboard"/);
+  assert.match(html, /href="\/settings\/connections"/);
   assert.doesNotMatch(html, /OpenDataLoader|MinerU/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
+});
+
+test("server-renders the local connection settings shell", async () => {
+  const response = await render("/settings/connections");
+  assert.equal(response.status, 200);
+
+  const html = await response.text();
+  assert.match(html, /<title>Connections · Document Arena<\/title>/i);
+  assert.match(html, /Use your own provider connection/);
+  assert.match(html, /Session-only by default/);
+  assert.match(html, /Checking the local runner/);
+  assert.doesNotMatch(html, /AZURE_DI_KEY|api[_ -]?key=/i);
+
+  const returning = await render(
+    "/settings/connections?returnTo=%2Fdocuments%2Fdemo",
+  );
+  const returningHtml = await returning.text();
+  assert.match(returningHtml, /href="\/documents\/demo"/);
+  assert.match(returningHtml, /Return to run/);
+
+  const unsafe = await render(
+    "/settings/connections?returnTo=https%3A%2F%2Fevil.test%2F",
+  );
+  const unsafeHtml = await unsafe.text();
+  assert.doesNotMatch(unsafeHtml, /href="https:\/\/evil\.test/);
 });
 
 test("server-renders the source-linked demo workspace", async () => {
@@ -164,6 +190,10 @@ test("server-renders the source-linked demo workspace", async () => {
   assert.match(html, /Loading source PDF/);
   assert.match(html, /Starting the local PDF renderer/);
   assert.match(html, /Run another parser/);
+  assert.match(
+    html,
+    /\/settings\/connections\?returnTo=%2Fdocuments%2Fdemo/,
+  );
   assert.doesNotMatch(html, /Hover either side/);
   assert.doesNotMatch(html, /Parsed result</);
   assert.doesNotMatch(html, /Parser-native source regions/);

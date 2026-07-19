@@ -302,25 +302,28 @@ selection.
 - Creates a new immutable derived artifact and compact lineage breadcrumb.
 - Does not expose a node canvas or arbitrary YAML editor.
 
-## Page 5 — Connections, later only
+## Page 5 — Connections
 
 Route: `/settings/connections`
 
-This page is added only when a real external LLM, embedding provider, or vector
-database integration ships. Connections are reusable across documents, so they
-do not belong inside one workspace drawer.
+This page ships with the first real remote provider integration. Connections
+are reusable across documents, so they do not belong inside one workspace
+drawer. The local prototype keeps UI-entered secrets only in runner memory and
+uses ignored `.env` values as an optional persistent developer fallback.
 
 It contains:
 
-- friendly connection name and provider type;
+- provider connection type and runner-local status;
 - endpoint, region, and secret entry/update;
-- test connection and connection status;
+- configured-but-not-yet-verified status and card-scoped feedback;
 - data-transfer and retention disclosure;
-- delete/disconnect action.
+- delete/disconnect action;
+- a validated return path to the document run that opened Connections.
 
-Secret values are never shown again or stored in recipe/export artifacts. Vector
-collection browsing, retrieval, chat, and database administration remain out of
-scope.
+Secret values are never returned to the browser or stored in recipe/export
+artifacts. Named persistent connections and provider-side validation can be
+added when a real secret store exists. Vector collection browsing, retrieval,
+chat, and database administration remain out of scope.
 
 ## Supporting static page
 
