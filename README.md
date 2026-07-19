@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/components-pinned%20OCI%20images-2496ED" alt="Docker">
   <img src="https://img.shields.io/badge/evidence-stage--native-5147c7" alt="Evidence">
   <img src="https://img.shields.io/badge/status-early%20prototype-orange" alt="Status">
-  <img src="https://img.shields.io/badge/license-TBD-lightgrey" alt="License">
+  <img src="https://img.shields.io/badge/license-MIT-257653" alt="MIT License">
 </p>
 
 ---
@@ -265,6 +265,6 @@ is exactly what this tool exists to surface.
 
 ## License
 
-Not yet decided; until a root license lands, this repository should not be
-treated as a licensed redistributable release. Each extension documents the
-licenses of the parser it packages in its own `LICENSES.md`.
+Document Arena is available under the [MIT License](LICENSE). Each extension
+documents the licenses of the parser and model artifacts it packages in its
+own `LICENSES.md`.
