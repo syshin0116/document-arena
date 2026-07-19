@@ -98,6 +98,36 @@ Supported roles are `preprocessor`, `parser`, `postprocessor`, `chunker`,
 `embedder`, `vector-store`, and `evaluator`. A parser manifest is a specialized
 component manifest, not a separate execution system.
 
+### Complete option surfaces and availability
+
+Option forms render directly from each component's JSON Schema. Standard
+keywords define types, defaults, choices, and constraints. Parser Arena adds
+only presentation metadata under `x-parser-arena`:
+
+```json
+{
+  "x-parser-arena": {
+    "sourceUrl": "https://github.com/vendor/project/blob/pinned-tag/options.ts",
+    "availability": {
+      "state": "fixed",
+      "reason": "Pinned by this reviewed component profile.",
+      "reasonCode": "profile-value"
+    }
+  }
+}
+```
+
+`availability.state` is either `fixed` or `unavailable`. Both properties and
+individual `oneOf` choices remain visible and disabled, with a non-secret
+reason. `sourceUrl` points to the pinned upstream repository or official
+documentation used to verify the option. `disabledReason` is accepted as the
+short form for an unavailable individual choice.
+
+Disabled values are omitted from the stage request. The component adapter must
+inject and record every fixed effective value, reject unavailable selections,
+and validate input again at its trust boundary. The UI must not branch on a
+component id to render these states.
+
 ### `ArtifactRef`
 
 Artifacts are immutable and addressed independently of local paths or expiring
