@@ -13,7 +13,7 @@ async function parseJson(path) {
   return parsed;
 }
 
-test("every parser contract schema and OpenDataLoader manifest is valid JSON", async () => {
+test("every parser contract schema and extension manifest is valid JSON", async () => {
   const schemaNames = (await readdir(schemaDirectory))
     .filter((name) => name.endsWith(".json"))
     .sort();
@@ -34,6 +34,8 @@ test("every parser contract schema and OpenDataLoader manifest is valid JSON", a
     resolve(root, "extensions/opendataloader-pdf/options.schema.json"),
     resolve(root, "extensions/mineru-pipeline/component.json"),
     resolve(root, "extensions/mineru-pipeline/options.schema.json"),
+    resolve(root, "extensions/azure-di/component.json"),
+    resolve(root, "extensions/azure-di/options.schema.json"),
   ];
 
   for (const path of manifestPaths) {

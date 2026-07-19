@@ -1,25 +1,187 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://parser-arena.dev/schemas/extensions/azure-di/options.json",
+  "title": "Azure Document Intelligence 1.0.2 · prebuilt-layout options",
+  "description": "Options verified against azure-ai-documentintelligence 1.0.2 and service API 2024-11-30. Locked and unavailable upstream choices remain visible for inspection.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "locale": {
-      "description": "OCR locale hint; improves recognition on scanned pages.",
+    "modelId": {
+      "title": "Model",
+      "description": "Azure accepts prebuilt and custom model IDs. This component is a reviewed prebuilt-layout profile so its normalizer and evidence contract stay deterministic.",
       "type": "string",
-      "enum": [
-        "auto",
-        "ko-KR",
-        "en-US",
-        "ja-JP",
-        "zh-Hans"
-      ],
-      "default": "ko-KR"
+      "const": "prebuilt-layout",
+      "default": "prebuilt-layout",
+      "x-parser-arena": {
+        "disabledReason": "Locked by this component profile; other Azure models require their own profile and normalization review.",
+        "sourceUrl": "https://learn.microsoft.com/en-us/python/api/azure-ai-documentintelligence/azure.ai.documentintelligence.documentintelligenceclient"
+      }
     },
-    "highResolution": {
-      "description": "Enable OCR_HIGH_RESOLUTION for dense or small text.",
-      "type": "boolean",
-      "default": true
+    "apiVersion": {
+      "title": "Service API version",
+      "description": "The pinned SDK defaults to the 2024-11-30 generally available service API.",
+      "type": "string",
+      "const": "2024-11-30",
+      "default": "2024-11-30",
+      "x-parser-arena": {
+        "disabledReason": "Pinned with azure-ai-documentintelligence 1.0.2 for reproducible runs.",
+        "sourceUrl": "https://learn.microsoft.com/en-us/python/api/overview/azure/ai-documentintelligence-readme?view=azure-python"
+      }
+    },
+    "pages": {
+      "title": "Pages",
+      "description": "Optional 1-based page numbers and ranges, for example 1-3,5,7-9. Empty means every page.",
+      "type": "string",
+      "pattern": "^[1-9][0-9]*(?:-[1-9][0-9]*)?(?:,[1-9][0-9]*(?:-[1-9][0-9]*)?)*$",
+      "examples": ["1-3,5,7-9"],
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/Azure/azure-sdk-for-python/blob/azure-ai-documentintelligence_1.0.2/sdk/documentintelligence/azure-ai-documentintelligence/azure/ai/documentintelligence/_operations/_patch.py"
+      }
+    },
+    "locale": {
+      "title": "OCR locale hint",
+      "description": "Optional BCP 47 hint. Auto detection is recommended unless the document language is known; any service-supported locale can be entered.",
+      "type": "string",
+      "default": "auto",
+      "examples": ["auto", "ko-KR", "en-US", "ja-JP", "zh-Hans"],
+      "x-parser-arena": {
+        "sourceUrl": "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/language-support/ocr?view=doc-intel-4.0.0"
+      }
+    },
+    "stringIndexType": {
+      "title": "String offset unit",
+      "description": "Controls how service spans count characters. The Python normalizer slices strings by Unicode code point.",
+      "type": "string",
+      "default": "unicodeCodePoint",
+      "oneOf": [
+        {
+          "const": "unicodeCodePoint",
+          "title": "Unicode code point · Python"
+        },
+        {
+          "const": "textElements",
+          "title": "Text elements · grapheme clusters",
+          "x-parser-arena": {
+            "disabledReason": "The current Python normalizer cannot safely slice grapheme-cluster offsets."
+          }
+        },
+        {
+          "const": "utf16CodeUnit",
+          "title": "UTF-16 code units · JavaScript/Java/.NET",
+          "x-parser-arena": {
+            "disabledReason": "The current Python normalizer cannot safely slice UTF-16 offsets."
+          }
+        }
+      ],
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/Azure/azure-sdk-for-python/blob/azure-ai-documentintelligence_1.0.2/sdk/documentintelligence/azure-ai-documentintelligence/azure/ai/documentintelligence/models/_enums.py"
+      }
+    },
+    "features": {
+      "title": "Add-on features",
+      "description": "Optional 2024-11-30 analysis features. High resolution, formulas, font style, and query fields can add provider charges; all selected outputs are retained in the raw result.",
+      "type": "array",
+      "uniqueItems": true,
+      "default": ["ocrHighResolution"],
+      "items": {
+        "oneOf": [
+          {
+            "const": "ocrHighResolution",
+            "title": "High-resolution OCR · add-on"
+          },
+          {
+            "const": "languages",
+            "title": "Language detection · included"
+          },
+          {
+            "const": "barcodes",
+            "title": "Barcode detection · included"
+          },
+          {
+            "const": "formulas",
+            "title": "Formula extraction · add-on"
+          },
+          {
+            "const": "keyValuePairs",
+            "title": "Key-value pairs · included"
+          },
+          {
+            "const": "styleFont",
+            "title": "Font properties · add-on"
+          },
+          {
+            "const": "queryFields",
+            "title": "Query fields · premium add-on"
+          }
+        ]
+      },
+      "x-parser-arena": {
+        "sourceUrl": "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/add-on-capabilities?view=doc-intel-4.0.0"
+      }
+    },
+    "queryFields": {
+      "title": "Query fields",
+      "description": "Up to 20 field labels to extract. Adding a label automatically enables the queryFields feature and can add provider charges.",
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "default": [],
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "examples": ["Party1", "PaymentTerms", "TermEndDate"],
+      "x-parser-arena": {
+        "sourceUrl": "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/add-on-capabilities?view=doc-intel-4.0.0#query-fields"
+      }
+    },
+    "outputContentFormat": {
+      "title": "Top-level content format",
+      "description": "Azure can return text or Markdown. This component's structure normalizer consumes Markdown.",
+      "type": "string",
+      "default": "markdown",
+      "oneOf": [
+        {
+          "const": "markdown",
+          "title": "Markdown"
+        },
+        {
+          "const": "text",
+          "title": "Plain text",
+          "x-parser-arena": {
+            "disabledReason": "The current block and table normalizer requires Azure Markdown."
+          }
+        }
+      ],
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/Azure/azure-sdk-for-python/blob/azure-ai-documentintelligence_1.0.2/sdk/documentintelligence/azure-ai-documentintelligence/azure/ai/documentintelligence/models/_enums.py"
+      }
+    },
+    "output": {
+      "title": "Additional binary outputs",
+      "description": "Request downloadable artifacts in addition to the complete JSON and Markdown result.",
+      "type": "array",
+      "uniqueItems": true,
+      "default": [],
+      "items": {
+        "oneOf": [
+          {
+            "const": "figures",
+            "title": "Cropped figure images"
+          },
+          {
+            "const": "pdf",
+            "title": "Searchable PDF",
+            "x-parser-arena": {
+              "disabledReason": "Azure only supports searchable PDF output with prebuilt-read, not this prebuilt-layout profile."
+            }
+          }
+        ]
+      },
+      "x-parser-arena": {
+        "sourceUrl": "https://learn.microsoft.com/en-us/python/api/overview/azure/ai-documentintelligence-readme?view=azure-python"
+      }
     }
   }
 }

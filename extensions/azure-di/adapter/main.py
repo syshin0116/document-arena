@@ -1,11 +1,12 @@
 """Azure Document Intelligence adapter for the Parser Arena oci-batch/v1 protocol.
 
-Calls prebuilt-layout (MARKDOWN + OCR_HIGH_RESOLUTION), then folds Azure DI's
-near-per-character Korean word polygons into markdown line segments. Each line
-block carries the union of its words as its native region and keeps the
-individual word boxes under native.words, so the viewer can show either the
-merged line or the raw words. Endpoint and key arrive as env vars injected by
-the runner from a local connection; they are never written to any artifact.
+Calls the pinned prebuilt-layout profile, preserves the complete SDK result,
+then folds Azure DI's near-per-character Korean word polygons into markdown
+line segments. Each line block carries the union of its words as its native
+region and keeps the individual word boxes under native.words, so the viewer
+can show either the merged line or the raw words. Endpoint and key arrive as
+env vars injected by the runner from a local connection; they are never written
+to any artifact.
 """
 
 from __future__ import annotations
@@ -13,14 +14,17 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import (
+    AnalyzeOutputOption,
     DocumentAnalysisFeature,
     DocumentContentFormat,
+    StringIndexType,
 )
 from azure.core.credentials import AzureKeyCredential
 
@@ -33,7 +37,15 @@ OUTPUT_ROOT = Path(os.environ.get("ARENA_OUTPUT_DIR", "/arena/output")).resolve(
 COMPONENT_ID = "azure-di"
 ADAPTER_VERSION = "0.1.0"
 UPSTREAM_VERSION = "prebuilt-layout"
-ALLOWED_LOCALES = ["auto", "ko-KR", "en-US", "ja-JP", "zh-Hans"]
+MODEL_ID = "prebuilt-layout"
+API_VERSION = "2024-11-30"
+DEFAULT_FEATURES = [DocumentAnalysisFeature.OCR_HIGH_RESOLUTION.value]
+ALLOWED_FEATURES = {feature.value for feature in DocumentAnalysisFeature}
+ALLOWED_OUTPUTS = {AnalyzeOutputOption.FIGURES.value}
+PAGES_PATTERN = re.compile(
+    r"^[1-9][0-9]*(?:-[1-9][0-9]*)?(?:,[1-9][0-9]*(?:-[1-9][0-9]*)?)*$"
+)
+LOCALE_PATTERN = re.compile(r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
 
 
 def emit(event_type: str, **fields: object) -> None:
@@ -81,16 +93,87 @@ def resolve_options(raw: object) -> dict:
     options = raw or {}
     if not isinstance(options, dict):
         raise ValueError("Request options must be an object.")
+    allowed = {
+        "pages",
+        "locale",
+        "stringIndexType",
+        "features",
+        "queryFields",
+        "outputContentFormat",
+        "output",
+    }
     for key in options:
-        if key not in {"locale", "highResolution"}:
+        if key not in allowed:
             raise ValueError(f"Unsupported option: {key}")
-    locale = options.get("locale", "ko-KR")
-    if locale not in ALLOWED_LOCALES:
+
+    pages = options.get("pages")
+    if pages is not None and (
+        not isinstance(pages, str)
+        or PAGES_PATTERN.fullmatch(pages) is None
+    ):
+        raise ValueError("Invalid pages option.")
+
+    locale = options.get("locale", "auto")
+    if (
+        not isinstance(locale, str)
+        or (locale != "auto" and LOCALE_PATTERN.fullmatch(locale) is None)
+    ):
         raise ValueError("Invalid locale option.")
-    high_res = options.get("highResolution", True)
-    if not isinstance(high_res, bool):
-        raise ValueError("Invalid highResolution option.")
-    return {"locale": locale, "highResolution": high_res}
+
+    string_index_type = options.get("stringIndexType", "unicodeCodePoint")
+    if string_index_type != StringIndexType.UNICODE_CODE_POINT.value:
+        raise ValueError(
+            "This adapter requires unicodeCodePoint offsets for Python slicing."
+        )
+
+    features = options.get("features", DEFAULT_FEATURES)
+    if (
+        not isinstance(features, list)
+        or any(not isinstance(value, str) for value in features)
+        or len(features) != len(set(features))
+        or any(value not in ALLOWED_FEATURES for value in features)
+    ):
+        raise ValueError("Invalid features option.")
+
+    query_fields = options.get("queryFields", [])
+    if (
+        not isinstance(query_fields, list)
+        or len(query_fields) > 20
+        or any(
+            not isinstance(value, str) or not value.strip() or len(value) > 128
+            for value in query_fields
+        )
+        or len(query_fields) != len(set(query_fields))
+    ):
+        raise ValueError("Invalid queryFields option.")
+    query_fields = [value.strip() for value in query_fields]
+    if query_fields and DocumentAnalysisFeature.QUERY_FIELDS.value not in features:
+        features = [*features, DocumentAnalysisFeature.QUERY_FIELDS.value]
+
+    output_content_format = options.get("outputContentFormat", "markdown")
+    if output_content_format != DocumentContentFormat.MARKDOWN.value:
+        raise ValueError("This adapter requires Markdown content for normalization.")
+
+    output = options.get("output", [])
+    if (
+        not isinstance(output, list)
+        or any(not isinstance(value, str) for value in output)
+        or len(output) != len(set(output))
+        or any(value not in ALLOWED_OUTPUTS for value in output)
+    ):
+        raise ValueError("Invalid output option.")
+
+    return {
+        "modelId": MODEL_ID,
+        "apiVersion": API_VERSION,
+        **({"pages": pages} if pages else {}),
+        "locale": locale,
+        "stringIndexType": string_index_type,
+        "features": features,
+        "queryFields": query_fields,
+        "outputContentFormat": output_content_format,
+        "output": output,
+    }
 
 
 def slice_spans(content: str, spans) -> str:
@@ -313,23 +396,35 @@ def run() -> None:
     primary_dir.mkdir(parents=True, exist_ok=True)
 
     emit("stage.phase", jobId=job_id, stageRunId=stage_run_id, phase="inspecting")
-    client = DocumentIntelligenceClient(endpoint, AzureKeyCredential(key))
+    client = DocumentIntelligenceClient(
+        endpoint,
+        AzureKeyCredential(key),
+        api_version=API_VERSION,
+    )
 
     emit("stage.phase", jobId=job_id, stageRunId=stage_run_id, phase="parsing")
-    features = (
-        [DocumentAnalysisFeature.OCR_HIGH_RESOLUTION]
-        if options["highResolution"]
-        else []
-    )
     analyze_kwargs = {
-        "output_content_format": DocumentContentFormat.MARKDOWN,
-        "features": features,
+        "output_content_format": DocumentContentFormat(
+            options["outputContentFormat"]
+        ),
+        "string_index_type": StringIndexType(options["stringIndexType"]),
+        "features": [
+            DocumentAnalysisFeature(value) for value in options["features"]
+        ],
     }
+    if options.get("pages"):
+        analyze_kwargs["pages"] = options["pages"]
     if options["locale"] != "auto":
         analyze_kwargs["locale"] = options["locale"]
+    if options["queryFields"]:
+        analyze_kwargs["query_fields"] = options["queryFields"]
+    if options["output"]:
+        analyze_kwargs["output"] = [
+            AnalyzeOutputOption(value) for value in options["output"]
+        ]
     with source_path.open("rb") as handle:
         poller = client.begin_analyze_document(
-            "prebuilt-layout",
+            MODEL_ID,
             body=handle,
             content_type="application/octet-stream",
             **analyze_kwargs,
@@ -339,8 +434,14 @@ def run() -> None:
 
     emit("stage.phase", jobId=job_id, stageRunId=stage_run_id, phase="normalizing")
 
-    # Preserve raw outputs untouched: the markdown Azure returned and the
-    # per-page word polygons used for alignment.
+    # Preserve the complete SDK result before normalization. The exact service
+    # Markdown and a geometry-focused view remain separate artifacts for direct
+    # inspection and stable evidence pointers.
+    raw_result = raw_dir / "azure-di-result.json"
+    raw_result.write_text(
+        json.dumps(result.as_dict(), ensure_ascii=False, indent=2) + "\n",
+        "utf-8",
+    )
     raw_markdown = raw_dir / "azure-di.md"
     raw_markdown.write_text(content, "utf-8")
     raw_words = raw_dir / "azure-di-words.json"
@@ -366,6 +467,22 @@ def run() -> None:
         ),
         "utf-8",
     )
+
+    figure_artifacts = []
+    if AnalyzeOutputOption.FIGURES.value in options["output"]:
+        operation_id = poller.details["operation_id"]
+        for index, figure in enumerate(result.figures or []):
+            if not figure.id:
+                continue
+            figure_path = raw_dir / f"azure-di-figure-{index + 1}.png"
+            response = client.get_analyze_result_figure(
+                model_id=result.model_id,
+                result_id=operation_id,
+                figure_id=figure.id,
+            )
+            with figure_path.open("wb") as writer:
+                writer.writelines(response)
+            figure_artifacts.append(file_descriptor(figure_path, "image/png"))
 
     canonical, _markdown, block_count, region_count = build_canonical(
         content=content,
@@ -402,8 +519,10 @@ def run() -> None:
             primary_path, "application/vnd.parser-arena.parsed-document+json"
         ),
         "rawArtifacts": [
+            file_descriptor(raw_result, "application/json"),
             file_descriptor(raw_words, "application/json"),
             file_descriptor(raw_markdown, "text/markdown"),
+            *figure_artifacts,
         ],
         "timing": {
             "startedAt": started_at.isoformat(),
