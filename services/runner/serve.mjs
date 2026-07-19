@@ -13,6 +13,7 @@ import {
   runnerAllowedOrigins,
   runnerCorsPolicy,
 } from "./origin-policy.mjs";
+import { componentAvailability } from "./component-availability.mjs";
 import { runComponent } from "./run-local.mjs";
 
 const PORT = Number(process.env.PARSER_ARENA_RUNNER_PORT ?? 8799);
@@ -68,15 +69,18 @@ async function componentInfo(componentId) {
   } catch {
     // A component without a readable options schema simply renders no form.
   }
+  const imageAvailable = inspect.status === 0;
+  const requirements = manifest.spec.requirements ?? {};
   return {
     id: manifest.metadata.id,
     version: manifest.metadata.version,
     upstreamVersion: manifest.metadata.upstreamVersion,
     displayName: manifest.metadata.displayName,
     image,
-    imageAvailable: inspect.status === 0,
+    imageAvailable,
     capabilities: manifest.spec.capabilities ?? {},
-    requirements: manifest.spec.requirements ?? {},
+    requirements,
+    availability: componentAvailability({ imageAvailable, requirements }),
     optionsSchema,
   };
 }
@@ -85,6 +89,18 @@ async function handleParse(request, componentId, corsHeaders) {
   const path = manifestPath(componentId);
   if (!path) {
     return json(404, { error: `Unknown component: ${componentId}` }, corsHeaders);
+  }
+
+  const component = await componentInfo(componentId);
+  if (!component.availability.runnable) {
+    return json(
+      409,
+      {
+        error: "Component is not runnable on this runner.",
+        availability: component.availability,
+      },
+      corsHeaders,
+    );
   }
 
   const bytes = new Uint8Array(await request.arrayBuffer());
