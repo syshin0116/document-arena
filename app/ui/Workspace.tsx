@@ -3,6 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
+  memo,
   type ReactNode,
   useCallback,
   useEffect,
@@ -2081,7 +2082,7 @@ const PAGE_BREAK_RE = /<!--\s*PageBreak\s*-->/i;
 // shows the string verbatim. This is not geometry-linked — hover lives in the
 // Blocks view — so it stays a faithful rendering of exactly what the parser
 // wrote, escapes and all (e.g. Azure DI's "2022\. 11\." renders as "2022. 11.").
-function MarkdownView({
+const MarkdownView = memo(function MarkdownView({
   mode,
   result,
   parserName = "OpenDataLoader",
@@ -2145,12 +2146,12 @@ function MarkdownView({
       )}
     </article>
   );
-}
+});
 
 // The Blocks · Raw view: the canonical blocks exactly as the adapter emitted
 // them, as pretty-printed JSON. This is the honest structured form behind the
 // Blocks · Rendered reading view.
-function BlockRawView({
+const BlockRawView = memo(function BlockRawView({
   result,
   parserName = "OpenDataLoader",
   letter = "A",
@@ -2182,7 +2183,7 @@ function BlockRawView({
       <pre className="markdown-raw">{json}</pre>
     </article>
   );
-}
+});
 
 // Inline-only Markdown for one block's text: **bold**, *italic*, `code`,
 // ~~strike~~, [text](url). We render each block's text inline (never as a
@@ -2233,9 +2234,13 @@ function renderInlineMarkdown(text: string, keyPrefix = "i"): ReactNode[] {
   return nodes;
 }
 
-function InlineMarkdown({ text }: { text: string }) {
+const InlineMarkdown = memo(function InlineMarkdown({
+  text,
+}: {
+  text: string;
+}) {
   return <>{renderInlineMarkdown(text)}</>;
-}
+});
 
 // The Blocks · Rendered view: the parser's canonical blocks reconstructed into
 // a document (real headings and tables), spanning every page, with per-block
