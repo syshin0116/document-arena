@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parser-arena.dev/schemas/parsed-document.v1alpha1.json",
+  "$defs": {
+    "bbox": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      ],
+      "items": false
+    },
+    "sourceRegion": {
+      "type": "object",
+      "required": [
+        "pageNumber",
+        "bbox",
+        "provenance",
+        "native"
+      ],
+      "properties": {
+        "pageNumber": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bbox": {
+          "$ref": "#/$defs/bbox"
+        },
+        "provenance": {
+          "const": "native"
+        },
+        "native": {
+          "type": "object",
+          "required": [
+            "bbox",
+            "coordinateSystem",
+            "artifactId",
+            "jsonPointer"
+          ],
+          "properties": {
+            "bbox": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "coordinateSystem": {
+              "const": "pdf-bottom-left-points"
+            },
+            "artifactId": {
+              "type": "string"
+            },
+            "jsonPointer": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "sourceArtifactRef",
+    "parser",
+    "metadata",
+    "markdown",
+    "pages",
+    "rawArtifactRefs"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "parser-arena.dev/parsed-document/v1alpha1"
+    },
+    "sourceArtifactRef": {
+      "type": "string"
+    },
+    "parser": {
+      "type": "object"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "markdown": {
+      "type": "string"
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pageNumber",
+          "width",
+          "height",
+          "blocks"
+        ],
+        "properties": {
+          "pageNumber": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "width": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "height": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "kind",
+                "readingOrder",
+                "rawArtifactRef",
+                "rawJsonPointer"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "readingOrder": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sourceRegions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/sourceRegion"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "rawArtifactRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

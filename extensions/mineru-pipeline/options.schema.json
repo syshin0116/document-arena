@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parser-arena.dev/schemas/extensions/mineru-pipeline/options.json",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "lang": {
+      "description": "OCR language hint. Improves recognition on scanned pages; ignored for digital text.",
+      "type": "string",
+      "enum": [
+        "auto",
+        "ch",
+        "en",
+        "korean",
+        "japan",
+        "chinese_cht",
+        "latin"
+      ],
+      "default": "auto"
+    },
+    "formula": {
+      "description": "Enable formula parsing.",
+      "type": "boolean",
+      "default": true
+    },
+    "table": {
+      "description": "Enable table structure parsing.",
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

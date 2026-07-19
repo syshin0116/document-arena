@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parser-arena.dev/schemas/extensions/azure-di/options.json",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "locale": {
+      "description": "OCR locale hint; improves recognition on scanned pages.",
+      "type": "string",
+      "enum": [
+        "auto",
+        "ko-KR",
+        "en-US",
+        "ja-JP",
+        "zh-Hans"
+      ],
+      "default": "ko-KR"
+    },
+    "highResolution": {
+      "description": "Enable OCR_HIGH_RESOLUTION for dense or small text.",
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

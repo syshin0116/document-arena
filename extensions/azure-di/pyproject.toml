@@ -1,0 +1,12 @@
+[project]
+name = "parser-arena-azure-di"
+version = "0.1.0"
+description = "Parser Arena Azure Document Intelligence adapter (oci-batch/v1)"
+requires-python = ">=3.11"
+dependencies = [
+    "azure-ai-documentintelligence==1.0.2",
+]
+
+[tool.uv]
+# The adapter also uses only stdlib beyond the Azure SDK; this pins the SDK
+# tree for the container build.

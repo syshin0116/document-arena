@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parser-arena.dev/schemas/stage-request.v1alpha1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "jobId",
+    "stageRunId",
+    "component",
+    "source",
+    "rawArtifactId",
+    "options"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "parser-arena.dev/stage-request/v1alpha1"
+    },
+    "jobId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stageRunId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "component": {
+      "type": "object",
+      "required": [
+        "id",
+        "version",
+        "image",
+        "imageDigest"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "imageDigest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "artifactId",
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "artifactId": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "rawArtifactId": {
+      "type": "string"
+    },
+    "options": {
+      "type": "object"
+    }
+  }
+}

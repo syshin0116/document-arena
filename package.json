@@ -1,0 +1,44 @@
+{
+  "name": "parser-arena",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "bun@1.3.10",
+  "engines": {
+    "node": "24.x",
+    "bun": ">=1.3.10"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "dev:container": "next dev --hostname 0.0.0.0 --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "test": "bun run build && bun test tests",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "typecheck": "tsc --noEmit",
+    "parser:fixture": "bun fixtures/generate-smoke-pdf.mjs",
+    "parser:build:opendataloader": "docker build -t parser-arena/opendataloader-pdf:2.5.0 extensions/opendataloader-pdf",
+    "parser:run:opendataloader": "bun services/runner/run-local.mjs --manifest extensions/opendataloader-pdf/component.json"
+  },
+  "dependencies": {
+    "next": "16.2.6",
+    "pdfjs-dist": "5.4.296",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "react-markdown": "^10.1.0",
+    "react-pdf": "10.4.1",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.2.1",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "4.2.1",
+    "typescript": "5.9.3"
+  },
+  "type": "module"
+}

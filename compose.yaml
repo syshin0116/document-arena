@@ -1,0 +1,41 @@
+name: parser-arena
+
+services:
+  web:
+    image: parser-arena/web-dev:local
+    build:
+      context: .
+      dockerfile: infra/docker/web-dev.Dockerfile
+    init: true
+    user: "${PARSER_ARENA_UID:-1000}:${PARSER_ARENA_GID:-1000}"
+    working_dir: /workspace
+    command: ["sh", "/workspace/infra/scripts/web-dev.sh"]
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "127.0.0.1:${PARSER_ARENA_WEB_PORT:-3000}:3000"
+    volumes:
+      # Next.js dev refreshes next-env.d.ts, so the HMR source bind must be
+      # writable. Dependency and build output remain isolated in named volumes.
+      - .:/workspace
+      - web-node-modules:/workspace/node_modules
+      - web-next:/workspace/.next
+      - bun-cache:/tmp/parser-arena-home/.bun/install/cache
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "const response = await fetch('http://127.0.0.1:3000'); process.exit(response.ok ? 0 : 1)",
+        ]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 30s
+    stop_grace_period: 10s
+
+volumes:
+  web-node-modules:
+  web-next:
+  bun-cache:

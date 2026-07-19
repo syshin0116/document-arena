@@ -1,0 +1,54 @@
+{
+  "apiVersion": "parser-arena.dev/catalog/v1alpha1",
+  "kind": "CatalogEntry",
+  "componentId": "opendataloader-pdf",
+  "componentVersion": "0.1.0",
+  "upstreamVersion": "2.5.0",
+  "role": "parser",
+  "displayName": "OpenDataLoader PDF",
+  "summary": "Fast deterministic CPU baseline with native element geometry.",
+  "imageDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "capabilities": {
+    "digitalPdf": true,
+    "ocr": false,
+    "geometry": "native",
+    "tables": true,
+    "readingOrder": true,
+    "progress": {
+      "mode": "phase",
+      "partialResults": "none"
+    }
+  },
+  "requirements": {
+    "gpu": false,
+    "network": "none",
+    "memoryMiB": 2048,
+    "cpus": 2
+  },
+  "maturity": "stable",
+  "availability": [
+    "local",
+    "self-host",
+    "hosted"
+  ],
+  "recommended": true,
+  "profiles": [
+    {
+      "id": "deterministic",
+      "revision": 1,
+      "displayName": "Deterministic digital PDF",
+      "summary": "Native digital-PDF extraction; hybrid, OCR, images, and network stay disabled.",
+      "optionsPatch": {
+        "mode": "digital",
+        "threads": 1
+      },
+      "default": true
+    }
+  ],
+  "license": {
+    "spdx": "Apache-2.0",
+    "reviewed": false,
+    "attributionRequired": false,
+    "notes": "Placeholder digest and unreviewed license flag: this example documents the entry shape; a real registry entry pins the reviewed image digest and license review result."
+  }
+}

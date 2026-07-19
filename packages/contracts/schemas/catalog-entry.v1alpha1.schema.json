@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parser-arena.dev/schemas/catalog-entry.v1alpha1.json",
+  "description": "One reviewed, runnable component in the served catalog. An entry is derived from a component manifest plus registry-level review metadata; it never contains secrets or runner-local paths.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "componentId",
+    "componentVersion",
+    "role",
+    "displayName",
+    "imageDigest",
+    "capabilities",
+    "requirements",
+    "maturity",
+    "availability",
+    "profiles",
+    "license"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "parser-arena.dev/catalog/v1alpha1"
+    },
+    "kind": {
+      "const": "CatalogEntry"
+    },
+    "componentId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "componentVersion": {
+      "type": "string"
+    },
+    "upstreamVersion": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "preprocessor",
+        "parser",
+        "postprocessor",
+        "chunker",
+        "embedder",
+        "vector-store",
+        "evaluator"
+      ]
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string",
+      "description": "One user-facing sentence for the slot dropdown."
+    },
+    "imageDigest": {
+      "type": "string",
+      "description": "Immutable resolved executor image digest pinned at review time; the manifest may name a tag, the catalog must not.",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "capabilities": {
+      "type": "object",
+      "description": "Copied from the component manifest. Descriptive only; parser/OCR/VLM is expressed here (ocr, geometry, gpu), never as a separate entry type."
+    },
+    "requirements": {
+      "type": "object",
+      "description": "Copied from the component manifest (gpu, network, memory, connections)."
+    },
+    "connectionTypes": {
+      "type": "array",
+      "description": "Connection types the component consumes (for example llm-api). Which concrete provider/model is used comes from the user's named connection, never from the catalog.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "maturity": {
+      "type": "string",
+      "enum": [
+        "stable",
+        "experimental",
+        "license-gated"
+      ],
+      "description": "Experimental entries surface with a non-default flag; license-gated entries are visible but not runnable on the hosted service."
+    },
+    "availability": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "local",
+          "self-host",
+          "hosted"
+        ]
+      }
+    },
+    "recommended": {
+      "type": "boolean",
+      "description": "Preselected profile owner in the slot dropdown; at most one recommended entry per role and document class."
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "revision",
+          "displayName"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Bumped whenever the resolved option patch changes; part of the candidate fingerprint."
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "optionsPatch": {
+            "type": "object",
+            "description": "Reviewed option values applied over schema defaults. Must validate against the component's options schema."
+          },
+          "default": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewed"
+      ],
+      "properties": {
+        "spdx": {
+          "type": "string"
+        },
+        "reviewed": {
+          "type": "boolean",
+          "description": "True only after the upstream code, model weights, and bundled assets were reviewed together."
+        },
+        "attributionRequired": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "docsUrl": {
+      "type": "string",
+      "format": "uri"
+    }
+  }
+}

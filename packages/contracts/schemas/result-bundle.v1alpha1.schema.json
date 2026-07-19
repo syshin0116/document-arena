@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parser-arena.dev/schemas/result-bundle.v1alpha1.json",
+  "$defs": {
+    "file": {
+      "type": "object",
+      "required": [
+        "path",
+        "mediaType",
+        "sizeBytes",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "mediaType": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    }
+  },
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "status",
+    "jobId",
+    "stageRunId",
+    "component",
+    "source",
+    "progress",
+    "primary",
+    "rawArtifacts",
+    "timing"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "parser-arena.dev/result-bundle/v1alpha1"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "jobId": {
+      "type": "string"
+    },
+    "stageRunId": {
+      "type": "string"
+    },
+    "component": {
+      "type": "object"
+    },
+    "source": {
+      "type": "object"
+    },
+    "progress": {
+      "type": "object",
+      "required": [
+        "mode",
+        "partialResults"
+      ],
+      "properties": {
+        "mode": {
+          "const": "phase"
+        },
+        "partialResults": {
+          "const": "none"
+        }
+      }
+    },
+    "primary": {
+      "$ref": "#/$defs/file"
+    },
+    "rawArtifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/file"
+      },
+      "minItems": 1
+    },
+    "timing": {
+      "type": "object"
+    }
+  }
+}

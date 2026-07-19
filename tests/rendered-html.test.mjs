@@ -1,0 +1,210 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { resolve } from "node:path";
+import { after, before, test } from "node:test";
+
+const root = resolve(import.meta.dirname, "..");
+let appOrigin;
+let nextServer;
+let serverOutput = "";
+
+function startNextServer() {
+  nextServer = spawn(
+    "bun",
+    [
+      "run",
+      "start",
+      "--",
+      "--hostname",
+      "127.0.0.1",
+      "--port",
+      "0",
+    ],
+    {
+      cwd: root,
+      env: { ...process.env, NODE_ENV: "production" },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  return new Promise((resolveOrigin, reject) => {
+    let checking = false;
+    let settled = false;
+    const timeout = setTimeout(() => {
+      fail(
+        new Error(
+          `Next.js did not become ready within 20 seconds.\n${serverOutput}`,
+        ),
+      );
+    }, 20_000);
+
+    function finish(callback) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    }
+
+    function fail(error) {
+      finish(() => reject(error));
+    }
+
+    async function waitUntilReachable(origin) {
+      const deadline = Date.now() + 15_000;
+      while (!settled && Date.now() < deadline) {
+        try {
+          const response = await fetch(origin);
+          await response.body?.cancel();
+          finish(() => resolveOrigin(origin));
+          return;
+        } catch {
+          await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
+        }
+      }
+      if (!settled) {
+        fail(new Error(`Next.js was not reachable.\n${serverOutput}`));
+      }
+    }
+
+    function collect(chunk) {
+      serverOutput += chunk.toString();
+      if (checking) return;
+      const match = serverOutput.match(
+        /https?:\/\/(?:127\.0\.0\.1|localhost):(\d+)/,
+      );
+      if (!match) return;
+      checking = true;
+      void waitUntilReachable(`http://127.0.0.1:${match[1]}`);
+    }
+
+    nextServer.stdout.on("data", collect);
+    nextServer.stderr.on("data", collect);
+    nextServer.once("error", fail);
+    nextServer.once("exit", (code, signal) => {
+      if (!settled) {
+        fail(
+          new Error(
+            `Next.js exited before it became ready (${code ?? signal}).\n${serverOutput}`,
+          ),
+        );
+      }
+    });
+  });
+}
+
+before(async () => {
+  appOrigin = await startNextServer();
+});
+
+after(async () => {
+  if (!nextServer || nextServer.exitCode !== null) return;
+
+  const exited = once(nextServer, "exit");
+  nextServer.kill("SIGTERM");
+  let shutdownTimer;
+  const forced = await Promise.race([
+    exited.then(() => {
+      clearTimeout(shutdownTimer);
+      return false;
+    }),
+    new Promise((resolveTimeout) =>
+      (shutdownTimer = setTimeout(() => resolveTimeout(true), 5_000)),
+    ),
+  ]);
+  if (forced && nextServer.exitCode === null) {
+    nextServer.kill("SIGKILL");
+    await once(nextServer, "exit");
+  }
+});
+
+async function requestApp(path = "/", init = {}) {
+  return fetch(`${appOrigin}${path}`, {
+    ...init,
+    headers: { accept: "text/html", ...init.headers },
+  });
+}
+
+function render(path = "/") {
+  return requestApp(path);
+}
+
+test("server-renders the focused PDF upload experience", async () => {
+  const response = await render();
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+
+  const html = await response.text();
+  assert.match(html, /<title>Parser Arena · Compare document parsers<\/title>/i);
+  assert.match(html, /See what your parser actually saw/);
+  assert.match(html, /Drop a PDF here/);
+  assert.match(html, /type="file"/);
+  assert.match(html, /accept="application\/pdf,.pdf"/);
+  assert.match(html, /Blind-battle votes stay on this\s*device too/);
+  assert.match(html, /href="\/arena"/);
+  assert.match(html, /href="\/leaderboard"/);
+  assert.doesNotMatch(html, /OpenDataLoader|MinerU/);
+  assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
+});
+
+test("server-renders the source-linked demo workspace", async () => {
+  const response = await render("/documents/demo");
+  assert.equal(response.status, 200);
+
+  const html = await response.text();
+  assert.match(html, /attention-is-all-you-need\.pdf/);
+  assert.match(html, /Source PDF/);
+  assert.match(html, /Original file/);
+  assert.match(html, /OpenDataLoader/);
+  assert.match(html, /Loading source PDF/);
+  assert.match(html, /Starting the local PDF renderer/);
+  assert.match(html, /Run another parser/);
+  assert.doesNotMatch(html, /Hover either side/);
+  assert.doesNotMatch(html, /Parsed result</);
+  assert.doesNotMatch(html, /Parser-native source regions/);
+  assert.doesNotMatch(html, /aria-label="Highlight parsed Document title"/);
+});
+
+test("server-renders the blind arena intro", async () => {
+  const response = await render("/arena");
+  assert.equal(response.status, 200);
+
+  const html = await response.text();
+  assert.match(html, /Two parsers\. No labels\. Your call\./);
+  assert.match(html, /Start a sample battle/);
+  assert.doesNotMatch(html, /Candidate A/);
+});
+
+test("server-renders the leaderboard with a device-local empty state", async () => {
+  const response = await render("/leaderboard");
+  assert.equal(response.status, 200);
+
+  const html = await response.text();
+  assert.match(html, /Who wins blind votes\?/);
+  assert.match(html, /No blind votes yet\./);
+  assert.match(html, /Methodology/);
+});
+
+test("built demo content endpoint serves complete and ranged PDF bytes", async () => {
+  const complete = await requestApp("/v1/documents/demo/content", {
+    headers: { accept: "application/pdf" },
+  });
+  assert.equal(complete.status, 200);
+  assert.equal(complete.headers.get("content-type"), "application/pdf");
+  assert.equal(complete.headers.get("accept-ranges"), "bytes");
+  const size = Number(complete.headers.get("content-length"));
+  const completeBytes = new Uint8Array(await complete.arrayBuffer());
+  assert.equal(completeBytes.length, size);
+  assert.equal(new TextDecoder().decode(completeBytes.slice(0, 8)), "%PDF-1.4");
+
+  const ranged = await requestApp("/v1/documents/demo/content", {
+    headers: { accept: "application/pdf", range: "bytes=0-7" },
+  });
+  assert.equal(ranged.status, 206);
+  assert.equal(ranged.headers.get("content-range"), `bytes 0-7/${size}`);
+  assert.equal(ranged.headers.get("content-length"), "8");
+  assert.equal(
+    new TextDecoder().decode(await ranged.arrayBuffer()),
+    "%PDF-1.4",
+  );
+});

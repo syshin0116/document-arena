@@ -1,0 +1,15 @@
+{
+  "name": "@parser-arena/extension-opendataloader-pdf",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "bun@1.3.10",
+  "type": "module",
+  "engines": {
+    "bun": ">=1.3.10",
+    "node": ">=22.13.0"
+  },
+  "dependencies": {
+    "@opendataloader/pdf": "2.5.0",
+    "pdfjs-dist": "6.1.200"
+  }
+}

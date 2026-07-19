@@ -1,0 +1,50 @@
+{
+  "apiVersion": "parser-arena.dev/component/v1alpha1",
+  "kind": "Component",
+  "metadata": {
+    "id": "azure-di",
+    "version": "0.1.0",
+    "displayName": "Azure Document Intelligence",
+    "upstreamVersion": "prebuilt-layout"
+  },
+  "spec": {
+    "role": "parser",
+    "accepts": [
+      "parser-arena/source-document@v1alpha1"
+    ],
+    "produces": "parser-arena/parsed-document@v1alpha1",
+    "executor": {
+      "protocol": "oci-batch/v1",
+      "image": "parser-arena/azure-di:0.1.0"
+    },
+    "optionsSchema": "./options.schema.json",
+    "capabilities": {
+      "digitalPdf": true,
+      "ocr": true,
+      "geometry": "native",
+      "tables": true,
+      "readingOrder": true,
+      "progress": {
+        "mode": "phase",
+        "partialResults": "none"
+      }
+    },
+    "requirements": {
+      "gpu": false,
+      "network": "remote",
+      "memoryMiB": 2048,
+      "cpus": 2,
+      "connection": {
+        "type": "azure-di",
+        "fields": [
+          "endpoint",
+          "key"
+        ],
+        "env": {
+          "endpoint": "AZURE_DI_ENDPOINT",
+          "key": "AZURE_DI_KEY"
+        }
+      }
+    }
+  }
+}

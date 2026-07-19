@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parser-arena.dev/schemas/extensions/opendataloader-pdf/options.v1.json",
+  "title": "OpenDataLoader PDF deterministic options",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "pages": {
+      "type": "string",
+      "pattern": "^[0-9,-]+$",
+      "description": "Optional 1-indexed page selection such as 1,3,5-7."
+    },
+    "tableMethod": {
+      "type": "string",
+      "enum": [
+        "default",
+        "cluster"
+      ],
+      "default": "default"
+    },
+    "readingOrder": {
+      "type": "string",
+      "enum": [
+        "xycut",
+        "off"
+      ],
+      "default": "xycut"
+    },
+    "includeHeaderFooter": {
+      "type": "boolean",
+      "default": false
+    },
+    "useStructTree": {
+      "type": "boolean",
+      "default": false
+    },
+    "detectStrikethrough": {
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

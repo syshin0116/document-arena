@@ -1,0 +1,39 @@
+{
+  "apiVersion": "parser-arena.dev/component/v1alpha1",
+  "kind": "Component",
+  "metadata": {
+    "id": "mineru-pipeline",
+    "version": "0.1.0",
+    "displayName": "MinerU Pipeline",
+    "upstreamVersion": "3.4.4"
+  },
+  "spec": {
+    "role": "parser",
+    "accepts": [
+      "parser-arena/source-document@v1alpha1"
+    ],
+    "produces": "parser-arena/parsed-document@v1alpha1",
+    "executor": {
+      "protocol": "oci-batch/v1",
+      "image": "parser-arena/mineru-pipeline:3.4.4"
+    },
+    "optionsSchema": "./options.schema.json",
+    "capabilities": {
+      "digitalPdf": true,
+      "ocr": true,
+      "geometry": "native",
+      "tables": true,
+      "readingOrder": true,
+      "progress": {
+        "mode": "phase",
+        "partialResults": "none"
+      }
+    },
+    "requirements": {
+      "gpu": false,
+      "network": "none",
+      "memoryMiB": 8192,
+      "cpus": 4
+    }
+  }
+}

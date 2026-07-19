@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parser-arena.dev/schemas/component-manifest.v1alpha1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "parser-arena.dev/component/v1alpha1"
+    },
+    "kind": {
+      "const": "Component"
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "id",
+        "version",
+        "displayName"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "version": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "upstreamVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": [
+        "role",
+        "accepts",
+        "produces",
+        "executor",
+        "capabilities",
+        "requirements"
+      ],
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "accepts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "produces": {
+          "type": "string"
+        },
+        "executor": {
+          "type": "object",
+          "required": [
+            "protocol",
+            "image"
+          ],
+          "properties": {
+            "protocol": {
+              "const": "oci-batch/v1"
+            },
+            "image": {
+              "type": "string"
+            }
+          }
+        },
+        "optionsSchema": {
+          "type": "string"
+        },
+        "capabilities": {
+          "type": "object"
+        },
+        "requirements": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}
