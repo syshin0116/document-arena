@@ -32,7 +32,7 @@
     "requirements": {
       "gpu": false,
       "network": "none",
-      "memoryMiB": 8192,
+      "memoryMiB": 16384,
       "cpus": 4
     }
   }

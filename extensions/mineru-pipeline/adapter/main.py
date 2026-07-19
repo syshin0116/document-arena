@@ -43,7 +43,37 @@ KIND_BY_TYPE = {
     "algorithm": "code",
 }
 
-ALLOWED_LANGS = ["auto", "ch", "en", "korean", "japan", "chinese_cht", "latin"]
+ALLOWED_METHODS = {"auto", "txt", "ocr"}
+ALLOWED_LANGS = {
+    "ch",
+    "ch_server",
+    "korean",
+    "ta",
+    "te",
+    "ka",
+    "th",
+    "el",
+    "arabic",
+    "east_slavic",
+    "cyrillic",
+    "devanagari",
+}
+FIXED_OPTIONS = {
+    "inputPath": "stage-source",
+    "outputDirectory": "runner-workspace",
+    "backend": "pipeline",
+    "device": "cpu",
+    "modelSource": "local",
+}
+UNAVAILABLE_OPTIONS = {
+    "apiUrl",
+    "effort",
+    "serverUrl",
+    "startPage",
+    "endPage",
+    "imageAnalysis",
+    "clientSideOutputGeneration",
+}
 
 
 def emit(event_type: str, **fields: object) -> None:
@@ -86,32 +116,92 @@ def resolve_options(raw: object) -> dict:
     options = raw or {}
     if not isinstance(options, dict):
         raise ValueError("Request options must be an object.")
-    allowed = {"lang", "formula", "table"}
+    configurable = {
+        "method",
+        "lang",
+        "formula",
+        "table",
+        "chineseFormula",
+        "mergeCrossPageTables",
+        "pdfRenderTimeoutSeconds",
+        "pdfRenderThreads",
+        "processingWindowSize",
+        "intraOpThreads",
+        "interOpThreads",
+    }
+    allowed = configurable | FIXED_OPTIONS.keys() | UNAVAILABLE_OPTIONS
     for key in options:
         if key not in allowed:
             raise ValueError(f"Unsupported option: {key}")
-    lang = options.get("lang", "auto")
+
+    selected_unavailable = sorted(UNAVAILABLE_OPTIONS.intersection(options))
+    if selected_unavailable:
+        raise ValueError(
+            "Options unavailable in the pipeline profile: "
+            + ", ".join(selected_unavailable)
+        )
+
+    for key, fixed_value in FIXED_OPTIONS.items():
+        if key in options and options[key] != fixed_value:
+            raise ValueError(f"Option {key} is fixed to {fixed_value}.")
+
+    method = options.get("method", "auto")
+    if method not in ALLOWED_METHODS:
+        raise ValueError("Invalid method option.")
+
+    lang = options.get("lang", "ch")
     if lang not in ALLOWED_LANGS:
         raise ValueError("Invalid lang option.")
     formula = options.get("formula", True)
     table = options.get("table", True)
-    if not isinstance(formula, bool) or not isinstance(table, bool):
-        raise ValueError("Invalid formula/table option.")
-    return {
-        "backend": "pipeline",
-        "method": "auto",
-        "device": "cpu",
-        "lang": lang,
+    chinese_formula = options.get("chineseFormula", False)
+    merge_cross_page_tables = options.get("mergeCrossPageTables", True)
+    boolean_options = {
         "formula": formula,
         "table": table,
+        "chineseFormula": chinese_formula,
+        "mergeCrossPageTables": merge_cross_page_tables,
+    }
+    if any(not isinstance(value, bool) for value in boolean_options.values()):
+        raise ValueError("Invalid boolean option.")
+
+    positive_integers = {
+        "pdfRenderTimeoutSeconds": options.get("pdfRenderTimeoutSeconds", 300),
+        "pdfRenderThreads": options.get("pdfRenderThreads", 3),
+        "processingWindowSize": options.get("processingWindowSize", 64),
+    }
+    if any(
+        type(value) is not int or value < 1
+        for value in positive_integers.values()
+    ):
+        raise ValueError("Render and processing values must be positive integers.")
+
+    runtime_threads = {
+        "intraOpThreads": options.get("intraOpThreads", -1),
+        "interOpThreads": options.get("interOpThreads", -1),
+    }
+    if any(
+        type(value) is not int or value == 0 or value < -1
+        for value in runtime_threads.values()
+    ):
+        raise ValueError("Runtime thread values must be -1 or positive integers.")
+
+    return {
+        **FIXED_OPTIONS,
+        "method": method,
+        "lang": lang,
+        **boolean_options,
+        **positive_integers,
+        **runtime_threads,
     }
 
 
-def find_auto_dir(work_dir: Path) -> Path:
-    candidates = [path for path in work_dir.glob("*/auto") if path.is_dir()]
+def find_method_dir(work_dir: Path, method: str) -> Path:
+    candidates = [path for path in work_dir.glob(f"*/{method}") if path.is_dir()]
     if len(candidates) != 1:
         raise RuntimeError(
-            f"Expected exactly one MinerU auto output directory, found {len(candidates)}."
+            f"Expected exactly one MinerU {method} output directory, "
+            f"found {len(candidates)}."
         )
     return candidates[0]
 
@@ -362,20 +452,33 @@ def run() -> None:
         "-o",
         str(work_dir),
         "-b",
-        "pipeline",
+        options["backend"],
         "-m",
         options["method"],
-        "-d",
-        options["device"],
-        "--source",
-        "local",
         "-f",
         "true" if options["formula"] else "false",
         "-t",
         "true" if options["table"] else "false",
+        "-l",
+        options["lang"],
     ]
-    if options["lang"] != "auto":
-        command += ["-l", options["lang"]]
+
+    process_env = os.environ.copy()
+    process_env.update(
+        {
+            "MINERU_DEVICE_MODE": options["device"],
+            "MINERU_MODEL_SOURCE": options["modelSource"],
+            "MINERU_FORMULA_CH_SUPPORT": str(options["chineseFormula"]).lower(),
+            "MINERU_TABLE_MERGE_ENABLE": str(
+                options["mergeCrossPageTables"]
+            ).lower(),
+            "MINERU_PDF_RENDER_TIMEOUT": str(options["pdfRenderTimeoutSeconds"]),
+            "MINERU_PDF_RENDER_THREADS": str(options["pdfRenderThreads"]),
+            "MINERU_PROCESSING_WINDOW_SIZE": str(options["processingWindowSize"]),
+            "MINERU_INTRA_OP_NUM_THREADS": str(options["intraOpThreads"]),
+            "MINERU_INTER_OP_NUM_THREADS": str(options["interOpThreads"]),
+        }
+    )
 
     # Stream MinerU's own progress lines (tqdm stage bars such as
     # "Layout Predict: ... 3/10") and relay them as stage.progress events.
@@ -391,6 +494,7 @@ def run() -> None:
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
+        env=process_env,
     )
     tail: list[str] = []
     last_progress = None
@@ -439,10 +543,10 @@ def run() -> None:
         )
 
     emit("stage.phase", jobId=job_id, stageRunId=stage_run_id, phase="normalizing")
-    auto_dir = find_auto_dir(work_dir)
-    markdown_src = single_output(auto_dir, ".md")
-    middle_src = single_output(auto_dir, "_middle.json")
-    content_src = single_output(auto_dir, "_content_list.json")
+    method_dir = find_method_dir(work_dir, options["method"])
+    markdown_src = single_output(method_dir, ".md")
+    middle_src = single_output(method_dir, "_middle.json")
+    content_src = single_output(method_dir, "_content_list.json")
 
     raw_markdown = raw_dir / "mineru.md"
     raw_middle = raw_dir / "mineru-middle.json"

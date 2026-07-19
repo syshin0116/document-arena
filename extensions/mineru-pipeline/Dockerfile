@@ -44,7 +44,7 @@ COPY adapter/ ./adapter/
 LABEL org.opencontainers.image.title="Parser Arena MinerU Pipeline adapter"
 LABEL parser-arena.component.id="mineru-pipeline"
 LABEL parser-arena.component.version="0.1.0"
-LABEL parser-arena.upstream.version="2.7.6"
+LABEL parser-arena.upstream.version="3.4.4"
 LABEL parser-arena.upstream.source="https://github.com/opendatalab/MinerU"
 
 USER 10001:10001
