@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Document Arena product workflow</title>
+  <style>
+    :root {
+      --canvas: #f3f3f0;
+      --canvas-deep: #e8e9e6;
+      --surface: #ffffff;
+      --surface-subtle: #f8f8f6;
+      --ink: #191a17;
+      --ink-soft: #62655e;
+      --ink-faint: #777a73;
+      --line: rgba(25, 26, 23, 0.11);
+      --line-strong: rgba(25, 26, 23, 0.19);
+      --indigo: #5147c7;
+      --indigo-dark: #4037ad;
+      --indigo-soft: #eceaff;
+      --amber: #b76412;
+      --amber-soft: #fff1dc;
+      --success: #257653;
+      --shadow: 0 1px 2px rgba(25, 26, 23, 0.04), 0 12px 34px rgba(25, 26, 23, 0.055);
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      width: 1600px;
+      height: 900px;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    body {
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(25, 26, 23, 0.026) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(25, 26, 23, 0.026) 1px, transparent 1px),
+        var(--canvas);
+      background-size: 44px 44px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      text-rendering: geometricPrecision;
+    }
+
+    .canvas {
+      position: relative;
+      width: 1600px;
+      height: 900px;
+      padding: 46px 64px 32px;
+    }
+
+    .canvas::before {
+      position: absolute;
+      top: -330px;
+      left: 50%;
+      width: 1020px;
+      height: 620px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0));
+      transform: translateX(-50%);
+      content: "";
+      pointer-events: none;
+    }
+
+    header {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 48px;
+      height: 180px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--ink-soft);
+      font-size: 14px;
+      font-weight: 720;
+      letter-spacing: -0.015em;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px;
+      padding: 6px;
+      border-radius: 9px;
+      background: var(--ink);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+
+    .brand-mark i {
+      display: block;
+      border-radius: 2px;
+      background: #ffffff;
+    }
+
+    .brand-mark i:last-child { background: #938cff; }
+
+    h1 {
+      max-width: 1000px;
+      margin: 17px 0 8px;
+      font-size: 52px;
+      font-weight: 680;
+      letter-spacing: -0.058em;
+      line-height: 0.98;
+    }
+
+    .subtitle {
+      max-width: 1120px;
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 18px;
+      letter-spacing: -0.018em;
+      line-height: 1.45;
+    }
+
+    .scope {
+      display: grid;
+      gap: 9px;
+      min-width: 260px;
+      padding-bottom: 7px;
+      transform: translateY(-16px);
+    }
+
+    .scope-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.74);
+      color: var(--ink-soft);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      letter-spacing: 0.055em;
+      text-transform: uppercase;
+    }
+
+    .scope-row strong { color: var(--ink); }
+    .scope-row:first-child strong { color: var(--success); }
+    .scope-row:last-child strong { color: var(--indigo-dark); }
+
+    .workflow {
+      position: relative;
+      height: 436px;
+      margin-top: 16px;
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: var(--shadow), inset 0 1px rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(18px);
+    }
+
+    .step-lane {
+      display: grid;
+      height: 74px;
+      grid-template-columns: repeat(5, 1fr);
+      border-bottom: 1px solid var(--line);
+      background: rgba(248, 248, 246, 0.82);
+    }
+
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 22px;
+      border-right: 1px solid var(--line);
+    }
+
+    .step:last-child { border-right: 0; }
+
+    .step-num {
+      display: grid;
+      width: 28px;
+      height: 28px;
+      flex: 0 0 auto;
+      place-items: center;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      color: var(--ink-faint);
+      background: var(--surface);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 10px;
+    }
+
+    .step:nth-child(3) .step-num {
+      border-color: var(--indigo);
+      color: #ffffff;
+      background: var(--indigo);
+      box-shadow: 0 0 0 4px rgba(81, 71, 199, 0.1);
+    }
+
+    .step-copy b {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+
+    .step-copy span {
+      display: block;
+      margin-top: 2px;
+      color: var(--ink-faint);
+      font-size: 10px;
+      line-height: 1.25;
+    }
+
+    .flow-body {
+      display: grid;
+      height: 362px;
+      grid-template-columns: 242px 260px minmax(0, 1fr);
+      gap: 46px;
+      padding: 14px 24px 18px;
+    }
+
+    .flow-node {
+      position: relative;
+      min-width: 0;
+    }
+
+    .flow-node:not(:last-child)::after {
+      position: absolute;
+      top: 140px;
+      right: -35px;
+      display: grid;
+      width: 24px;
+      height: 24px;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: var(--ink-faint);
+      background: var(--surface);
+      font-size: 14px;
+      content: "→";
+      box-shadow: 0 2px 7px rgba(25, 26, 23, 0.06);
+    }
+
+    .panel-label {
+      display: flex;
+      height: 28px;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--ink-faint);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 9px;
+      font-weight: 680;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 4px rgba(37, 118, 83, 0.09);
+    }
+
+    .source-card,
+    .runner-card,
+    .inspector {
+      height: 302px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--surface-subtle);
+    }
+
+    .source-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+
+    .document {
+      position: relative;
+      width: 112px;
+      height: 150px;
+      padding: 34px 15px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 12px 24px rgba(25, 26, 23, 0.08);
+      transform: rotate(-2.5deg);
+    }
+
+    .document::before {
+      position: absolute;
+      top: -1px;
+      right: -1px;
+      width: 28px;
+      height: 28px;
+      border-bottom: 1px solid var(--line);
+      border-left: 1px solid var(--line);
+      border-bottom-left-radius: 6px;
+      background: var(--canvas-deep);
+      content: "";
+    }
+
+    .document span {
+      display: block;
+      height: 4px;
+      margin-bottom: 10px;
+      border-radius: 3px;
+      background: #d9d9d5;
+    }
+
+    .document span:nth-child(2) { width: 78%; }
+    .document span:nth-child(4) { width: 88%; }
+
+    .document .bbox {
+      position: absolute;
+      top: 63px;
+      left: 10px;
+      width: 72px;
+      height: 26px;
+      border: 2px solid var(--indigo);
+      border-radius: 3px;
+      background: rgba(81, 71, 199, 0.08);
+    }
+
+    .source-copy {
+      margin-top: 18px;
+      text-align: center;
+    }
+
+    .source-copy b {
+      display: block;
+      font-size: 15px;
+      letter-spacing: -0.025em;
+    }
+
+    .source-copy span {
+      display: block;
+      margin-top: 4px;
+      color: var(--ink-faint);
+      font-size: 10px;
+    }
+
+    .runner-card {
+      padding: 16px;
+      background: var(--canvas-deep);
+    }
+
+    .component {
+      padding: 15px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      background: var(--ink);
+      color: #ffffff;
+      box-shadow: 0 10px 20px rgba(25, 26, 23, 0.13);
+    }
+
+    .component-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .component-name {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+
+    .recommended {
+      padding: 4px 6px;
+      border-radius: 6px;
+      color: #d7d3ff;
+      background: rgba(147, 140, 255, 0.14);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 8px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .component-meta {
+      margin-top: 8px;
+      color: rgba(255, 255, 255, 0.62);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 9px;
+    }
+
+    .component-progress {
+      height: 4px;
+      margin-top: 14px;
+      overflow: hidden;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.13);
+    }
+
+    .component-progress::after {
+      display: block;
+      width: 76%;
+      height: 100%;
+      border-radius: inherit;
+      background: #938cff;
+      content: "";
+    }
+
+    .run-facts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .run-fact {
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .run-fact b {
+      display: block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 9px;
+    }
+
+    .run-fact span {
+      display: block;
+      margin-top: 3px;
+      color: var(--ink-faint);
+      font-size: 8px;
+    }
+
+    .add-component {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      padding: 11px 12px;
+      border: 1px dashed rgba(183, 100, 18, 0.36);
+      border-radius: 10px;
+      color: #754820;
+      background: var(--amber-soft);
+      font-size: 11px;
+      font-weight: 680;
+    }
+
+    .add-component i {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 9px;
+      font-style: normal;
+      font-weight: 500;
+    }
+
+    .inspector {
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .inspector-top {
+      display: flex;
+      height: 45px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 13px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-subtle);
+    }
+
+    .view-tabs {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding: 3px;
+      border-radius: 8px;
+      background: var(--canvas-deep);
+    }
+
+    .view-tabs span {
+      padding: 5px 8px;
+      border-radius: 6px;
+      color: var(--ink-faint);
+      font-size: 8px;
+      font-weight: 680;
+    }
+
+    .view-tabs span:first-child {
+      color: var(--ink);
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(25, 26, 23, 0.09);
+    }
+
+    .raw-tabs {
+      display: flex;
+      gap: 10px;
+      color: var(--ink-faint);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 8px;
+      text-transform: uppercase;
+    }
+
+    .raw-tabs b { color: var(--indigo-dark); }
+
+    .inspector-body {
+      display: grid;
+      height: 256px;
+      grid-template-columns: 176px minmax(0, 1fr);
+    }
+
+    .source-preview {
+      position: relative;
+      border-right: 1px solid var(--line);
+      background: var(--canvas-deep);
+    }
+
+    .mini-page {
+      position: absolute;
+      inset: 14px 27px;
+      padding: 22px 12px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #ffffff;
+      box-shadow: 0 7px 17px rgba(25, 26, 23, 0.07);
+    }
+
+    .mini-page span {
+      display: block;
+      height: 3px;
+      margin-bottom: 7px;
+      border-radius: 3px;
+      background: #d8d9d6;
+    }
+
+    .mini-page span:nth-child(2),
+    .mini-page span:nth-child(5) { width: 70%; }
+
+    .mini-page .native-box {
+      position: absolute;
+      top: 52px;
+      left: 9px;
+      width: 91px;
+      height: 31px;
+      border: 2px solid var(--indigo);
+      border-radius: 3px;
+      background: rgba(81, 71, 199, 0.09);
+    }
+
+    .mini-page .native-box.second {
+      top: 132px;
+      width: 80px;
+      border-color: var(--amber);
+      background: rgba(183, 100, 18, 0.08);
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-width: 0;
+    }
+
+    .result-column {
+      min-width: 0;
+      padding: 12px;
+      border-right: 1px solid var(--line);
+    }
+
+    .result-column:last-child { border-right: 0; }
+
+    .result-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 9px;
+    }
+
+    .candidate {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 10px;
+      font-weight: 720;
+    }
+
+    .candidate::before {
+      width: 7px;
+      height: 7px;
+      border-radius: 2px;
+      background: var(--indigo);
+      content: "";
+    }
+
+    .result-column:last-child .candidate::before { background: var(--amber); }
+
+    .coverage {
+      color: var(--ink-faint);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 8px;
+    }
+
+    .result-block {
+      margin-bottom: 7px;
+      padding: 8px 9px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink-soft);
+      background: var(--surface-subtle);
+      font-size: 8.5px;
+      line-height: 1.35;
+    }
+
+    .result-block b {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--ink);
+      font-size: 9px;
+    }
+
+    .result-column:first-child .result-block.active {
+      border-color: rgba(81, 71, 199, 0.38);
+      background: var(--indigo-soft);
+      box-shadow: inset 3px 0 var(--indigo);
+    }
+
+    .result-column:last-child .result-block.active {
+      border-color: rgba(183, 100, 18, 0.32);
+      background: var(--amber-soft);
+      box-shadow: inset 3px 0 var(--amber);
+    }
+
+    .future {
+      position: relative;
+      display: grid;
+      height: 88px;
+      grid-template-columns: 228px 1fr;
+      gap: 18px;
+      align-items: center;
+      margin-top: 18px;
+      padding: 14px 18px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: rgba(248, 248, 246, 0.9);
+    }
+
+    .future-label b {
+      display: block;
+      font-size: 13px;
+      letter-spacing: -0.02em;
+    }
+
+    .future-label span {
+      display: block;
+      margin-top: 4px;
+      color: var(--ink-faint);
+      font-size: 9px;
+    }
+
+    .recipe {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 8px;
+    }
+
+    .recipe-stage {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 11px 8px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--ink-soft);
+      background: #ffffff;
+      text-align: center;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 8.5px;
+      font-weight: 680;
+      letter-spacing: 0.025em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .recipe-stage.primary {
+      border-color: rgba(81, 71, 199, 0.34);
+      color: var(--indigo-dark);
+      background: var(--indigo-soft);
+    }
+
+    .recipe-arrow {
+      flex: 0 0 auto;
+      color: var(--ink-faint);
+      font-size: 11px;
+    }
+
+    footer {
+      display: grid;
+      height: 48px;
+      grid-template-columns: repeat(3, 1fr);
+      align-items: end;
+      gap: 20px;
+    }
+
+    .principle {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--ink-soft);
+      font-size: 10px;
+    }
+
+    .principle::before {
+      width: 7px;
+      height: 7px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--success);
+      content: "";
+    }
+
+    .principle:nth-child(2)::before { background: var(--indigo); }
+    .principle:nth-child(3)::before { background: var(--amber); }
+    .principle b { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <main class="canvas">
+    <header>
+      <div>
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span>Document Arena · evidence-first document evaluation</span>
+        </div>
+        <h1>Inspect every stage.<br />Compare the whole document pipeline.</h1>
+        <p class="subtitle">Run one recommended parser, trace every result to native source evidence, and add a second only when comparison helps.</p>
+      </div>
+      <aside class="scope" aria-label="Product scope">
+        <div class="scope-row"><span>Today</span><strong>Parser-first</strong></div>
+        <div class="scope-row"><span>Contract</span><strong>Pipeline-ready</strong></div>
+      </aside>
+    </header>
+
+    <section class="workflow" aria-label="Primary Document Arena workflow">
+      <div class="step-lane">
+        <div class="step"><span class="step-num">01</span><span class="step-copy"><b>Upload once</b><span>Create the workspace first</span></span></div>
+        <div class="step"><span class="step-num">02</span><span class="step-copy"><b>Run recommended</b><span>Curated default, real parser</span></span></div>
+        <div class="step"><span class="step-num">03</span><span class="step-copy"><b>Inspect evidence</b><span>Source and result stay linked</span></span></div>
+        <div class="step"><span class="step-num">04</span><span class="step-copy"><b>Add one</b><span>Only when comparison helps</span></span></div>
+        <div class="step"><span class="step-num">05</span><span class="step-copy"><b>Compare in context</b><span>Same source, honest failures</span></span></div>
+      </div>
+
+      <div class="flow-body">
+        <div class="flow-node">
+          <div class="panel-label"><span>Original source</span><span class="status-dot"></span></div>
+          <div class="source-card">
+            <div class="document" aria-hidden="true"><span></span><span></span><span></span><span></span><i class="bbox"></i></div>
+            <div class="source-copy"><b>document.pdf</b><span>Browser-local preview · 12 pages</span></div>
+          </div>
+        </div>
+
+        <div class="flow-node">
+          <div class="panel-label"><span>Run configuration</span><span>JSON Schema</span></div>
+          <div class="runner-card">
+            <div class="component">
+              <div class="component-top"><span class="component-name">OpenDataLoader</span><span class="recommended">Recommended</span></div>
+              <div class="component-meta">2.5.0 · pinned OCI · CPU</div>
+              <div class="component-progress"></div>
+            </div>
+            <div class="run-facts">
+              <div class="run-fact"><b>RAW</b><span>preserved</span></div>
+              <div class="run-fact"><b>84%</b><span>native evidence</span></div>
+            </div>
+            <div class="add-component"><span>＋ Add one parser</span><i>optional</i></div>
+          </div>
+        </div>
+
+        <div class="flow-node">
+          <div class="panel-label"><span>Linked evidence workspace</span><span>Same page · synchronized</span></div>
+          <div class="inspector">
+            <div class="inspector-top">
+              <div class="view-tabs"><span>Blocks</span><span>Markdown</span></div>
+              <div class="raw-tabs"><b>Rendered</b><span>Raw</span></div>
+            </div>
+            <div class="inspector-body">
+              <div class="source-preview">
+                <div class="mini-page" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                  <i class="native-box"></i><i class="native-box second"></i>
+                </div>
+              </div>
+              <div class="result-grid">
+                <div class="result-column">
+                  <div class="result-head"><span class="candidate">Result A</span><span class="coverage">84% native</span></div>
+                  <div class="result-block"><b>Heading</b>Quarterly review and operating metrics</div>
+                  <div class="result-block active"><b>Table</b>Revenue · margin · regional growth</div>
+                  <div class="result-block"><b>Paragraph</b>Outlook remains stable across segments.</div>
+                </div>
+                <div class="result-column">
+                  <div class="result-head"><span class="candidate">Result B</span><span class="coverage">76% native</span></div>
+                  <div class="result-block"><b>Heading</b>Quarterly review &amp; operating metrics</div>
+                  <div class="result-block active"><b>Table</b>Revenue | Margin | Regional growth</div>
+                  <div class="result-block"><b>Paragraph</b>Outlook stable across segments.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="future" aria-label="Pipeline-ready linear recipe">
+      <div class="future-label"><b>One linear contract, more stages</b><span>* repeatable · ? optional · no user-facing DAG</span></div>
+      <div class="recipe">
+        <span class="recipe-stage">Preprocess*</span><span class="recipe-arrow">→</span>
+        <span class="recipe-stage primary">Parser / OCR</span><span class="recipe-arrow">→</span>
+        <span class="recipe-stage">Postprocess*</span><span class="recipe-arrow">→</span>
+        <span class="recipe-stage">Chunk?</span><span class="recipe-arrow">→</span>
+        <span class="recipe-stage">Embed?</span><span class="recipe-arrow">→</span>
+        <span class="recipe-stage">Vector sink?</span><span class="recipe-arrow">→</span>
+        <span class="recipe-stage">Retrieve?</span>
+      </div>
+    </section>
+
+    <footer aria-label="Product principles">
+      <div class="principle"><span><b>Native evidence</b> only when the component emitted geometry</span></div>
+      <div class="principle"><span><b>Immutable stage output</b> with raw artifacts preserved</span></div>
+      <div class="principle"><span><b>Reproducible runs</b> record versions, options, timing, and status</span></div>
+    </footer>
+  </main>
+</body>
+</html>

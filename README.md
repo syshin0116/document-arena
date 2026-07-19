@@ -18,6 +18,10 @@
   <img src="https://img.shields.io/badge/license-MIT-257653" alt="MIT License">
 </p>
 
+<p align="center">
+  <img src="docs/assets/document-arena-overview.png" width="1200" alt="Document Arena workflow: upload a PDF, run a recommended parser, trace native evidence, add a second parser, and compare immutable outputs.">
+</p>
+
 ---
 
 Global leaderboards tell you which component is best on average. They cannot
