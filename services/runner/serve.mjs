@@ -7,14 +7,21 @@
 
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
   runnerAllowedOrigins,
   runnerCorsPolicy,
 } from "./origin-policy.mjs";
 import { componentAvailability } from "./component-availability.mjs";
-import { runComponent } from "./run-local.mjs";
+import {
+  collectConnectionDefinitions,
+  handleConnectionRequest,
+  normalizeConnectionDefinition,
+  publicRunnerRequirements,
+  SessionConnectionStore,
+} from "./connections.mjs";
+import { runComponent, validateManifest } from "./run-local.mjs";
 
 const PORT = Number(
   process.env.DOCUMENT_ARENA_RUNNER_PORT ??
@@ -25,12 +32,6 @@ const EXTENSIONS_ROOT = resolve(import.meta.dirname, "../../extensions");
 const SERVICE_RUN_ROOT = resolve(import.meta.dirname, "../../work/service-runs");
 const MAX_INPUT_BYTES = 100 * 1024 * 1024;
 const ALLOWED_ORIGINS = runnerAllowedOrigins();
-
-const COMPONENT_DIRECTORIES = {
-  "opendataloader-pdf": "opendataloader-pdf",
-  "mineru-pipeline": "mineru-pipeline",
-  "azure-di": "azure-di",
-};
 
 function json(status, body, corsHeaders) {
   const headers = new Headers(corsHeaders);
@@ -50,15 +51,54 @@ function sanitizeFileName(value) {
   return name.toLowerCase().endsWith(".pdf") ? name : `${name || "document"}.pdf`;
 }
 
+async function discoverComponents() {
+  const discovered = new Map();
+  const directories = await readdir(EXTENSIONS_ROOT, { withFileTypes: true });
+  for (const directory of directories) {
+    if (!directory.isDirectory()) continue;
+    const path = resolve(EXTENSIONS_ROOT, directory.name, "component.json");
+    let manifest;
+    try {
+      manifest = JSON.parse(await readFile(path, "utf8"));
+    } catch (error) {
+      if (error?.code === "ENOENT") continue;
+      throw error;
+    }
+    const id = validateManifest(manifest).id;
+    if (discovered.has(id)) {
+      throw new Error(`Duplicate component id '${id}'.`);
+    }
+    discovered.set(id, { path, manifest });
+  }
+  return discovered;
+}
+
+const COMPONENTS = await discoverComponents();
+const componentManifests = [...COMPONENTS.values()].map(
+  (component) => component.manifest,
+);
+const CONNECTIONS = new SessionConnectionStore(
+  collectConnectionDefinitions(componentManifests),
+);
+
 function manifestPath(componentId) {
-  const directory = COMPONENT_DIRECTORIES[componentId];
-  if (!directory) return null;
-  return resolve(EXTENSIONS_ROOT, directory, "component.json");
+  return COMPONENTS.get(componentId)?.path ?? null;
+}
+
+function connectionValues(requirements) {
+  if (requirements?.network !== "remote") return {};
+  try {
+    const definition = normalizeConnectionDefinition(requirements.connection);
+    return CONNECTIONS.valuesFor(definition.type);
+  } catch {
+    return {};
+  }
 }
 
 async function componentInfo(componentId) {
-  const path = manifestPath(componentId);
-  const manifest = JSON.parse(await readFile(path, "utf8"));
+  const discovered = COMPONENTS.get(componentId);
+  if (!discovered) throw new Error(`Unknown component: ${componentId}`);
+  const { path, manifest } = discovered;
   const image = manifest.spec.executor.image;
   const inspect = spawnSync("docker", ["image", "inspect", image], {
     stdio: "ignore",
@@ -75,6 +115,7 @@ async function componentInfo(componentId) {
   }
   const imageAvailable = inspect.status === 0;
   const requirements = manifest.spec.requirements ?? {};
+  const sessionConnectionValues = connectionValues(requirements);
   return {
     id: manifest.metadata.id,
     version: manifest.metadata.version,
@@ -83,8 +124,12 @@ async function componentInfo(componentId) {
     image,
     imageAvailable,
     capabilities: manifest.spec.capabilities ?? {},
-    requirements,
-    availability: componentAvailability({ imageAvailable, requirements }),
+    requirements: publicRunnerRequirements(requirements),
+    availability: componentAvailability({
+      imageAvailable,
+      requirements,
+      connectionValues: sessionConnectionValues,
+    }),
     optionsSchema,
   };
 }
@@ -161,6 +206,9 @@ async function handleParse(request, componentId, corsHeaders) {
           manifestPath: path,
           inputPath,
           options: requestOptions,
+          connectionValues: CONNECTIONS.valuesFor(
+            component.requirements?.connection?.type,
+          ),
           onEvent: (event) => send(event),
         });
         send({
@@ -192,10 +240,11 @@ async function handleParse(request, componentId, corsHeaders) {
 }
 
 const components = await Promise.all(
-  Object.keys(COMPONENT_DIRECTORIES).map((id) => componentInfo(id)),
+  [...COMPONENTS.keys()].map((id) => componentInfo(id)),
 );
 
 const server = Bun.serve({
+  hostname: "127.0.0.1",
   port: PORT,
   idleTimeout: 240,
   async fetch(request) {
@@ -214,9 +263,16 @@ const server = Bun.serve({
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: cors.headers });
     }
+    const connectionResponse = await handleConnectionRequest(request, {
+      store: CONNECTIONS,
+      corsHeaders: cors.headers,
+      allowedBrowserOrigin:
+        cors.allowed && request.headers.get("origin") !== null,
+    });
+    if (connectionResponse) return connectionResponse;
     if (request.method === "GET" && url.pathname === "/v1/health") {
       const fresh = await Promise.all(
-        Object.keys(COMPONENT_DIRECTORIES).map((id) => componentInfo(id)),
+        [...COMPONENTS.keys()].map((id) => componentInfo(id)),
       );
       return json(
         200,

@@ -76,7 +76,7 @@ test("allowed browser origins receive exact per-request CORS headers", () => {
   assert.equal(policy.headers.get("access-control-allow-origin"), origin);
   assert.equal(
     policy.headers.get("access-control-allow-methods"),
-    "GET, POST, OPTIONS",
+    "GET, POST, PUT, DELETE, OPTIONS",
   );
   const allowedHeaders = new Set(
     policy.headers

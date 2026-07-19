@@ -1,10 +1,12 @@
+import { connectionIsConfigured } from "./connections.mjs";
+
 function unavailable(code, message) {
   return { code, message };
 }
 
 /**
  * Describe only readiness the local runner can prove without starting a job.
- * Connection field names and values stay runner-local; the browser receives a
+ * Connection env names and values stay runner-local; the browser receives a
  * generic reason that can disable execution while leaving the option catalog
  * visible for inspection.
  */
@@ -12,6 +14,7 @@ export function componentAvailability({
   imageAvailable,
   requirements = {},
   env = process.env,
+  connectionValues = {},
 }) {
   const reasons = [];
   if (!imageAvailable) {
@@ -25,18 +28,11 @@ export function componentAvailability({
 
   if (requirements.network === "remote") {
     const connection = requirements.connection;
-    const envNames =
-      connection && typeof connection === "object" && connection.env
-        ? Object.values(connection.env)
-        : [];
-    const configured =
-      envNames.length > 0 &&
-      envNames.every(
-        (name) =>
-          typeof name === "string" &&
-          typeof env[name] === "string" &&
-          env[name].trim().length > 0,
-      );
+    const configured = connectionIsConfigured(
+      connection,
+      connectionValues,
+      env,
+    );
     if (!configured) {
       const connectionType =
         typeof connection?.type === "string" && connection.type.trim()

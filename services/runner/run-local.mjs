@@ -8,22 +8,53 @@ import {
   readFile,
   readdir,
   realpath,
+  rm,
   stat,
   writeFile,
 } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  normalizeConnectionDefinition,
+  resolveConnectionValues,
+} from "./connections.mjs";
 
 const MAX_INPUT_BYTES = 100 * 1024 * 1024;
 const MAX_OUTPUT_BYTES = 256 * 1024 * 1024;
+const MAX_OUTPUT_ENTRIES = 20_000;
+const MAX_OUTPUT_DEPTH = 32;
 const DEFAULT_TMPFS_BYTES = 512 * 1024 * 1024;
+const MAX_CREDENTIAL_EVENT_LINE_BYTES = 256 * 1024;
+const CREDENTIAL_EVENT_TYPES = new Set([
+  "stage.phase",
+  "stage.progress",
+  "stage.completed",
+  "stage.failed",
+]);
+const CREDENTIAL_EVENT_PHASES = new Set([
+  "inspecting",
+  "preprocessing",
+  "parsing",
+  "normalizing",
+  "postprocessing",
+  "chunking",
+  "embedding",
+  "indexing",
+  "completed",
+  "failed",
+]);
 
 function assertRecord(value, message) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(message);
   }
   return value;
+}
+
+function assertOnlyProperties(value, allowed, label) {
+  const unknown = Object.keys(value).find((name) => !allowed.has(name));
+  if (unknown) throw new Error(`${label} has an unknown property '${unknown}'.`);
 }
 
 function assertNonEmptyString(value, message) {
@@ -112,54 +143,144 @@ async function runCapture(command, args) {
   });
 }
 
-async function runStreaming(command, args, onEvent) {
+/**
+ * Credentialed components are untrusted producers. Do not relay their object
+ * keys or free-form strings: project only a fixed progress vocabulary and
+ * synthesize any visible detail inside the runner.
+ */
+export function projectCredentialedEvent(value) {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    value.apiVersion !== "document-arena.dev/job-event/v1alpha1" ||
+    !CREDENTIAL_EVENT_TYPES.has(value.type)
+  ) {
+    return null;
+  }
+  const projected = {
+    apiVersion: "document-arena.dev/job-event/v1alpha1",
+    type: value.type,
+  };
+  if (value.type === "stage.phase" || value.type === "stage.progress") {
+    projected.phase = CREDENTIAL_EVENT_PHASES.has(value.phase)
+      ? value.phase
+      : "parsing";
+  }
+  if (value.type === "stage.progress") {
+    const current = Number(value.current);
+    const total = Number(value.total);
+    if (
+      Number.isSafeInteger(current) &&
+      Number.isSafeInteger(total) &&
+      current >= 0 &&
+      total > 0 &&
+      current <= total
+    ) {
+      projected.stage = "processing";
+      projected.current = current;
+      projected.total = total;
+      projected.detail = `Processing ${current}/${total}`;
+    }
+  }
+  return projected;
+}
+
+async function runStreaming(
+  command,
+  args,
+  onEvent,
+  { env = process.env, sensitiveValues = [] } = {},
+) {
   return await new Promise((resolvePromise, reject) => {
     const child = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
+      env,
     });
     let stdoutTail = "";
     let stderrTail = "";
-    let lineBuffer = "";
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
+    const credentialed = sensitiveValues.length > 0;
+    let discardCredentialedLine = false;
+    const handleStdoutLine = (rawLine, newline = "\n") => {
+      if (!credentialed) process.stdout.write(`${rawLine}${newline}`);
+      if (!onEvent || !rawLine.trimStart().startsWith("{")) return;
+      try {
+        const event = JSON.parse(rawLine);
+        if (event?.apiVersion === "document-arena.dev/job-event/v1alpha1") {
+          const safeEvent = credentialed
+            ? projectCredentialedEvent(event)
+            : event;
+          if (safeEvent) onEvent(safeEvent);
+        }
+      } catch {
+        // Non-event stdout line; ignore.
+      }
+    };
+    const flushLines = (stream) => {
+      const stdout = stream === "stdout";
+      let buffer = stdout ? stdoutBuffer : stderrBuffer;
+      let newline = buffer.indexOf("\n");
+      while (newline !== -1) {
+        const line = buffer.slice(0, newline);
+        buffer = buffer.slice(newline + 1);
+        if (stdout) handleStdoutLine(line);
+        else if (!credentialed) process.stderr.write(`${line}\n`);
+        newline = buffer.indexOf("\n");
+      }
+      if (stdout) stdoutBuffer = buffer;
+      else stderrBuffer = buffer;
+    };
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk) => {
-      process.stdout.write(chunk);
-      stdoutTail = (stdoutTail + chunk).slice(-16384);
-      if (!onEvent) return;
-      lineBuffer += chunk;
-      let newline = lineBuffer.indexOf("\n");
-      while (newline !== -1) {
-        const line = lineBuffer.slice(0, newline).trim();
-        lineBuffer = lineBuffer.slice(newline + 1);
-        if (line.startsWith("{")) {
-          try {
-            const event = JSON.parse(line);
-            if (event?.apiVersion === "document-arena.dev/job-event/v1alpha1") {
-              onEvent(event);
-            }
-          } catch {
-            // Non-event stdout line; ignore.
-          }
-        }
-        newline = lineBuffer.indexOf("\n");
+      if (!credentialed) stdoutTail = (stdoutTail + chunk).slice(-16384);
+      if (credentialed && discardCredentialedLine) {
+        const newline = chunk.indexOf("\n");
+        if (newline === -1) return;
+        discardCredentialedLine = false;
+        chunk = chunk.slice(newline + 1);
+      }
+      stdoutBuffer += chunk;
+      flushLines("stdout");
+      if (
+        credentialed &&
+        Buffer.byteLength(stdoutBuffer, "utf8") >
+          MAX_CREDENTIAL_EVENT_LINE_BYTES
+      ) {
+        stdoutBuffer = "";
+        discardCredentialedLine = true;
       }
     });
     child.stderr.on("data", (chunk) => {
-      process.stderr.write(chunk);
-      stderrTail = (stderrTail + chunk).slice(-4096);
+      if (!credentialed) {
+        stderrTail = (stderrTail + chunk).slice(-32768);
+        stderrBuffer += chunk;
+        flushLines("stderr");
+      }
     });
-    child.on("error", reject);
+    child.on("error", (error) => {
+      reject(
+        credentialed
+          ? new Error("Credentialed component execution failed.")
+          : error,
+      );
+    });
     child.on("close", (code, signal) => {
+      if (stdoutBuffer) handleStdoutLine(stdoutBuffer, "");
+      if (!credentialed && stderrBuffer) process.stderr.write(stderrBuffer);
       if (code !== 0) {
-        reject(
-          new Error(
-            componentFailureMessage(
-              stdoutTail,
-              stderrTail,
-              `${command} exited with ${code ?? signal ?? "unknown"}.`,
-            ),
-          ),
+        if (credentialed) {
+          reject(new Error("Credentialed component execution failed."));
+          return;
+        }
+        const failure = componentFailureMessage(
+          stdoutTail,
+          stderrTail,
+          `${command} exited with ${code ?? signal ?? "unknown"}.`,
         );
+        reject(new Error(failure));
         return;
       }
       resolvePromise();
@@ -215,10 +336,18 @@ async function inspectImage(image) {
   return imageId;
 }
 
-function validateManifest(value) {
+export function validateManifest(value) {
   const manifest = assertRecord(value, "Component manifest must be an object.");
+  assertOnlyProperties(
+    manifest,
+    new Set(["apiVersion", "kind", "metadata", "spec"]),
+    "Component manifest",
+  );
   if (manifest.apiVersion !== "document-arena.dev/component/v1alpha1") {
     throw new Error("Unsupported component manifest apiVersion.");
+  }
+  if (manifest.kind !== "Component") {
+    throw new Error("Component manifest kind must be 'Component'.");
   }
   const metadata = assertRecord(
     manifest.metadata,
@@ -233,11 +362,54 @@ function validateManifest(value) {
     spec.requirements,
     "Component requirements are required.",
   );
+  assertOnlyProperties(
+    metadata,
+    new Set(["id", "version", "displayName", "upstreamVersion"]),
+    "Component metadata",
+  );
+  assertOnlyProperties(
+    spec,
+    new Set([
+      "role",
+      "accepts",
+      "produces",
+      "executor",
+      "optionsSchema",
+      "capabilities",
+      "requirements",
+    ]),
+    "Component spec",
+  );
+  assertOnlyProperties(
+    executor,
+    new Set(["protocol", "image"]),
+    "Component executor",
+  );
+  assertOnlyProperties(
+    requirements,
+    new Set(["gpu", "network", "memoryMiB", "cpus", "connection"]),
+    "Component requirements",
+  );
   if (spec.role !== "parser") {
     throw new Error("This local spike runner accepts parser components only.");
   }
   if (executor.protocol !== "oci-batch/v1") {
     throw new Error("This runner supports oci-batch/v1 only.");
+  }
+  if (
+    !Array.isArray(spec.accepts) ||
+    spec.accepts.length === 0 ||
+    spec.accepts.some((value) => typeof value !== "string" || value.length === 0)
+  ) {
+    throw new Error("Component accepts must contain artifact types.");
+  }
+  assertNonEmptyString(spec.produces, "Component produces is required.");
+  assertRecord(spec.capabilities, "Component capabilities are required.");
+  if (
+    spec.optionsSchema !== undefined &&
+    (typeof spec.optionsSchema !== "string" || spec.optionsSchema.length === 0)
+  ) {
+    throw new Error("Component optionsSchema must be a non-empty string.");
   }
   // Most parsers run fully isolated (network=none). A component may instead
   // declare network=remote plus a connection; that opts it into outbound
@@ -252,26 +424,45 @@ function validateManifest(value) {
       requirements.connection,
       "A remote component must declare requirements.connection.",
     );
-    const envMap = assertRecord(
-      conn.env,
-      "requirements.connection.env must map fields to env var names.",
-    );
-    connection = { type: conn.type, env: envMap };
+    connection = normalizeConnectionDefinition(conn);
+  } else if (requirements.connection !== undefined) {
+    throw new Error("A network-isolated component cannot declare a connection.");
   }
-  const cpus = Number(requirements.cpus);
-  const memoryMiB = Number(requirements.memoryMiB);
-  if (!Number.isFinite(cpus) || cpus <= 0 || cpus > 32) {
+  if (typeof requirements.gpu !== "boolean") {
+    throw new Error("Component gpu must be a boolean.");
+  }
+  const cpus = requirements.cpus;
+  const memoryMiB = requirements.memoryMiB;
+  if (typeof cpus !== "number" || !Number.isFinite(cpus) || cpus <= 0 || cpus > 32) {
     throw new Error("Component cpus must be between 0 and 32.");
   }
   if (!Number.isInteger(memoryMiB) || memoryMiB < 128 || memoryMiB > 65536) {
     throw new Error("Component memoryMiB must be between 128 and 65536.");
   }
+  const id = assertNonEmptyString(
+    metadata.id,
+    "Component metadata.id is required.",
+  );
+  if (!/^[a-z0-9][a-z0-9-]*$/u.test(id)) {
+    throw new Error("Component metadata.id is invalid.");
+  }
+  if (
+    metadata.upstreamVersion !== undefined &&
+    (typeof metadata.upstreamVersion !== "string" ||
+      metadata.upstreamVersion.length === 0)
+  ) {
+    throw new Error("Component metadata.upstreamVersion must be a non-empty string.");
+  }
   return {
     manifest,
-    id: assertNonEmptyString(metadata.id, "Component metadata.id is required."),
+    id,
     version: assertNonEmptyString(
       metadata.version,
       "Component metadata.version is required.",
+    ),
+    displayName: assertNonEmptyString(
+      metadata.displayName,
+      "Component metadata.displayName is required.",
     ),
     image: assertNonEmptyString(
       executor.image,
@@ -306,6 +497,158 @@ async function directorySize(path) {
     }
   }
   return total;
+}
+
+function asciiJsonEscape(value) {
+  const escaped = JSON.stringify(value).slice(1, -1);
+  let result = "";
+  for (const character of escaped) {
+    const codePoint = character.codePointAt(0);
+    if (codePoint <= 0x7f) {
+      result += character;
+    } else if (codePoint <= 0xffff) {
+      result += `\\u${codePoint.toString(16).padStart(4, "0")}`;
+    } else {
+      const offset = codePoint - 0x10000;
+      const high = 0xd800 + (offset >> 10);
+      const low = 0xdc00 + (offset & 0x3ff);
+      result += `\\u${high.toString(16)}\\u${low.toString(16)}`;
+    }
+  }
+  return result;
+}
+
+/** Common encodings emitted by SDK errors, JSON serializers, and URLs. */
+export function credentialSearchVariants(values) {
+  const variants = new Set();
+  for (const value of values) {
+    if (typeof value !== "string" || value.length === 0) continue;
+    const seeds = new Set([value]);
+    if (value.endsWith("/")) seeds.add(value.slice(0, -1));
+    for (const seed of seeds) {
+      const jsonEscaped = JSON.stringify(seed).slice(1, -1);
+      const urlEncoded = encodeURIComponent(seed);
+      const formEncoded = new URLSearchParams({ value: seed })
+        .toString()
+        .slice("value=".length);
+      const base64 = Buffer.from(seed, "utf8").toString("base64");
+      for (const variant of [
+        seed,
+        jsonEscaped,
+        jsonEscaped.replaceAll("/", "\\/"),
+        asciiJsonEscape(seed),
+        urlEncoded,
+        urlEncoded.replaceAll(/%[0-9A-F]{2}/g, (match) => match.toLowerCase()),
+        encodeURIComponent(urlEncoded),
+        formEncoded,
+        base64,
+        base64.replaceAll("=", ""),
+        Buffer.from(seed, "utf8").toString("base64url"),
+      ]) {
+        if (variant.length > 0) variants.add(variant);
+      }
+    }
+  }
+  return [...variants].map((variant) => Buffer.from(variant, "utf8"));
+}
+
+function bufferContainsVariant(buffer, variants) {
+  return variants.some((variant) => buffer.indexOf(variant) !== -1);
+}
+
+async function fileContainsCredential(path, variants, maxVariantLength) {
+  let carry = Buffer.alloc(0);
+  for await (const chunk of createReadStream(path)) {
+    const data = carry.length > 0 ? Buffer.concat([carry, chunk]) : chunk;
+    if (bufferContainsVariant(data, variants)) return true;
+    const carryLength = Math.min(maxVariantLength - 1, data.length);
+    carry = carryLength > 0 ? data.subarray(data.length - carryLength) : Buffer.alloc(0);
+  }
+  return false;
+}
+
+async function scanCredentialedDirectory(
+  path,
+  variants,
+  maxVariantLength,
+  state,
+  depth = 0,
+) {
+  if (depth > MAX_OUTPUT_DEPTH) {
+    throw new Error("unsafe credentialed output depth");
+  }
+  const entries = await readdir(path, { withFileTypes: true });
+  for (const entry of entries) {
+    state.entries += 1;
+    if (state.entries > MAX_OUTPUT_ENTRIES) {
+      throw new Error("unsafe credentialed output entry count");
+    }
+    if (
+      bufferContainsVariant(Buffer.from(entry.name, "utf8"), variants)
+    ) {
+      throw new Error("unsafe credential material");
+    }
+    const childPath = resolve(path, entry.name);
+    const details = await lstat(childPath);
+    if (details.isSymbolicLink()) {
+      throw new Error("unsafe credentialed output type");
+    }
+    if (details.isDirectory()) {
+      await scanCredentialedDirectory(
+        childPath,
+        variants,
+        maxVariantLength,
+        state,
+        depth + 1,
+      );
+      continue;
+    }
+    if (!details.isFile()) {
+      throw new Error("unsafe credentialed output type");
+    }
+    state.sizeBytes += details.size;
+    if (state.sizeBytes > MAX_OUTPUT_BYTES) {
+      throw new Error("unsafe credentialed output size");
+    }
+    if (await fileContainsCredential(childPath, variants, maxVariantLength)) {
+      throw new Error("unsafe credential material");
+    }
+  }
+}
+
+async function discardCredentialedOutput(outputDirectory) {
+  const target = resolve(outputDirectory);
+  if (dirname(target) === target || target === resolve(".")) {
+    throw new Error("Refusing to discard an unsafe output path.");
+  }
+  await rm(target, { recursive: true, force: true, maxRetries: 2 });
+}
+
+/**
+ * Scan every retained output before bundle validation/publication. Any match or
+ * unscannable entry removes the run-owned output directory and returns only a
+ * generic error, so a failure artifact cannot become a credential side channel.
+ */
+export async function enforceCredentialSafeOutput(outputDirectory, values) {
+  if (!Array.isArray(values) || values.length === 0) return;
+  const variants = credentialSearchVariants(values);
+  if (variants.length === 0) return;
+  const maxVariantLength = Math.max(...variants.map((variant) => variant.length));
+  try {
+    await scanCredentialedDirectory(
+      resolve(outputDirectory),
+      variants,
+      maxVariantLength,
+      { entries: 0, sizeBytes: 0 },
+    );
+  } catch {
+    try {
+      await discardCredentialedOutput(outputDirectory);
+    } catch {
+      // Do not replace the generic public failure with a filesystem/path error.
+    }
+    throw new Error("Credentialed component output failed safety validation.");
+  }
 }
 
 function safeOutputPath(outputRoot, relativePath) {
@@ -518,24 +861,36 @@ async function createExclusiveDirectory(path) {
   await mkdir(path);
 }
 
-function connectionEnv(component) {
-  // For a remote component, map each declared connection field to the local
-  // env var the runner reads. Values come from the runner's own environment
-  // (loaded from .env); they are passed to the container but never logged or
-  // written to any artifact.
-  const injected = [];
+export function connectionInjection(
+  component,
+  connectionValues = {},
+  hostEnv = process.env,
+) {
+  // Docker receives only env variable names on argv. Values are supplied via
+  // the Docker client's environment and become the running container's scoped
+  // env (therefore visible to users who can inspect Docker), but never enter
+  // process argv, request files, runner manifests, events, or result artifacts.
+  const dockerArguments = [];
+  const processEnvironment = { ...hostEnv };
+  const sensitiveValues = [];
   const conn = component.connection;
-  if (!conn) return injected;
-  for (const [field, envName] of Object.entries(conn.env)) {
-    const value = process.env[envName];
-    if (!value) {
-      throw new Error(
-        `Connection '${conn.type}' field '${field}' is not set: define ${envName} in your .env.`,
-      );
-    }
-    injected.push("--env", `${envName}=${value}`);
+  if (!conn) {
+    return { dockerArguments, processEnvironment, sensitiveValues };
   }
-  return injected;
+  let resolved;
+  try {
+    resolved = resolveConnectionValues(conn, connectionValues, hostEnv);
+  } catch {
+    throw new Error(`Connection '${conn.type}' is not configured.`);
+  }
+  for (const field of conn.fields) {
+    const envName = conn.env[field.name];
+    const value = resolved[field.name];
+    processEnvironment[envName] = value;
+    dockerArguments.push("--env", envName);
+    sensitiveValues.push(value);
+  }
+  return { dockerArguments, processEnvironment, sensitiveValues };
 }
 
 function dockerArguments({
@@ -545,6 +900,7 @@ function dockerArguments({
   requestPath,
   outputDirectory,
   containerName,
+  connectionArguments = [],
 }) {
   const args = [
     "run",
@@ -553,11 +909,6 @@ function dockerArguments({
     containerName,
     "--network",
     component.network === "remote" ? "bridge" : "none",
-    // The default bridge's embedded DNS is not reachable in every host
-    // setup; give remote components explicit public resolvers.
-    ...(component.network === "remote"
-      ? ["--dns", "8.8.8.8", "--dns", "1.1.1.1"]
-      : []),
     "--read-only",
     "--cap-drop",
     "ALL",
@@ -571,7 +922,7 @@ function dockerArguments({
     String(component.cpus),
     "--env",
     "HOME=/tmp",
-    ...connectionEnv(component),
+    ...connectionArguments,
     "--tmpfs",
     `/tmp:rw,noexec,nosuid,nodev,size=${DEFAULT_TMPFS_BYTES}`,
     "--volume",
@@ -593,6 +944,7 @@ export async function runComponent({
   inputPath,
   outputPath,
   options = {},
+  connectionValues = {},
   onEvent,
 }) {
   const resolvedManifestPath = resolve(manifestPath);
@@ -651,18 +1003,35 @@ export async function runComponent({
   const containerName = `document-arena-${sanitizeName(component.id)}-${randomUUID()
     .replaceAll("-", "")
     .slice(0, 12)}`;
-  await runStreaming(
-    "docker",
-    dockerArguments({
-      component,
-      imageId,
-      inputDirectory: dirname(resolvedInputPath),
-      requestPath,
-      outputDirectory,
-      containerName,
-    }),
-    onEvent,
+  const connection = connectionInjection(component, connectionValues);
+  let executionError = null;
+  try {
+    await runStreaming(
+      "docker",
+      dockerArguments({
+        component,
+        imageId,
+        inputDirectory: dirname(resolvedInputPath),
+        requestPath,
+        outputDirectory,
+        containerName,
+        connectionArguments: connection.dockerArguments,
+      }),
+      onEvent,
+      {
+        env: connection.processEnvironment,
+        sensitiveValues: connection.sensitiveValues,
+      },
+    );
+  } catch (error) {
+    executionError = error;
+  }
+
+  await enforceCredentialSafeOutput(
+    outputDirectory,
+    connection.sensitiveValues,
   );
+  if (executionError) throw executionError;
 
   const outputSizeBytes = await directorySize(outputDirectory);
   const validated = await validateResultBundle({

@@ -551,8 +551,11 @@ def run() -> None:
 if __name__ == "__main__":
     try:
         run()
-    except Exception as error:  # noqa: BLE001 - single top-level failure boundary
-        message = str(error) or error.__class__.__name__
+    except Exception:  # noqa: BLE001 - single top-level failure boundary
+        # Provider exceptions may contain endpoint, credential, response, or
+        # document material. Keep the adapter failure artifact intentionally
+        # generic; the runner also scans every output before retaining it.
+        message = "Azure Document Intelligence execution failed."
         try:
             OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
             (OUTPUT_ROOT / "failure.json").write_text(
@@ -560,7 +563,10 @@ if __name__ == "__main__":
                     {
                         "apiVersion": "document-arena.dev/stage-failure/v1alpha1",
                         "status": "failed",
-                        "error": {"type": error.__class__.__name__, "message": message},
+                        "error": {
+                            "type": "ComponentExecutionError",
+                            "message": message,
+                        },
                     },
                     indent=2,
                 )

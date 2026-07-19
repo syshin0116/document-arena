@@ -383,10 +383,31 @@ secrets managed by the local runner or hosted secret store.
   artifact metadata.
 - A component declares the connection type and fields it needs.
 - The runner injects only the selected connection for that stage.
-- Network access is disabled unless the manifest and connection policy permit
-  the required endpoints.
+- Network access is disabled unless a reviewed manifest opts into a remote
+  connection. The current Docker bridge grant is not destination-scoped.
 - Public hosting runs only reviewed components and connection types; self-hosted
   installations may register local ones.
+
+The local runner discovers connection types from `extensions/*/component.json`.
+Each remote component declares UI-safe field metadata, its container env mapping,
+and server-side validation policy (including approved endpoint host suffixes).
+The browser can inspect connection status with `GET /v1/connections`, configure
+all fields atomically for the current runner process with
+`PUT /v1/connections/<type>`, and clear that session override with `DELETE` on
+the same resource. Credential mutations require an allowed browser Origin.
+Responses are `Cache-Control: no-store` and contain descriptors plus
+`configured`/`source` status only—never field values or container env names.
+When no session override exists, the runner may fall back to its existing
+environment connection; a session override never mixes with environment fields.
+`configured` means those values passed local manifest validation; it is not a
+provider authentication or connectivity check. Endpoint validation catches
+accidental misconfiguration and enforces a known endpoint policy, but the MVP
+has no egress proxy/firewall. A compromised remote extension with bridge
+network access is therefore outside this sandbox guarantee.
+The Origin check is a browser CSRF boundary, not local-process authentication;
+the local MVP trusts same-user processes and must remain bound to loopback.
+Connection values become the scoped environment of the running container and
+are visible to principals that can inspect the local Docker daemon.
 
 ## Progressive UI disclosure
 

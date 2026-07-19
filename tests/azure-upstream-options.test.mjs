@@ -72,6 +72,10 @@ test("Azure adapter preserves the complete service result and effective options"
   assert.match(source, /get_analyze_result_figure/);
   assert.match(source, /"options": options/);
   assert.match(source, /"modelId",\s*\n\s*"apiVersion"/);
+  assert.match(source, /"type": "ComponentExecutionError"/);
+  assert.match(source, /Azure Document Intelligence execution failed\./);
+  assert.doesNotMatch(source, /message = str\(error\)/);
+  assert.doesNotMatch(source, /error\.__class__\.__name__/);
   assert.ok(
     source.indexOf("query_fields = [value.strip()") <
       source.indexOf("len(query_fields) != len(set(query_fields))"),

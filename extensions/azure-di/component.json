@@ -36,9 +36,32 @@
       "cpus": 2,
       "connection": {
         "type": "azure-di",
+        "title": "Azure Document Intelligence",
+        "description": "Uses your Azure Document Intelligence resource for this local runner session.",
         "fields": [
-          "endpoint",
-          "key"
+          {
+            "name": "endpoint",
+            "label": "Endpoint",
+            "description": "The HTTPS endpoint for your Azure Document Intelligence resource.",
+            "secret": false,
+            "format": "uri",
+            "placeholder": "https://<resource>.cognitiveservices.azure.com/",
+            "minLength": 39,
+            "maxLength": 2048,
+            "allowedHostSuffixes": [
+              ".cognitiveservices.azure.com"
+            ]
+          },
+          {
+            "name": "key",
+            "label": "API key",
+            "description": "An Azure resource key. It stays only in runner memory for this session.",
+            "secret": true,
+            "format": "text",
+            "placeholder": "Enter an Azure resource key",
+            "minLength": 16,
+            "maxLength": 4096
+          }
         ],
         "env": {
           "endpoint": "AZURE_DI_ENDPOINT",

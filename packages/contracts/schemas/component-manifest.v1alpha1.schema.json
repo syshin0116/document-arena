@@ -3,6 +3,167 @@
   "$id": "https://document-arena.dev/schemas/component-manifest.v1alpha1.json",
   "type": "object",
   "additionalProperties": false,
+  "$defs": {
+    "connectionField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "secret": {
+          "type": "boolean"
+        },
+        "format": {
+          "enum": [
+            "text",
+            "uri"
+          ]
+        },
+        "placeholder": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "minLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8192
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8192
+        },
+        "allowedHostSuffixes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^\\.[a-z0-9.-]+$",
+            "maxLength": 253
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "format": {
+                "const": "uri"
+              }
+            },
+            "required": [
+              "format"
+            ]
+          },
+          "then": {
+            "properties": {
+              "allowedHostSuffixes": {
+                "type": "array",
+                "minItems": 1
+              }
+            },
+            "required": [
+              "allowedHostSuffixes"
+            ]
+          }
+        }
+      ]
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "fields",
+        "env"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]{0,63}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/connectionField"
+          }
+        },
+        "env": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+            "maxLength": 128,
+            "allOf": [
+              {
+                "not": {
+                  "enum": [
+                    "ALL_PROXY",
+                    "BASH_ENV",
+                    "CDPATH",
+                    "ENV",
+                    "GLOBIGNORE",
+                    "HOME",
+                    "HOSTALIASES",
+                    "IFS",
+                    "NODE_OPTIONS",
+                    "NO_PROXY",
+                    "PATH",
+                    "SHELL",
+                    "SSLKEYLOGFILE",
+                    "SSL_CERT_DIR",
+                    "SSL_CERT_FILE"
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^(?:BUN_|DOCKER_|DYLD_|LD_)"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^HTTPS?.*_PROXY$"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
   "required": [
     "apiVersion",
     "kind",
@@ -18,6 +179,7 @@
     },
     "metadata": {
       "type": "object",
+      "additionalProperties": false,
       "required": [
         "id",
         "version",
@@ -29,18 +191,22 @@
           "pattern": "^[a-z0-9][a-z0-9-]*$"
         },
         "version": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "displayName": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "upstreamVersion": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       }
     },
     "spec": {
       "type": "object",
+      "additionalProperties": false,
       "required": [
         "role",
         "accepts",
@@ -51,20 +217,23 @@
       ],
       "properties": {
         "role": {
-          "type": "string"
+          "const": "parser"
         },
         "accepts": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "minItems": 1
         },
         "produces": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "executor": {
           "type": "object",
+          "additionalProperties": false,
           "required": [
             "protocol",
             "image"
@@ -74,18 +243,80 @@
               "const": "oci-batch/v1"
             },
             "image": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           }
         },
         "optionsSchema": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "capabilities": {
           "type": "object"
         },
         "requirements": {
-          "type": "object"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "gpu",
+            "network",
+            "memoryMiB",
+            "cpus"
+          ],
+          "properties": {
+            "gpu": {
+              "type": "boolean"
+            },
+            "network": {
+              "enum": [
+                "none",
+                "remote"
+              ]
+            },
+            "memoryMiB": {
+              "type": "integer",
+              "minimum": 128,
+              "maximum": 65536
+            },
+            "cpus": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 32
+            },
+            "connection": {
+              "$ref": "#/$defs/connection"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "network": {
+                    "const": "remote"
+                  }
+                },
+                "required": [
+                  "network"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "connection": {
+                    "$ref": "#/$defs/connection"
+                  }
+                },
+                "required": [
+                  "connection"
+                ]
+              },
+              "else": {
+                "properties": {
+                  "connection": false
+                }
+              }
+            }
+          ]
         }
       }
     }

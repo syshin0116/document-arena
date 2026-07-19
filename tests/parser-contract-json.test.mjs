@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import test from "node:test";
+import Ajv2020 from "ajv/dist/2020.js";
 
 const root = resolve(import.meta.dirname, "..");
 const schemaDirectory = resolve(root, "packages/contracts/schemas");
@@ -44,6 +45,68 @@ test("every parser contract schema and extension manifest is valid JSON", async 
       document.apiVersion || document.$schema,
       `${basename(path)} must identify its contract`,
     );
+  }
+});
+
+test("every component manifest satisfies the executable v1alpha1 schema", async () => {
+  const schema = await parseJson(
+    resolve(schemaDirectory, "component-manifest.v1alpha1.schema.json"),
+  );
+  const validate = new Ajv2020({ allErrors: true, strict: true }).compile(schema);
+  const manifestPaths = [
+    resolve(root, "extensions/opendataloader-pdf/component.json"),
+    resolve(root, "extensions/mineru-pipeline/component.json"),
+    resolve(root, "extensions/azure-di/component.json"),
+  ];
+
+  for (const path of manifestPaths) {
+    const manifest = await parseJson(path);
+    assert.equal(
+      validate(manifest),
+      true,
+      `${basename(path)}: ${JSON.stringify(validate.errors)}`,
+    );
+  }
+
+  const invalidRemote = structuredClone(await parseJson(manifestPaths[0]));
+  invalidRemote.spec.requirements.network = "remote";
+  delete invalidRemote.spec.requirements.connection;
+  assert.equal(validate(invalidRemote), false);
+  assert.ok(
+    validate.errors.some(
+      (error) =>
+        error.instancePath === "/spec/requirements" &&
+        error.keyword === "required",
+    ),
+  );
+
+  const azure = await parseJson(manifestPaths[2]);
+  const invalidCases = [];
+
+  const reservedEnv = structuredClone(azure);
+  reservedEnv.spec.requirements.connection.env.endpoint = "DOCKER_HOST";
+  invalidCases.push(reservedEnv);
+
+  const missingUriPolicy = structuredClone(azure);
+  delete missingUriPolicy.spec.requirements.connection.fields[0]
+    .allowedHostSuffixes;
+  invalidCases.push(missingUriPolicy);
+
+  const localWithConnection = structuredClone(azure);
+  localWithConnection.spec.requirements.network = "none";
+  invalidCases.push(localWithConnection);
+
+  const misspelledRequirement = structuredClone(azure);
+  misspelledRequirement.spec.requirements.memroyMiB = 4096;
+  invalidCases.push(misspelledRequirement);
+
+  const unsupportedFieldPolicy = structuredClone(azure);
+  unsupportedFieldPolicy.spec.requirements.connection.fields[1].pattern =
+    "(a+)+$";
+  invalidCases.push(unsupportedFieldPolicy);
+
+  for (const invalidManifest of invalidCases) {
+    assert.equal(validate(invalidManifest), false, JSON.stringify(validate.errors));
   }
 });
 

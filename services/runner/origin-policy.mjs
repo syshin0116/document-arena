@@ -5,7 +5,7 @@ export const CORS_REQUEST_HEADERS = [
   "x-document-arena-filename",
 ];
 
-const CORS_METHODS = ["GET", "POST", "OPTIONS"];
+const CORS_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS"];
 
 function parsePort(value) {
   const port = Number(value ?? DEFAULT_WEB_PORT);

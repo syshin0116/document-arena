@@ -9,6 +9,7 @@ const pythonExtensionRoots = [
   resolve(root, "extensions/mineru-pipeline"),
   resolve(root, "extensions/azure-di"),
 ];
+const imageExtensionRoots = [extensionRoot, ...pythonExtensionRoots];
 
 test("Bun owns JavaScript dependency installation and lockfiles", async () => {
   for (const directory of [root, extensionRoot]) {
@@ -37,5 +38,17 @@ test("Python extension images install only from their committed uv locks", async
     assert.match(dockerfile, /COPY pyproject\.toml uv\.lock/);
     assert.match(dockerfile, /uv sync --locked --no-dev --no-install-project/);
     assert.doesNotMatch(dockerfile, /(?:uv\s+pip|pip\s+install)/);
+  }
+});
+
+test("every extension build context excludes local credentials", async () => {
+  for (const directory of imageExtensionRoots) {
+    const dockerignore = await readFile(resolve(directory, ".dockerignore"), "utf8");
+    assert.match(dockerignore, /^\.env$/m);
+    assert.match(dockerignore, /^\.env\.\*$/m);
+    assert.match(dockerignore, /^\*\.key$/m);
+    assert.match(dockerignore, /^\*\.pem$/m);
+    assert.match(dockerignore, /^credentials\.json$/m);
+    assert.match(dockerignore, /^secrets$/m);
   }
 });

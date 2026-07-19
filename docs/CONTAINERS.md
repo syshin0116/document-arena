@@ -103,7 +103,18 @@ Each run has:
 - read-only input artifacts and a new output directory;
 - no Docker socket, host filesystem, or ambient credentials;
 - no network unless a reviewed connection requires it;
-- CPU, memory, process, disk, timeout, and optional GPU limits.
+- CPU, memory, process, tmpfs, and post-run output-size limits.
+
+The local spike does not yet enforce a wall-clock run timeout or a total event
+rate/count limit. A stalled provider call or event-flooding reviewed extension
+must currently be stopped with its runner/container; durable hosted execution
+needs those limits before it is treated as hardened multi-user infrastructure.
+
+For reviewed remote extensions, `network=remote` currently grants Docker bridge
+egress. Manifest endpoint validation reduces accidental connection mistakes but
+is not an egress firewall and does not prevent compromised extension code from
+contacting another destination. Run credentialed remote images only after
+review; destination-scoped proxy/firewall enforcement is future hardening.
 
 One stage failure does not alter its inputs or another parser result.
 
