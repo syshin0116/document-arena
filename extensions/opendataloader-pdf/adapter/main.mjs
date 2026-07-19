@@ -4,6 +4,7 @@ import { basename, relative, resolve, sep } from "node:path";
 import { convert } from "@opendataloader/pdf";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { normalizeOdlDocument } from "./normalize.mjs";
+import { conversionOptions, resolveOptions } from "./options.mjs";
 
 const REQUEST_PATH = process.env.ARENA_REQUEST_PATH ?? "/arena/request.json";
 const INPUT_ROOT = resolve(process.env.ARENA_INPUT_DIR ?? "/arena/input");
@@ -101,56 +102,6 @@ async function inspectPages(sourcePath) {
   }
 }
 
-function enumOption(input, key, values, fallback) {
-  const value = input[key] ?? fallback;
-  if (!values.includes(value)) {
-    throw new Error(`Invalid ${key} option.`);
-  }
-  return value;
-}
-
-function booleanOption(input, key, fallback) {
-  const value = input[key] ?? fallback;
-  if (typeof value !== "boolean") {
-    throw new Error(`Invalid ${key} option.`);
-  }
-  return value;
-}
-
-function resolvedOptions(options) {
-  const input = assertRecord(options ?? {}, "Request options must be an object.");
-  const allowed = new Set([
-    "pages",
-    "tableMethod",
-    "readingOrder",
-    "includeHeaderFooter",
-    "useStructTree",
-    "detectStrikethrough",
-  ]);
-  for (const key of Object.keys(input)) {
-    if (!allowed.has(key)) throw new Error(`Unsupported option: ${key}`);
-  }
-  if (
-    input.pages !== undefined &&
-    (typeof input.pages !== "string" || !/^[0-9,-]+$/.test(input.pages))
-  ) {
-    throw new Error("Invalid pages option.");
-  }
-  return {
-    tableMethod: enumOption(
-      input,
-      "tableMethod",
-      ["default", "cluster"],
-      "default",
-    ),
-    readingOrder: enumOption(input, "readingOrder", ["xycut", "off"], "xycut"),
-    includeHeaderFooter: booleanOption(input, "includeHeaderFooter", false),
-    useStructTree: booleanOption(input, "useStructTree", false),
-    detectStrikethrough: booleanOption(input, "detectStrikethrough", false),
-    ...(input.pages ? { pages: input.pages } : {}),
-  };
-}
-
 async function run() {
   const startedAt = new Date();
   const request = assertRecord(
@@ -177,7 +128,7 @@ async function run() {
     throw new Error("Source SHA-256 does not match the stage request.");
   }
 
-  const options = resolvedOptions(request.options);
+  const options = resolveOptions(request.options);
   const rawDirectory = resolve(OUTPUT_ROOT, "raw");
   const primaryDirectory = resolve(OUTPUT_ROOT, "primary");
   await mkdir(rawDirectory, { recursive: true });
@@ -195,15 +146,7 @@ async function run() {
     stageRunId: request.stageRunId,
     phase: "parsing",
   });
-  await convert(sourcePath, {
-    outputDir: rawDirectory,
-    format: ["json", "markdown"],
-    imageOutput: "off",
-    quiet: true,
-    threads: "1",
-    hybrid: "off",
-    ...options,
-  });
+  await convert(sourcePath, conversionOptions(options, rawDirectory));
 
   const rawJsonPath = await findSingleOutput(rawDirectory, ".json");
   const rawMarkdownPath = await findSingleOutput(rawDirectory, ".md");

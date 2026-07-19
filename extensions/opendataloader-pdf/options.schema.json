@@ -1,42 +1,645 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://parser-arena.dev/schemas/extensions/opendataloader-pdf/options.v1.json",
-  "title": "OpenDataLoader PDF deterministic options",
+  "title": "OpenDataLoader PDF 2.5.0 conversion options",
+  "description": "The complete public Node convert/CLI surface from upstream v2.5.0. Fixed and unavailable settings remain visible with adapter-specific reasons.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "pages": {
+    "outputDir": {
+      "title": "Output directory",
+      "description": "Directory where upstream writes output files. The recorded value is the adapter-managed relative raw artifact directory.",
       "type": "string",
-      "pattern": "^[0-9,-]+$",
-      "description": "Optional 1-indexed page selection such as 1,3,5-7."
+      "const": "raw",
+      "default": "raw",
+      "x-parser-arena": {
+        "availability": {
+          "state": "fixed",
+          "reason": "The adapter owns the output directory so every generated file stays inside the immutable artifact root.",
+          "reasonCode": "adapter-output-dir"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L8-L9"
+      }
     },
-    "tableMethod": {
+    "password": {
+      "title": "PDF password",
+      "description": "Password used to open an encrypted PDF.",
       "type": "string",
-      "enum": [
-        "default",
-        "cluster"
+      "writeOnly": true,
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "Plaintext passwords cannot be placed in immutable run options; a transient secret-reference channel is required first.",
+          "reasonCode": "secret-channel-required"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L10-L11"
+      }
+    },
+    "format": {
+      "title": "Output formats",
+      "description": "Upstream output formats. This adapter requires both untouched JSON and Markdown for normalization and raw evidence.",
+      "type": "array",
+      "const": [
+        "json",
+        "markdown"
       ],
-      "default": "default"
-    },
-    "readingOrder": {
-      "type": "string",
-      "enum": [
-        "xycut",
-        "off"
+      "default": [
+        "json",
+        "markdown"
       ],
-      "default": "xycut"
+      "uniqueItems": true,
+      "items": {
+        "oneOf": [
+          {
+            "const": "json",
+            "title": "JSON",
+            "x-parser-arena": {
+              "availability": {
+                "state": "fixed",
+                "reason": "Canonical normalization and native geometry evidence require the raw JSON output.",
+                "reasonCode": "artifact-contract"
+              }
+            }
+          },
+          {
+            "const": "text",
+            "title": "Plain text",
+            "x-parser-arena": {
+              "availability": {
+                "state": "unavailable",
+                "reason": "The current result bundle does not declare a raw text artifact.",
+                "reasonCode": "artifact-contract"
+              }
+            }
+          },
+          {
+            "const": "html",
+            "title": "HTML",
+            "x-parser-arena": {
+              "availability": {
+                "state": "unavailable",
+                "reason": "The current result bundle does not declare or sanitize a raw HTML artifact.",
+                "reasonCode": "artifact-contract"
+              }
+            }
+          },
+          {
+            "const": "pdf",
+            "title": "Annotated PDF",
+            "x-parser-arena": {
+              "availability": {
+                "state": "unavailable",
+                "reason": "The current result bundle does not declare the generated annotated-PDF artifact.",
+                "reasonCode": "artifact-contract"
+              }
+            }
+          },
+          {
+            "const": "markdown",
+            "title": "Markdown",
+            "x-parser-arena": {
+              "availability": {
+                "state": "fixed",
+                "reason": "The adapter preserves Markdown as raw evidence and uses it during normalization.",
+                "reasonCode": "artifact-contract"
+              }
+            }
+          },
+          {
+            "const": "tagged-pdf",
+            "title": "Tagged PDF",
+            "x-parser-arena": {
+              "availability": {
+                "state": "unavailable",
+                "reason": "The current result bundle does not declare the generated Tagged PDF artifact.",
+                "reasonCode": "artifact-contract"
+              }
+            }
+          }
+        ]
+      },
+      "x-parser-arena": {
+        "availability": {
+          "state": "fixed",
+          "reason": "JSON and Markdown are mandatory raw artifacts; additional formats need explicit artifact contracts.",
+          "reasonCode": "artifact-contract"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L12-L13"
+      }
     },
-    "includeHeaderFooter": {
+    "quiet": {
+      "title": "Quiet logging",
+      "description": "Suppresses upstream console logging while Parser Arena emits its own structured job events.",
       "type": "boolean",
-      "default": false
+      "const": true,
+      "default": true,
+      "x-parser-arena": {
+        "availability": {
+          "state": "fixed",
+          "reason": "Upstream logs are suppressed so adapter stdout remains a structured event stream.",
+          "reasonCode": "adapter-logging"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L14-L15"
+      }
+    },
+    "contentSafetyOff": {
+      "title": "Disable content-safety filters",
+      "description": "Turns off one or more filters for hidden, off-page, tiny, or hidden-layer text.",
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "const": "all",
+            "title": "All filters"
+          },
+          {
+            "const": "hidden-text",
+            "title": "Hidden text"
+          },
+          {
+            "const": "off-page",
+            "title": "Off-page text"
+          },
+          {
+            "const": "tiny",
+            "title": "Tiny text"
+          },
+          {
+            "const": "hidden-ocg",
+            "title": "Hidden optional-content groups"
+          }
+        ]
+      },
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "Parser Arena keeps upstream prompt-injection and hidden-content protections enabled for untrusted PDFs.",
+          "reasonCode": "safety-policy"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L16-L17"
+      }
+    },
+    "sanitize": {
+      "title": "Sanitize sensitive data",
+      "description": "Replaces detected emails, phone numbers, IP addresses, credit cards, and URLs with placeholders.",
+      "type": "boolean",
+      "default": false,
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L18-L19"
+      }
+    },
+    "keepLineBreaks": {
+      "title": "Keep line breaks",
+      "description": "Preserves original line breaks instead of merging lines into paragraphs.",
+      "type": "boolean",
+      "default": false,
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L20-L21"
+      }
+    },
+    "replaceInvalidChars": {
+      "title": "Invalid-character replacement",
+      "description": "Non-empty string used to replace invalid or unrecognized characters; upstream defaults to a space.",
+      "type": "string",
+      "minLength": 1,
+      "default": " ",
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L22-L23"
+      }
     },
     "useStructTree": {
+      "title": "Use PDF structure tree",
+      "description": "Uses native Tagged PDF structure for reading order and semantics when tags are present.",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L24-L25"
+      }
+    },
+    "tableMethod": {
+      "title": "Table detection",
+      "description": "Selects border-only detection or border detection augmented by clustering.",
+      "type": "string",
+      "default": "default",
+      "oneOf": [
+        {
+          "const": "default",
+          "title": "Default · border based"
+        },
+        {
+          "const": "cluster",
+          "title": "Cluster · border and cluster"
+        }
+      ],
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L26-L27"
+      }
+    },
+    "readingOrder": {
+      "title": "Reading order",
+      "description": "Keeps PDF content-stream order or applies the XY-Cut++ layout algorithm.",
+      "type": "string",
+      "default": "xycut",
+      "oneOf": [
+        {
+          "const": "off",
+          "title": "Off · PDF object order"
+        },
+        {
+          "const": "xycut",
+          "title": "XY-Cut++"
+        }
+      ],
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L28-L29"
+      }
+    },
+    "markdownPageSeparator": {
+      "title": "Markdown page separator",
+      "description": "Text inserted between Markdown pages; %page-number% is replaced with the 1-based page number. Empty means none.",
+      "type": "string",
+      "default": "",
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L30-L31"
+      }
+    },
+    "markdownWithHtml": {
+      "title": "HTML inside Markdown",
+      "description": "Allows HTML tags in Markdown for structures such as tables with row spans.",
+      "type": "boolean",
+      "default": false,
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L32-L33"
+      }
+    },
+    "textPageSeparator": {
+      "title": "Text page separator",
+      "description": "Text inserted between plain-text pages; %page-number% is replaced with the page number.",
+      "type": "string",
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "Plain-text output is not part of this adapter's raw artifact contract.",
+          "reasonCode": "dependent-output-format"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L34-L35"
+      }
+    },
+    "htmlPageSeparator": {
+      "title": "HTML page separator",
+      "description": "Markup inserted between HTML pages; %page-number% is replaced with the page number.",
+      "type": "string",
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "HTML output is not part of this adapter's raw artifact contract.",
+          "reasonCode": "dependent-output-format"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L36-L37"
+      }
+    },
+    "imageOutput": {
+      "title": "Image output",
+      "description": "Controls whether images are omitted, embedded as Base64 data URIs, or written as external files.",
+      "type": "string",
+      "const": "off",
+      "default": "off",
+      "oneOf": [
+        {
+          "const": "off",
+          "title": "Off",
+          "x-parser-arena": {
+            "availability": {
+              "state": "fixed",
+              "reason": "This adapter profile keeps image extraction disabled.",
+              "reasonCode": "artifact-contract"
+            }
+          }
+        },
+        {
+          "const": "embedded",
+          "title": "Embedded Base64",
+          "x-parser-arena": {
+            "availability": {
+              "state": "unavailable",
+              "reason": "Embedded images need output-size and memory limits before they can be retained safely.",
+              "reasonCode": "artifact-contract"
+            }
+          }
+        },
+        {
+          "const": "external",
+          "title": "External files",
+          "x-parser-arena": {
+            "availability": {
+              "state": "unavailable",
+              "reason": "External images require immutable image descriptors and preserved link references.",
+              "reasonCode": "artifact-contract"
+            }
+          }
+        }
+      ],
+      "x-parser-arena": {
+        "availability": {
+          "state": "fixed",
+          "reason": "The current result bundle preserves JSON and Markdown only; image artifacts are not declared.",
+          "reasonCode": "artifact-contract"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L38-L39"
+      }
+    },
+    "imageFormat": {
+      "title": "Image format",
+      "description": "Encoding used for embedded or external extracted images.",
+      "type": "string",
+      "default": "png",
+      "oneOf": [
+        {
+          "const": "png",
+          "title": "PNG"
+        },
+        {
+          "const": "jpeg",
+          "title": "JPEG"
+        }
+      ],
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "Image format has no effect while image output is fixed off.",
+          "reasonCode": "dependent-image-output"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L40-L41"
+      }
+    },
+    "imageDir": {
+      "title": "External image directory",
+      "description": "Directory used for extracted image files when image output is external.",
+      "type": "string",
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "External images are disabled, and output paths must remain adapter-managed inside the artifact root.",
+          "reasonCode": "artifact-contract"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L42-L43"
+      }
+    },
+    "pages": {
+      "title": "Pages",
+      "description": "Optional positive 1-based pages and ascending ranges, for example 1, 3, 5 - 7. Whitespace is accepted and recorded canonically.",
+      "type": "string",
+      "pattern": "^\\s*[1-9][0-9]*(?:\\s*-\\s*[1-9][0-9]*)?(?:\\s*,\\s*[1-9][0-9]*(?:\\s*-\\s*[1-9][0-9]*)?)*\\s*$",
+      "examples": [
+        "1,3,5-7",
+        "1, 3, 5 - 7"
+      ],
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L44-L45"
+      }
+    },
+    "includeHeaderFooter": {
+      "title": "Include headers and footers",
+      "description": "Includes detected page headers and footers in generated output.",
+      "type": "boolean",
+      "default": false,
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L46-L47"
+      }
     },
     "detectStrikethrough": {
+      "title": "Detect strikethrough",
+      "description": "Experimental detection that emits Markdown ~~ markers or HTML del tags.",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "x-parser-arena": {
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L48-L49"
+      }
+    },
+    "hybrid": {
+      "title": "Hybrid backend",
+      "description": "Routes selected pages to an external AI backend; local Java-only processing is off.",
+      "type": "string",
+      "const": "off",
+      "default": "off",
+      "oneOf": [
+        {
+          "const": "off",
+          "title": "Off · Java only",
+          "x-parser-arena": {
+            "availability": {
+              "state": "fixed",
+              "reason": "This component is the deterministic local Java profile.",
+              "reasonCode": "network-policy"
+            }
+          }
+        },
+        {
+          "const": "docling-fast",
+          "title": "Docling Fast server",
+          "x-parser-arena": {
+            "availability": {
+              "state": "unavailable",
+              "reason": "The component contains no Python Docling backend or model artifacts and declares network=none.",
+              "reasonCode": "missing-service"
+            }
+          }
+        },
+        {
+          "const": "hancom-ai",
+          "title": "Hancom AI HOCR service",
+          "x-parser-arena": {
+            "availability": {
+              "state": "unavailable",
+              "reason": "The required Hancom AI service is not part of this component and network access is disabled.",
+              "reasonCode": "missing-service"
+            }
+          }
+        }
+      ],
+      "x-parser-arena": {
+        "availability": {
+          "state": "fixed",
+          "reason": "This reviewed component has no hybrid service and declares network=none.",
+          "reasonCode": "network-policy"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L50-L51"
+      }
+    },
+    "hybridMode": {
+      "title": "Hybrid triage mode",
+      "description": "Uses automatic page triage or sends every page to the selected backend.",
+      "type": "string",
+      "default": "auto",
+      "oneOf": [
+        {
+          "const": "auto",
+          "title": "Auto triage"
+        },
+        {
+          "const": "full",
+          "title": "Full · every page"
+        }
+      ],
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "Hybrid mode is fixed off because no backend service is configured.",
+          "reasonCode": "dependent-hybrid"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L52-L53"
+      }
+    },
+    "hybridUrl": {
+      "title": "Hybrid server URL",
+      "description": "Overrides the selected hybrid backend's default server URL.",
+      "type": "string",
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "The component declares network=none and has no hybrid service connection.",
+          "reasonCode": "network-policy"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L54-L55"
+      }
+    },
+    "hybridTimeout": {
+      "title": "Hybrid timeout",
+      "description": "Backend request timeout in milliseconds as an upstream string; 0 means no timeout.",
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]*)$",
+      "default": "0",
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "Hybrid mode is fixed off because no backend service is configured.",
+          "reasonCode": "dependent-hybrid"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L56-L57"
+      }
+    },
+    "hybridFallback": {
+      "title": "Hybrid Java fallback",
+      "description": "Falls back to native Java processing when a hybrid backend request fails.",
+      "type": "boolean",
+      "default": false,
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "Hybrid mode is fixed off, so backend fallback cannot apply.",
+          "reasonCode": "dependent-hybrid"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L58-L59"
+      }
+    },
+    "hybridHancomAiRegionlistStrategy": {
+      "title": "Hancom region-list strategy",
+      "description": "Controls how Hancom AI DLA label 7 is interpreted.",
+      "type": "string",
+      "default": "table-first",
+      "oneOf": [
+        {
+          "const": "table-first",
+          "title": "Table first"
+        },
+        {
+          "const": "list-only",
+          "title": "List only"
+        }
+      ],
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "This setting requires the unavailable hancom-ai hybrid backend.",
+          "reasonCode": "dependent-hybrid"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L60-L61"
+      }
+    },
+    "hybridHancomAiOcrStrategy": {
+      "title": "Hancom OCR strategy",
+      "description": "Uses stream text only, stream text with OCR fallback, or forced OCR.",
+      "type": "string",
+      "default": "auto",
+      "oneOf": [
+        {
+          "const": "off",
+          "title": "Off · stream only"
+        },
+        {
+          "const": "auto",
+          "title": "Auto fallback"
+        },
+        {
+          "const": "force",
+          "title": "Force OCR"
+        }
+      ],
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "This setting requires the unavailable hancom-ai hybrid backend.",
+          "reasonCode": "dependent-hybrid"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L62-L63"
+      }
+    },
+    "hybridHancomAiImageCache": {
+      "title": "Hancom page-image cache",
+      "description": "Keeps Hancom AI page raster images in memory or temporary disk files.",
+      "type": "string",
+      "default": "memory",
+      "oneOf": [
+        {
+          "const": "memory",
+          "title": "Memory"
+        },
+        {
+          "const": "disk",
+          "title": "Disk"
+        }
+      ],
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "This setting requires the unavailable hancom-ai hybrid backend.",
+          "reasonCode": "dependent-hybrid"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L64-L65"
+      }
+    },
+    "toStdout": {
+      "title": "Write result to stdout",
+      "description": "Writes a single upstream output to stdout instead of creating files.",
+      "type": "boolean",
+      "const": false,
+      "default": false,
+      "x-parser-arena": {
+        "availability": {
+          "state": "unavailable",
+          "reason": "The adapter requires JSON and Markdown files for immutable raw artifacts and normalization.",
+          "reasonCode": "artifact-contract"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L66-L67"
+      }
+    },
+    "threads": {
+      "title": "Page-processing threads",
+      "description": "Number of native Java page workers as an upstream string; values above 1 are experimental and can vary output.",
+      "type": "string",
+      "const": "1",
+      "default": "1",
+      "pattern": "^[1-9][0-9]*$",
+      "x-parser-arena": {
+        "availability": {
+          "state": "fixed",
+          "reason": "Sequential processing is kept for stable, comparable parser output.",
+          "reasonCode": "deterministic-output"
+        },
+        "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L68-L69"
+      }
     }
   }
 }
