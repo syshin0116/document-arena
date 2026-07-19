@@ -7,6 +7,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useReducer,
   useRef,
@@ -85,6 +86,101 @@ type PendingRemoteRun = {
   document: LocalDocument;
   openedFromPicker: boolean;
 };
+
+type ResultContentView = "blocks" | "markdown";
+type ResultRenderMode = "rendered" | "raw";
+
+export function ResultViewToolbar({
+  mappingAvailable,
+  localView,
+  viewMode,
+  onLocalViewChange,
+  onViewModeChange,
+  controlsId,
+}: {
+  mappingAvailable: boolean;
+  localView: ResultContentView;
+  viewMode: ResultRenderMode;
+  onLocalViewChange: (view: ResultContentView) => void;
+  onViewModeChange: (mode: ResultRenderMode) => void;
+  controlsId: string;
+}) {
+  return (
+    <div className="pane-toolbar result-toolbar result-view-toolbar">
+      <div className="result-toolbar-status">
+        {!mappingAvailable && (
+          <span className="mapping-status" data-unavailable>
+            <span aria-hidden="true" />
+            No source mapping on this page
+          </span>
+        )}
+      </div>
+      <div className="result-view-cluster">
+        <div className="result-view-group">
+          <span className="result-view-label" aria-hidden="true">
+            Content
+          </span>
+          <div
+            className="view-toggle"
+            role="group"
+            aria-label="Content view"
+          >
+            <button
+              type="button"
+              aria-pressed={localView === "blocks"}
+              aria-controls={controlsId}
+              onClick={() => onLocalViewChange("blocks")}
+            >
+              Blocks
+            </button>
+            <button
+              type="button"
+              aria-pressed={localView === "markdown"}
+              aria-controls={controlsId}
+              onClick={() => onLocalViewChange("markdown")}
+            >
+              Markdown
+            </button>
+          </div>
+        </div>
+        <span className="result-view-divider" aria-hidden="true" />
+        <div className="result-view-group">
+          <span className="result-view-label" aria-hidden="true">
+            Mode
+          </span>
+          <div className="view-toggle" role="group" aria-label="Render mode">
+            <button
+              type="button"
+              aria-pressed={viewMode === "rendered"}
+              aria-controls={controlsId}
+              title={
+                localView === "blocks"
+                  ? "Rendered blocks"
+                  : "Rendered Markdown"
+              }
+              onClick={() => onViewModeChange("rendered")}
+            >
+              Rendered
+            </button>
+            <button
+              type="button"
+              aria-pressed={viewMode === "raw"}
+              aria-controls={controlsId}
+              title={
+                localView === "blocks"
+                  ? "Raw block JSON"
+                  : "Raw Markdown output"
+              }
+              onClick={() => onViewModeChange("raw")}
+            >
+              Raw
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const LOCAL_COMPONENT_IDS: Record<ParserId, string> = {
   opendataloader: "opendataloader-pdf",
@@ -219,14 +315,15 @@ export function Workspace({
   const [pendingRemoteRun, setPendingRemoteRun] =
     useState<PendingRemoteRun | null>(null);
   const [remoteConsentConfirming, setRemoteConsentConfirming] = useState(false);
-  const [localView, setLocalView] = useState<"blocks" | "markdown">("blocks");
+  const [localView, setLocalView] = useState<ResultContentView>("blocks");
   // Rendered/Raw applies to both the Blocks and Markdown views.
   const [mergeRegions, setMergeRegions] = useState(false);
-  const [viewMode, setViewMode] = useState<"rendered" | "raw">("rendered");
+  const [viewMode, setViewMode] = useState<ResultRenderMode>("rendered");
   const [runTab, setRunTab] = useState<ParserId | "compare" | null>(null);
   const [customSplit, setCustomSplit] = useState<number | null>(null);
   const [splitDragging, setSplitDragging] = useState(false);
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
+  const resultViewId = useId();
   const canvasRef = useRef<HTMLDivElement>(null);
   const timers = useRef<number[]>([]);
   const approvedRemoteRuns = useRef(new Set<string>());
@@ -1171,17 +1268,16 @@ export function Workspace({
 
           {!demo && effectiveTab === "compare" && comparing && (
             <div className="result-ready-shell">
-              {!hasNativeMapping && (
-                <div className="pane-toolbar result-toolbar">
-                  <div className="result-heading">
-                    <span className="mapping-status" data-unavailable>
-                      <span aria-hidden="true" />
-                      No source mapping on this page
-                    </span>
-                  </div>
-                </div>
-              )}
+              <ResultViewToolbar
+                mappingAvailable={hasNativeMapping}
+                localView={localView}
+                viewMode={viewMode}
+                onLocalViewChange={setLocalView}
+                onViewModeChange={setViewMode}
+                controlsId={resultViewId}
+              />
               <div
+                id={resultViewId}
                 className="results-scroll"
                 ref={resultsScrollRef}
                 onScroll={handleResultsScroll}
@@ -1240,71 +1336,16 @@ export function Workspace({
               const result = run.result;
               return (
                 <div className="result-ready-shell">
-                  <div className="pane-toolbar result-toolbar">
-                    <div className="result-toolbar-side">
-                      {!hasNativeMapping && (
-                        <span className="mapping-status" data-unavailable>
-                          <span aria-hidden="true" />
-                          No source mapping on this page
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      className="view-toggle result-toolbar-center"
-                      role="tablist"
-                      aria-label="Result view"
-                    >
-                      <button
-                        role="tab"
-                        type="button"
-                        aria-selected={localView === "blocks"}
-                        onClick={() => setLocalView("blocks")}
-                      >
-                        Blocks
-                      </button>
-                      <button
-                        role="tab"
-                        type="button"
-                        aria-selected={localView === "markdown"}
-                        onClick={() => setLocalView("markdown")}
-                      >
-                        Markdown
-                      </button>
-                    </div>
-                    <div
-                      className="view-toggle result-toolbar-side result-toolbar-end"
-                      role="tablist"
-                      aria-label="Render mode"
-                    >
-                      <button
-                        role="tab"
-                        type="button"
-                        aria-selected={viewMode === "rendered"}
-                        title={
-                          localView === "blocks"
-                            ? "Rendered blocks"
-                            : "Rendered Markdown"
-                        }
-                        onClick={() => setViewMode("rendered")}
-                      >
-                        Rendered
-                      </button>
-                      <button
-                        role="tab"
-                        type="button"
-                        aria-selected={viewMode === "raw"}
-                        title={
-                          localView === "blocks"
-                            ? "Raw block JSON"
-                            : "Raw Markdown output"
-                        }
-                        onClick={() => setViewMode("raw")}
-                      >
-                        Raw
-                      </button>
-                    </div>
-                  </div>
+                  <ResultViewToolbar
+                    mappingAvailable={hasNativeMapping}
+                    localView={localView}
+                    viewMode={viewMode}
+                    onLocalViewChange={setLocalView}
+                    onViewModeChange={setViewMode}
+                    controlsId={resultViewId}
+                  />
                   <div
+                    id={resultViewId}
                     className="results-scroll"
                     ref={resultsScrollRef}
                     onScroll={handleResultsScroll}

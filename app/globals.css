@@ -1216,40 +1216,94 @@ button:disabled {
   flex: 0 0 auto;
 }
 
+.result-ready-shell > .result-view-toolbar {
+  min-height: 58px;
+}
+
 .result-ready-shell > .results-scroll {
   flex: 1 1 auto;
 }
 
 .result-toolbar {
-  padding-right: 16px;
   gap: 10px;
+  padding-right: 16px;
 }
 
-/* Three-part result toolbar: status | Blocks|Markdown (centered) | Rendered|Raw (right). */
-.result-toolbar-side {
+.result-view-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+  justify-content: normal;
+  padding: 5px 16px;
+}
+
+/* Source mapping stays independent from the centered result-view controls. */
+.result-toolbar-status {
+  display: flex;
+  grid-column: 1;
+  align-items: center;
+  min-width: 0;
+  min-height: 16px;
+  overflow: hidden;
+}
+
+.result-toolbar-status .mapping-status {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-view-cluster {
+  display: flex;
+  grid-column: 2;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgb(248 248 246 / 0.9);
+}
+
+.result-view-group {
   display: flex;
   align-items: center;
-  flex: 1 1 0;
+  gap: 6px;
   min-width: 0;
 }
 
-.result-toolbar-center {
+.result-view-label {
+  color: var(--ink-faint);
+  font-size: 9px;
+  font-weight: 720;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.result-view-divider {
+  width: 1px;
+  height: 24px;
+  flex: 0 0 auto;
+  background: var(--line-strong);
+}
+
+.result-view-group .view-toggle {
   flex: 0 0 auto;
 }
 
-.result-toolbar-end {
-  justify-content: flex-end;
-}
-
-.result-toolbar-end.view-toggle {
-  flex: 1 1 0;
+.result-view-group .view-toggle button {
+  min-height: 40px;
+  padding: 0 11px;
 }
 
 /* Rendered/Raw stays visible but reads as inactive until Markdown is selected. */
 .view-toggle[data-disabled] button {
   opacity: 0.5;
 }
-.view-toggle[data-disabled] button[aria-selected="true"] {
+.view-toggle[data-disabled] button[aria-selected="true"],
+.view-toggle[data-disabled] button[aria-pressed="true"] {
   opacity: 1;
 }
 
@@ -2017,6 +2071,30 @@ button:disabled {
 .consent-card strong { color: #7d4a19; font-size: 11px; }
 .consent-card span { margin-top: 4px; color: #8a633d; font-size: 10px; line-height: 1.5; }
 
+@media (max-width: 1280px) {
+  .result-ready-shell > .result-view-toolbar {
+    min-height: 76px;
+  }
+
+  .result-view-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 16px auto;
+    gap: 4px;
+    padding: 5px 12px;
+  }
+
+  .result-toolbar-status {
+    grid-row: 1;
+    justify-content: center;
+  }
+
+  .result-view-cluster {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: center;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .primary-button:hover { background: #2d2f2a; }
   .secondary-button:hover { border-color: var(--line-strong); background: #f8f8f6; }
@@ -2142,6 +2220,40 @@ button:disabled {
   .workspace-shell[data-mobile-pane="results"] .source-pane { display: none; }
   .pdf-main-viewport { padding: 20px 18px 38px; }
   .pane-toolbar { padding-left: 12px; }
+  .result-ready-shell > .result-view-toolbar { min-height: 92px; }
+  .result-view-toolbar {
+    grid-template-rows: 16px minmax(0, 1fr);
+    padding: 5px 10px 7px;
+  }
+  .result-view-toolbar > .result-view-cluster {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .result-view-group {
+    display: grid;
+    min-width: 0;
+    grid-template-rows: 12px auto;
+    gap: 3px;
+  }
+  .result-view-label { text-align: center; }
+  .result-view-divider { display: none; }
+  .result-view-group .view-toggle {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .result-view-group .view-toggle button {
+    min-width: 0;
+    min-height: 40px;
+    padding: 0 4px;
+    font-size: 10.5px;
+  }
   .native-pill { display: none; }
   .source-controls .control-separator,
   .source-controls button[aria-label^="Zoom"],
@@ -2659,7 +2771,8 @@ button:disabled {
   cursor: pointer;
 }
 
-.view-toggle button[aria-selected="true"] {
+.view-toggle button[aria-selected="true"],
+.view-toggle button[aria-pressed="true"] {
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow-small);
