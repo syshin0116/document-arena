@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { after, before, test } from "node:test";
 
 const root = resolve(import.meta.dirname, "..");
+const [arenaSource, globalCss] = await Promise.all([
+  readFile(new URL("../app/ui/ArenaBattle.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+]);
 let appOrigin;
 let nextServer;
 let serverOutput = "";
@@ -173,6 +178,39 @@ test("server-renders the blind arena intro", async () => {
   assert.match(html, /Two parsers\. No labels\. Your call\./);
   assert.match(html, /Start a sample battle/);
   assert.doesNotMatch(html, /Candidate A/);
+});
+
+test("mobile Arena keeps source and both candidates reachable before voting", () => {
+  assert.match(arenaSource, /aria-label="Arena view"/);
+  assert.match(
+    arenaSource,
+    /aria-pressed=\{mobilePane === "source"\}[\s\S]*aria-controls="arena-source-pane"/,
+  );
+  assert.match(
+    arenaSource,
+    /aria-pressed=\{mobilePane === "candidate-a"\}[\s\S]*aria-controls="arena-candidate-a"/,
+  );
+  assert.match(
+    arenaSource,
+    /aria-pressed=\{mobilePane === "candidate-b"\}[\s\S]*aria-controls="arena-candidate-b"/,
+  );
+
+  assert.match(
+    globalCss,
+    /\.arena-shell\[data-phase="blind"\],[\s\S]*grid-template-rows:\s*58px\s+42px\s+minmax\(0,\s*1fr\)\s+auto/,
+  );
+  assert.match(
+    globalCss,
+    /\.arena-canvas\[data-mobile-pane="source"\]\s+\.results-pane/,
+  );
+  assert.match(
+    globalCss,
+    /data-mobile-pane="candidate-a"[\s\S]*data-arena-candidate="b"/,
+  );
+  assert.match(
+    globalCss,
+    /data-phase="blind"\]\[data-mobile-pane="source"\][\s\S]*\.arena-vote-bar\s*\{\s*display:\s*none/,
+  );
 });
 
 test("server-renders the leaderboard with a device-local empty state", async () => {

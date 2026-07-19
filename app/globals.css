@@ -1205,9 +1205,19 @@ button:disabled {
 .phase-list [data-active] b { border-color: var(--indigo); background: var(--indigo); color: #fff; }
 
 .result-ready-shell {
-  display: grid;
+  display: flex;
   height: 100%;
-  grid-template-rows: 46px minmax(0, 1fr);
+  min-height: 0;
+  flex-direction: column;
+}
+
+.result-ready-shell > .result-toolbar {
+  min-height: 46px;
+  flex: 0 0 auto;
+}
+
+.result-ready-shell > .results-scroll {
+  flex: 1 1 auto;
 }
 
 .result-toolbar {
@@ -2195,6 +2205,10 @@ button:disabled {
   min-height: 0;
 }
 
+.arena-mobile-pane-switcher {
+  display: none;
+}
+
 .arena-vote-bar {
   position: relative;
   z-index: 20;
@@ -2391,6 +2405,68 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  .arena-shell {
+    min-height: 0;
+  }
+
+  .arena-shell[data-phase="intro"],
+  .arena-shell[data-phase="running"] {
+    grid-template-rows: 58px minmax(0, 1fr);
+  }
+
+  .arena-shell[data-phase="blind"],
+  .arena-shell[data-phase="revealed"] {
+    grid-template-rows: 58px 42px minmax(0, 1fr) auto;
+  }
+
+  .arena-mobile-pane-switcher {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    padding: 4px;
+    border-bottom: 1px solid var(--line);
+    background: #f7f7f4;
+  }
+
+  .arena-mobile-pane-switcher button {
+    min-width: 0;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--ink-soft);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 630;
+  }
+
+  .arena-mobile-pane-switcher button[aria-pressed="true"] {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 1px 3px rgb(25 26 23 / 0.09);
+  }
+
+  .arena-canvas[data-mobile-pane="source"] .results-pane,
+  .arena-canvas[data-mobile-pane="candidate-a"] .source-pane,
+  .arena-canvas[data-mobile-pane="candidate-b"] .source-pane {
+    display: none;
+  }
+
+  .arena-canvas[data-mobile-pane="candidate-a"]
+    [data-arena-candidate="b"],
+  .arena-canvas[data-mobile-pane="candidate-b"]
+    [data-arena-candidate="a"] {
+    display: none;
+  }
+
+  .arena-canvas .result-columns[data-columns="2"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arena-shell[data-phase="blind"][data-mobile-pane="source"]
+    .arena-vote-bar {
+    display: none;
+  }
+
   .leaderboard-row {
     grid-template-columns: minmax(0, 1fr) 96px 52px 44px;
     padding: 12px 13px;
@@ -3143,6 +3219,12 @@ button.strip-chip:hover { border-color: var(--line-strong); }
 
 .workspace-shell[data-no-dock] {
   grid-template-rows: 64px minmax(0, 1fr);
+}
+
+@media (max-width: 760px) {
+  .workspace-shell[data-no-dock] {
+    grid-template-rows: 58px 42px minmax(0, 1fr);
+  }
 }
 
 .strip-progress {

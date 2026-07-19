@@ -42,6 +42,7 @@ const parserMeta: Record<
 };
 
 type BattlePhase = "intro" | "running" | "blind" | "revealed";
+type ArenaMobilePane = "source" | "candidate-a" | "candidate-b";
 
 function shuffledPair(): [ArenaParserId, ArenaParserId] {
   return Math.random() < 0.5
@@ -58,6 +59,8 @@ export function ArenaBattle() {
   const [outcome, setOutcome] = useState<BlindVoteOutcome | null>(null);
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState<number | null>(null);
+  const [mobilePane, setMobilePane] =
+    useState<ArenaMobilePane>("candidate-a");
   const timers = useRef<number[]>([]);
 
   useEffect(
@@ -78,6 +81,7 @@ export function ArenaBattle() {
     setPermutation(shuffledPair());
     setOutcome(null);
     setPage(1);
+    setMobilePane("candidate-a");
     setPhase("running");
     const timer = window.setTimeout(() => setPhase("blind"), 1600);
     timers.current.push(timer);
@@ -102,7 +106,11 @@ export function ArenaBattle() {
   }
 
   return (
-    <main className="arena-shell" data-phase={phase}>
+    <main
+      className="arena-shell"
+      data-phase={phase}
+      data-mobile-pane={mobilePane}
+    >
       <header className="workspace-header">
         <div className="workspace-identity">
           <Link className="back-button" href="/" aria-label="Back to upload">
@@ -162,8 +170,46 @@ export function ArenaBattle() {
 
       {(phase === "blind" || phase === "revealed") && (
         <>
-          <div className="workspace-canvas arena-canvas">
-            <section className="source-pane" aria-label="Source PDF">
+          <div
+            className="arena-mobile-pane-switcher"
+            role="group"
+            aria-label="Arena view"
+          >
+            <button
+              type="button"
+              aria-pressed={mobilePane === "source"}
+              aria-controls="arena-source-pane"
+              onClick={() => setMobilePane("source")}
+            >
+              Source
+            </button>
+            <button
+              type="button"
+              aria-pressed={mobilePane === "candidate-a"}
+              aria-controls="arena-candidate-a"
+              onClick={() => setMobilePane("candidate-a")}
+            >
+              Candidate A
+            </button>
+            <button
+              type="button"
+              aria-pressed={mobilePane === "candidate-b"}
+              aria-controls="arena-candidate-b"
+              onClick={() => setMobilePane("candidate-b")}
+            >
+              Candidate B
+            </button>
+          </div>
+
+          <div
+            className="workspace-canvas arena-canvas"
+            data-mobile-pane={mobilePane}
+          >
+            <section
+              id="arena-source-pane"
+              className="source-pane"
+              aria-label="Source PDF"
+            >
               <div className="pane-toolbar">
                 <div>
                   <strong>Source</strong>
@@ -216,7 +262,14 @@ export function ArenaBattle() {
               </div>
             </section>
 
-            <section className="results-pane" aria-label="Anonymous candidates">
+            <section
+              className="results-pane"
+              aria-label={
+                phase === "blind"
+                  ? "Anonymous candidates"
+                  : "Revealed parser results"
+              }
+            >
               <div className="result-ready-shell">
                 <div className="pane-toolbar result-toolbar">
                   <div className="result-heading">
@@ -326,7 +379,9 @@ function CandidateColumn({
   const alternate = parser === "mineru";
   return (
     <article
+      id={`arena-candidate-${letter.toLowerCase()}`}
       className="parser-result"
+      data-arena-candidate={letter.toLowerCase()}
       data-accent={revealed ? (alternate ? "amber" : "indigo") : "neutral"}
       data-winner={winner || undefined}
     >
