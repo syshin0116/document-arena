@@ -36,7 +36,7 @@ function firstPageContent() {
     "0 G",
     "0 g",
     "0.8 w",
-    text("F1", 8, 72, 750, "PARSER ARENA / SOURCE-LINKED DEMO"),
+    text("F1", 8, 72, 750, "DOCUMENT ARENA / SOURCE-LINKED DEMO"),
     text("F2", 24, 142, 704, "Attention Is All You Need"),
     text("F1", 10, 143, 682, "A reproducible study of document understanding systems"),
     text("F1", 9, 185, 654, "A. Researcher / B. Engineer / C. Scientist"),
@@ -83,7 +83,7 @@ function continuationPageContent(pageNumber: number) {
   return [
     "0 G",
     "0 g",
-    text("F1", 8, 72, 750, "PARSER ARENA / SOURCE-LINKED DEMO"),
+    text("F1", 8, 72, 750, "DOCUMENT ARENA / SOURCE-LINKED DEMO"),
     text("F2", 22, 72, 700, `Evaluation notes / page ${pageNumber}`),
     text("F1", 10, 72, 660, "This continuation page exercises real PDF navigation."),
     text("F1", 10, 72, 640, "Parser-native evidence in the demo belongs to page 1 only."),

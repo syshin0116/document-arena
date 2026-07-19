@@ -31,6 +31,8 @@ test("the generated demo is a deterministic twelve-page PDF", () => {
 
   assert.match(decoded, /^%PDF-1\.4/);
   assert.match(decoded, /\/Count 12\b/);
+  assert.match(decoded, /DOCUMENT ARENA \/ SOURCE-LINKED DEMO/);
+  assert.doesNotMatch(decoded, /PARSER ARENA/);
   assert.match(decoded, /Attention Is All You Need/);
   assert.deepEqual(getDemoPdf(), bytes);
 });
