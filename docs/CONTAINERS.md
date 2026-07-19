@@ -167,5 +167,7 @@ self-host durability claim.
 
 The reference data/workflow services, web upload flow, LangGraph envelope,
 Redis-backed live updates, and hosted runner are still plans rather than part of
-the developer Compose stack. A root open-source license must also be selected
-before publishing the repository as a redistributable release.
+the developer Compose stack. The repository source is MIT licensed; built
+component images and hosted profiles must also preserve every upstream license,
+notice, attribution, model-weight, privacy, and service-specific obligation
+recorded by their extension.

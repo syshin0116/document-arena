@@ -1,8 +1,10 @@
 # MinerU Pipeline extension licenses
 
-Status: verified against upstream on 2026-07-19 (GitHub license API,
-`LICENSE.md` on master, and dependency lists at the pinned version); full
-legal review still pending before any hosted or redistributed use.
+Status: the adapter source is distributed under the root MIT license. Upstream
+code, model weights, built-image redistribution, and hosted use retain the
+separate review requirements below. The upstream terms were last verified on
+2026-07-19 against `LICENSE.md` on master and dependency lists at the pinned
+version.
 
 ## Pinned version: MinerU 3.4.4
 
@@ -23,8 +25,7 @@ legal review still pending before any hosted or redistributed use.
   declares AGPL-3.0, while individual upstream model families may carry
   additional terms. These weights must complete legal review before the
   hosted catalog enables or redistributes this profile.
-- **Adapter code** (`adapter/`): Document Arena repository terms (root license
-  still undecided).
+- **Adapter code** (`adapter/`): MIT, under the Document Arena root license.
 
 ## History
 

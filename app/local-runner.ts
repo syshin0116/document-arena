@@ -260,6 +260,13 @@ export type CanonicalBlock = {
   text?: string;
   headingLevel?: number;
   rawJsonPointer?: string;
+  tableBlockId?: string;
+  tableCell?: {
+    rowIndex: number;
+    columnIndex: number;
+    rowSpan?: number;
+    columnSpan?: number;
+  };
   sourceRegions?: readonly CanonicalSourceRegion[];
 };
 
@@ -419,17 +426,24 @@ export function isRenderableBlock(block: CanonicalBlock): boolean {
 export type ReadingCell = {
   text: string;
   evidenceBlockId: string | null;
+  rowSpan: number;
+  columnSpan: number;
 };
 
 export type ReadingNode =
   | { type: "block"; block: CanonicalBlock }
-  | { type: "table"; block: CanonicalBlock; rows: ReadingCell[][] };
+  | {
+      type: "table";
+      block: CanonicalBlock;
+      rows: (ReadingCell | null)[][];
+    };
 
 /**
  * Rebuilds a document-like reading structure from the flattened canonical
- * blocks. Table grids are reconstructed from each block's rawJsonPointer
- * (`.../rows/<r>/cells/<c>/...`), and every rendered element keeps the id of
- * the canonical block that carries its native evidence region.
+ * blocks. Table grids use explicit component-neutral table metadata when it
+ * is present, with legacy hierarchical rawJsonPointer paths as a compatibility
+ * fallback. Every rendered element keeps the id of the canonical block that
+ * carries its native evidence region.
  */
 export function buildReadingNodes(
   blocks: readonly CanonicalBlock[],
@@ -442,47 +456,111 @@ export function buildReadingNodes(
   for (const block of blocks) {
     if (consumed.has(block.id)) continue;
 
-    if (block.kind === "table" && block.rawJsonPointer) {
+    if (block.kind === "table") {
       const tablePointer = block.rawJsonPointer;
       const children = blocks.filter(
         (candidate) =>
           candidate.id !== block.id &&
-          candidate.rawJsonPointer?.startsWith(`${tablePointer}/rows/`),
+          (candidate.tableBlockId === block.id ||
+            (tablePointer !== undefined &&
+              candidate.rawJsonPointer?.startsWith(`${tablePointer}/rows/`))),
       );
-      for (const child of children) consumed.add(child.id);
 
-      const cellMap = new Map<string, { text: string[]; blockId: string | null }>();
+      const cellMap = new Map<
+        string,
+        {
+          text: string[];
+          blockId: string | null;
+          rowSpan: number;
+          columnSpan: number;
+        }
+      >();
       let maxRow = -1;
       let maxColumn = -1;
       for (const child of children) {
-        const match = child.rawJsonPointer
-          ?.slice(tablePointer.length)
-          .match(/^\/rows\/(\d+)\/cells\/(\d+)/);
-        if (!match) continue;
-        const row = Number(match[1]);
-        const column = Number(match[2]);
-        maxRow = Math.max(maxRow, row);
-        maxColumn = Math.max(maxColumn, column);
+        const pointerMatch = tablePointer
+          ? child.rawJsonPointer
+              ?.slice(tablePointer.length)
+              .match(/^\/rows\/(\d+)\/cells\/(\d+)/)
+          : null;
+        const row = child.tableCell?.rowIndex ?? Number(pointerMatch?.[1]);
+        const column = child.tableCell?.columnIndex ?? Number(pointerMatch?.[2]);
+        if (
+          !Number.isInteger(row) ||
+          row < 0 ||
+          !Number.isInteger(column) ||
+          column < 0
+        ) {
+          continue;
+        }
+
+        const rawRowSpan = child.tableCell?.rowSpan;
+        const rowSpan =
+          typeof rawRowSpan === "number" &&
+          Number.isInteger(rawRowSpan) &&
+          rawRowSpan > 0
+            ? rawRowSpan
+            : 1;
+        const rawColumnSpan = child.tableCell?.columnSpan;
+        const columnSpan =
+          typeof rawColumnSpan === "number" &&
+          Number.isInteger(rawColumnSpan) &&
+          rawColumnSpan > 0
+            ? rawColumnSpan
+            : 1;
+
+        consumed.add(child.id);
+        maxRow = Math.max(maxRow, row + rowSpan - 1);
+        maxColumn = Math.max(maxColumn, column + columnSpan - 1);
         const key = `${row}:${column}`;
-        const cell = cellMap.get(key) ?? { text: [], blockId: null };
+        const cell = cellMap.get(key) ?? {
+          text: [],
+          blockId: null,
+          rowSpan: 1,
+          columnSpan: 1,
+        };
+        cell.rowSpan = Math.max(cell.rowSpan, rowSpan);
+        cell.columnSpan = Math.max(cell.columnSpan, columnSpan);
         const text = (child.text ?? "").trim();
         if (text) {
           cell.text.push(text);
           // Merged mode: every cell of this table hovers to one table id.
-          cell.blockId ??= merge ? `table:${tablePointer}` : child.id;
+          cell.blockId ??= evidenceIdForBlock(child, merge);
         }
         cellMap.set(key, cell);
       }
 
       if (maxRow >= 0) {
-        const rows: ReadingCell[][] = [];
+        const covered = new Set<string>();
+        for (const [key, cell] of cellMap) {
+          const [originRow, originColumn] = key.split(":").map(Number);
+          for (let row = originRow; row < originRow + cell.rowSpan; row += 1) {
+            for (
+              let column = originColumn;
+              column < originColumn + cell.columnSpan;
+              column += 1
+            ) {
+              const coveredKey = `${row}:${column}`;
+              if (coveredKey !== key) covered.add(coveredKey);
+            }
+          }
+        }
+
+        const rows: (ReadingCell | null)[][] = [];
         for (let row = 0; row <= maxRow; row += 1) {
-          const cells: ReadingCell[] = [];
+          const cells: (ReadingCell | null)[] = [];
           for (let column = 0; column <= maxColumn; column += 1) {
-            const cell = cellMap.get(`${row}:${column}`);
+            const key = `${row}:${column}`;
+            const cell = cellMap.get(key);
+            if (!cell && covered.has(key)) {
+              cells.push(null);
+              continue;
+            }
             cells.push({
               text: cell?.text.join(" ") ?? "",
               evidenceBlockId: cell?.blockId ?? null,
+              rowSpan: cell?.rowSpan ?? 1,
+              columnSpan: cell?.columnSpan ?? 1,
             });
           }
           rows.push(cells);
@@ -500,13 +578,13 @@ export function buildReadingNodes(
 }
 
 /**
- * Groups blocks that belong to the same table. A parser like OpenDataLoader
- * flattens a table into `table` + `table-row` + `table-cell` + cell-text
- * blocks whose rawJsonPointer encodes the hierarchy
- * (`/kids/3/rows/0/cells/0/...`); all of them share the root `/kids/3`.
- * Returns null for blocks that are not part of a table.
+ * Groups blocks that belong to the same table. New canonical blocks carry a
+ * tableBlockId; older OpenDataLoader-shaped blocks fall back to the table root
+ * encoded by `.../rows/<r>/cells/<c>/...` in rawJsonPointer. Returns null for
+ * blocks that are not part of a table.
  */
 function tableGroupRoot(block: CanonicalBlock): string | null {
+  if (block.tableBlockId) return `block:${block.tableBlockId}`;
   const ptr = block.rawJsonPointer;
   if (!ptr) return null;
   const rowsIndex = ptr.indexOf("/rows/");

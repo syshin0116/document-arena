@@ -1,7 +1,7 @@
 # OpenDataLoader extension licenses
 
-The adapter source in this directory follows the Document Arena project's root
-license once that license is selected.
+The adapter source in this directory is MIT under the Document Arena root
+license.
 
 Runtime dependencies:
 

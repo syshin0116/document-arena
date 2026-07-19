@@ -127,6 +127,125 @@ test("buildReadingNodes reconstructs table grids from raw JSON pointers", () => 
   );
 });
 
+test("buildReadingNodes keeps real raw pointers separate from table structure", () => {
+  const blocks = [
+    {
+      id: "t1",
+      kind: "table",
+      rawJsonPointer: "/tables/0",
+      tableBlockId: "t1",
+    },
+    {
+      id: "c1",
+      kind: "table-cell",
+      text: "Metric",
+      rawJsonPointer: "/tables/0/cells/0",
+      tableBlockId: "t1",
+      tableCell: { rowIndex: 0, columnIndex: 0 },
+    },
+    {
+      id: "c2",
+      kind: "table-cell",
+      text: "Value",
+      rawJsonPointer: "/tables/0/cells/1",
+      tableBlockId: "t1",
+      tableCell: { rowIndex: 0, columnIndex: 1 },
+    },
+  ];
+
+  const nodes = buildReadingNodes(blocks);
+  assert.equal(nodes.length, 1);
+  assert.equal(nodes[0].type, "table");
+  assert.deepEqual(
+    nodes[0].rows.map((row) => row.map((cell) => cell.text)),
+    [["Metric", "Value"]],
+  );
+  assert.equal(evidenceIdForBlock(blocks[0], true), "table:block:t1");
+  assert.equal(evidenceIdForBlock(blocks[1], true), "table:block:t1");
+});
+
+test("buildReadingNodes leaves invalid table coordinates visible as standalone blocks", () => {
+  const blocks = [
+    { id: "t1", kind: "table", rawJsonPointer: "/tables/0" },
+    {
+      id: "valid",
+      kind: "table-cell",
+      text: "Placed",
+      tableBlockId: "t1",
+      tableCell: { rowIndex: 0, columnIndex: 0 },
+    },
+    {
+      id: "invalid",
+      kind: "table-cell",
+      text: "Must stay visible",
+      tableBlockId: "t1",
+      tableCell: { rowIndex: -1, columnIndex: 0 },
+    },
+  ];
+
+  const nodes = buildReadingNodes(blocks);
+  assert.deepEqual(nodes.map((node) => node.type), ["table", "block"]);
+  assert.equal(nodes[0].rows[0][0].text, "Placed");
+  assert.equal(nodes[1].block.id, "invalid");
+  assert.equal(nodes[1].block.text, "Must stay visible");
+});
+
+test("buildReadingNodes preserves provider-native merged cell spans", () => {
+  const blocks = [
+    { id: "t1", kind: "table" },
+    {
+      id: "header",
+      kind: "table-cell",
+      text: "Merged heading",
+      tableBlockId: "t1",
+      tableCell: { rowIndex: 0, columnIndex: 0, columnSpan: 2 },
+    },
+    {
+      id: "left",
+      kind: "table-cell",
+      text: "Left",
+      tableBlockId: "t1",
+      tableCell: { rowIndex: 1, columnIndex: 0 },
+    },
+    {
+      id: "right",
+      kind: "table-cell",
+      text: "Right",
+      tableBlockId: "t1",
+      tableCell: { rowIndex: 1, columnIndex: 1 },
+    },
+  ];
+
+  const nodes = buildReadingNodes(blocks, { merge: true });
+  assert.equal(nodes.length, 1);
+  assert.equal(nodes[0].type, "table");
+  assert.deepEqual(nodes[0].rows, [
+    [
+      {
+        text: "Merged heading",
+        evidenceBlockId: "table:block:t1",
+        rowSpan: 1,
+        columnSpan: 2,
+      },
+      null,
+    ],
+    [
+      {
+        text: "Left",
+        evidenceBlockId: "table:block:t1",
+        rowSpan: 1,
+        columnSpan: 1,
+      },
+      {
+        text: "Right",
+        evidenceBlockId: "table:block:t1",
+        rowSpan: 1,
+        columnSpan: 1,
+      },
+    ],
+  ]);
+});
+
 test("blockLabel truncates long text and falls back to the kind", () => {
   assert.equal(blockLabel({ id: "a", kind: "table" }), "Table");
   assert.equal(

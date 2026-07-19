@@ -121,6 +121,15 @@ result = {
         "interOpThreads": -1,
     }),
 }
+canonical, _, _ = module.build_canonical(
+    middle={"pdf_info": [{"page_idx": 0, "page_size": [612, 792]}]},
+    content_list=[],
+    markdown="",
+    source_artifact_id="source:document",
+    raw_artifact_id="raw:mineru",
+    file_name="document.pdf",
+)
+result["canonicalRawArtifactRefs"] = canonical["rawArtifactRefs"]
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
     source = root / "source"
@@ -169,6 +178,7 @@ print(json.dumps(result))
   assert.equal(result.custom.lang, "korean");
   assert.equal(result.custom.chineseFormula, true);
   assert.equal(result.custom.mergeCrossPageTables, false);
+  assert.deepEqual(result.canonicalRawArtifactRefs, ["raw:mineru"]);
   assert.deepEqual(result.rawFiles, [
     "mineru-output/document.md",
     "mineru-output/document_content_list.json",

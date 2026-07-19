@@ -2363,10 +2363,13 @@ function BlockReadingView({
             {node.rows.map((row, rowIndex) => (
               <tr key={rowIndex}>
                 {row.map((cell, columnIndex) => {
+                  if (!cell) return null;
                   const Cell = rowIndex === 0 ? "th" : "td";
                   return (
                     <Cell
                       key={columnIndex}
+                      rowSpan={cell.rowSpan > 1 ? cell.rowSpan : undefined}
+                      colSpan={cell.columnSpan > 1 ? cell.columnSpan : undefined}
                       {...evidenceProps(cell.evidenceBlockId, pageNumber)}
                     >
                       {cell.text ? <InlineMarkdown text={cell.text} /> : null}

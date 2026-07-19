@@ -1,7 +1,8 @@
 # Azure Document Intelligence extension licenses
 
-Status: initial integration; review pending before any hosted or redistributed
-use.
+Status: the extension source is distributed under the root MIT license. A
+hosted offering still requires the normal Azure account, privacy, and billing
+review described below.
 
 - **Azure AI Document Intelligence** is a paid Microsoft cloud service, not
   bundled software. This extension calls it over the network with a
@@ -9,10 +10,9 @@ use.
   Azure agreement and billed per page. No Azure model or weight ships in this
   image.
 - **`azure-ai-documentintelligence`** (Python SDK, pinned 1.0.2): MIT.
-- **Adapter code** (`adapter/`, including `webview.py`): Document Arena
-  repository terms (root license still undecided). The line-alignment logic in
-  `webview.py` is ported from the mirae-poc reference with permission of the
-  project owner; confirm attribution requirements before redistribution.
+- **Adapter code** (`adapter/`): MIT, under the Document Arena root license.
+  Normalization reads the SDK's native line, word, paragraph, table, span, and
+  polygon fields directly; it contains no third-party application code.
 
 Operational note: this is the first component that requires outbound network
 and an external credential. The endpoint and key are provided through a local

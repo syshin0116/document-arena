@@ -26,6 +26,8 @@
           "maximum": 1
         }
       ],
+      "minItems": 4,
+      "maxItems": 4,
       "items": false
     },
     "sourceRegion": {
@@ -65,13 +67,20 @@
               "maxItems": 4
             },
             "coordinateSystem": {
-              "const": "pdf-bottom-left-points"
+              "type": "string",
+              "minLength": 1
             },
             "artifactId": {
               "type": "string"
             },
             "jsonPointer": {
               "type": "string"
+            },
+            "words": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/bbox"
+              }
             }
           }
         }
@@ -149,12 +158,53 @@
                   "type": "integer",
                   "minimum": 0
                 },
+                "rawArtifactRef": {
+                  "type": "string"
+                },
+                "rawJsonPointer": {
+                  "type": "string"
+                },
+                "tableBlockId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "tableCell": {
+                  "type": "object",
+                  "required": [
+                    "rowIndex",
+                    "columnIndex"
+                  ],
+                  "properties": {
+                    "rowIndex": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "columnIndex": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "rowSpan": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "columnSpan": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "additionalProperties": false
+                },
                 "sourceRegions": {
                   "type": "array",
                   "items": {
                     "$ref": "#/$defs/sourceRegion"
                   }
                 }
+              },
+              "dependentRequired": {
+                "tableCell": [
+                  "tableBlockId"
+                ]
               }
             }
           }

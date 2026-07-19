@@ -459,6 +459,7 @@ def build_canonical(
     canonical = {
         "apiVersion": "document-arena.dev/parsed-document/v1alpha1",
         "sourceArtifactRef": source_artifact_id,
+        "rawArtifactRefs": [raw_artifact_id],
         "parser": {"id": COMPONENT_ID, "upstreamVersion": UPSTREAM_VERSION},
         "metadata": {
             "fileName": file_name,

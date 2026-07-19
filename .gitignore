@@ -59,3 +59,5 @@ tsconfig.tsbuildinfo
 
 # local agent tooling
 /.agents/
+/.codex/
+/.claude/settings.local.json

@@ -110,6 +110,67 @@ test("every component manifest satisfies the executable v1alpha1 schema", async 
   }
 });
 
+test("parsed-document schema accepts provider-native geometry and explicit table metadata", async () => {
+  const schema = await parseJson(
+    resolve(schemaDirectory, "parsed-document.v1alpha1.schema.json"),
+  );
+  const validate = new Ajv2020({ allErrors: true, strict: true }).compile(schema);
+  const document = {
+    apiVersion: "document-arena.dev/parsed-document/v1alpha1",
+    sourceArtifactRef: "source:1",
+    parser: { id: "azure-di", upstreamVersion: "1.0.2" },
+    metadata: { fileName: "fixture.pdf", numberOfPages: 1 },
+    markdown: "Cell",
+    rawArtifactRefs: ["raw:1"],
+    pages: [
+      {
+        pageNumber: 1,
+        width: 8.5,
+        height: 11,
+        blocks: [
+          {
+            id: "table-1",
+            kind: "table",
+            readingOrder: 0,
+            rawArtifactRef: "raw:1",
+            rawJsonPointer: "/tables/0",
+            tableBlockId: "table-1",
+          },
+          {
+            id: "cell-1",
+            kind: "table-cell",
+            readingOrder: 1,
+            rawArtifactRef: "raw:1",
+            rawJsonPointer: "/tables/0/cells/0",
+            tableBlockId: "table-1",
+            tableCell: { rowIndex: 0, columnIndex: 0 },
+            text: "Cell",
+            sourceRegions: [
+              {
+                pageNumber: 1,
+                bbox: [0.1, 0.2, 0.4, 0.3],
+                provenance: "native",
+                native: {
+                  bbox: [0.85, 2.2, 3.4, 3.3],
+                  coordinateSystem: "azure-di-inch-top-left",
+                  artifactId: "raw:1",
+                  jsonPointer: "/tables/0/cells/0",
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  assert.equal(validate(document), true, JSON.stringify(validate.errors));
+
+  const missingParent = structuredClone(document);
+  delete missingParent.pages[0].blocks[1].tableBlockId;
+  assert.equal(validate(missingParent), false);
+});
+
 test("the example catalog entry matches the catalog contract's key rules", async () => {
   const schema = await parseJson(
     resolve(schemaDirectory, "catalog-entry.v1alpha1.schema.json"),
