@@ -1,6 +1,9 @@
 export type ParserId = "opendataloader" | "mineru" | "azuredi";
 export type RunStatus = "idle" | "running" | "complete" | "failed";
 export type MobilePane = "source" | "results";
+// Direct source navigation leaves the previous evidence behind. Synchronized
+// movement keeps a deliberate pin while the linked source/result views align.
+export type PageChangeSource = "navigation" | "synchronization";
 
 export type WorkspaceState = {
   documentReady: boolean;
@@ -19,7 +22,7 @@ export type WorkspaceAction =
   | { type: "activate-evidence"; evidence: string | null }
   | { type: "pin-evidence"; evidence: string }
   | { type: "clear-evidence" }
-  | { type: "set-page"; page: number }
+  | { type: "set-page"; page: number; source: PageChangeSource }
   | { type: "set-page-count"; pageCount: number }
   | { type: "set-mobile-pane"; pane: MobilePane };
 
@@ -94,7 +97,8 @@ export function workspaceReducer(
         ...state,
         page: Math.max(1, Math.min(upperBound, action.page)),
         activeEvidence: null,
-        pinnedEvidence: null,
+        pinnedEvidence:
+          action.source === "navigation" ? null : state.pinnedEvidence,
       };
     }
     case "set-page-count": {

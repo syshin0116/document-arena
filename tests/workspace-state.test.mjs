@@ -65,11 +65,23 @@ test("evidence hover is transient while pin persists until toggle or Escape", ()
 
 test("shared page state is bounded for source and every result", () => {
   let state = createWorkspaceState(true);
-  state = workspaceReducer(state, { type: "set-page", page: 7 });
+  state = workspaceReducer(state, {
+    type: "set-page",
+    page: 7,
+    source: "navigation",
+  });
   assert.equal(state.page, 7);
-  state = workspaceReducer(state, { type: "set-page", page: 99 });
+  state = workspaceReducer(state, {
+    type: "set-page",
+    page: 99,
+    source: "navigation",
+  });
   assert.equal(state.page, 12);
-  state = workspaceReducer(state, { type: "set-page", page: -4 });
+  state = workspaceReducer(state, {
+    type: "set-page",
+    page: -4,
+    source: "navigation",
+  });
   assert.equal(state.page, 1);
 });
 
@@ -77,14 +89,22 @@ test("uploaded documents adopt the page count reported by the PDF renderer", () 
   let state = createWorkspaceState();
   assert.equal(state.pageCount, null);
 
-  state = workspaceReducer(state, { type: "set-page", page: 8 });
+  state = workspaceReducer(state, {
+    type: "set-page",
+    page: 8,
+    source: "navigation",
+  });
   assert.equal(state.page, 8);
 
   state = workspaceReducer(state, { type: "set-page-count", pageCount: 3 });
   assert.equal(state.pageCount, 3);
   assert.equal(state.page, 3);
 
-  state = workspaceReducer(state, { type: "set-page", page: 99 });
+  state = workspaceReducer(state, {
+    type: "set-page",
+    page: 99,
+    source: "navigation",
+  });
   assert.equal(state.page, 3);
 
   state = workspaceReducer(state, { type: "set-page-count", pageCount: 0 });
@@ -103,8 +123,35 @@ test("thumbnail navigation uses the shared page state and clears stale evidence"
     evidence: "title",
   });
 
-  state = workspaceReducer(state, { type: "set-page", page: 4 });
+  state = workspaceReducer(state, {
+    type: "set-page",
+    page: 4,
+    source: "navigation",
+  });
   assert.equal(state.page, 4);
   assert.equal(state.activeEvidence, null);
   assert.equal(state.pinnedEvidence, null);
+});
+
+test("synchronized page changes preserve a deliberate evidence pin", () => {
+  let state = createWorkspaceState(true);
+  state = workspaceReducer(state, {
+    type: "activate-evidence",
+    evidence: "title",
+  });
+  state = workspaceReducer(state, {
+    type: "pin-evidence",
+    evidence: "title",
+  });
+
+  state = workspaceReducer(state, {
+    type: "set-page",
+    page: 4,
+    source: "synchronization",
+  });
+
+  assert.equal(state.page, 4);
+  assert.equal(state.activeEvidence, null);
+  assert.equal(state.pinnedEvidence, "title");
+  assert.equal(displayedEvidence(state), "title");
 });

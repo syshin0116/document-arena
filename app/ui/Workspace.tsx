@@ -301,7 +301,7 @@ export function Workspace({
     dispatch({ type: "set-page-count", pageCount });
   }, []);
   const handlePageChange = useCallback((page: number) => {
-    dispatch({ type: "set-page", page });
+    dispatch({ type: "set-page", page, source: "navigation" });
   }, []);
   const handleFileNameChange = useCallback((name: string) => {
     setDisplayFileName(name);
@@ -551,7 +551,11 @@ export function Workspace({
         });
       if (nearest && nearest !== state.page) {
         pageSyncSource.current = "scroll";
-        dispatch({ type: "set-page", page: nearest });
+        dispatch({
+          type: "set-page",
+          page: nearest,
+          source: "synchronization",
+        });
       }
     });
   }
@@ -608,7 +612,11 @@ export function Workspace({
           onActivate={activateEvidence}
           onPin={pinEvidence}
           onNavigatePage={(nextPage) =>
-            dispatch({ type: "set-page", page: nextPage })
+            dispatch({
+              type: "set-page",
+              page: nextPage,
+              source: "synchronization",
+            })
           }
         />
       );
@@ -772,7 +780,13 @@ export function Workspace({
               <button
                 type="button"
                 aria-label="Previous page"
-                onClick={() => dispatch({ type: "set-page", page: state.page - 1 })}
+                onClick={() =>
+                  dispatch({
+                    type: "set-page",
+                    page: state.page - 1,
+                    source: "navigation",
+                  })
+                }
                 disabled={state.page <= 1}
               >
                 ‹
@@ -783,7 +797,13 @@ export function Workspace({
               <button
                 type="button"
                 aria-label="Next page"
-                onClick={() => dispatch({ type: "set-page", page: state.page + 1 })}
+                onClick={() =>
+                  dispatch({
+                    type: "set-page",
+                    page: state.page + 1,
+                    source: "navigation",
+                  })
+                }
                 disabled={!state.pageCount || state.page >= state.pageCount}
               >
                 ›
