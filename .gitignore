@@ -19,13 +19,33 @@ __pycache__/
 /.next/
 /out/
 
-# misc
+# local secrets and credentials
 .DS_Store
 *.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+.secrets/
+secrets/
+credentials.json
+credentials.*.json
+service-account*.json
 
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+
+# uploaded documents, generated artifacts, and model weights
+/uploads/
+/artifacts/
+/models/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.onnx
 
 # vercel
 .vercel
