@@ -21,6 +21,12 @@ from pathlib import Path, PurePosixPath
 REQUEST_PATH = Path(os.environ.get("ARENA_REQUEST_PATH", "/arena/request.json"))
 INPUT_ROOT = Path(os.environ.get("ARENA_INPUT_DIR", "/arena/input")).resolve()
 OUTPUT_ROOT = Path(os.environ.get("ARENA_OUTPUT_DIR", "/arena/output")).resolve()
+MODEL_REVISION_PATH = Path(
+    os.environ.get(
+        "MINERU_MODEL_REVISION_PATH",
+        "/opt/mineru-home/model-revision.json",
+    )
+)
 
 COMPONENT_ID = "mineru-pipeline"
 ADAPTER_VERSION = "0.1.0"
@@ -64,6 +70,10 @@ FIXED_OPTIONS = {
     "backend": "pipeline",
     "device": "cpu",
     "modelSource": "local",
+    "modelRevision": (
+        "hf:opendatalab/PDF-Extract-Kit-1.0"
+        "@ed6b654c018d742e65a17671e379c5e6ecc87ec9"
+    ),
 }
 UNAVAILABLE_OPTIONS = {
     "apiUrl",
@@ -101,6 +111,57 @@ def file_descriptor(path: Path, media_type: str) -> dict:
         "sizeBytes": path.stat().st_size,
         "sha256": sha256_file(path),
     }
+
+
+def artifact_media_type(path: Path) -> str:
+    return {
+        ".json": "application/json",
+        ".md": "text/markdown",
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }.get(path.suffix.lower(), "application/octet-stream")
+
+
+def copy_raw_outputs(source_directory: Path, raw_directory: Path) -> list[Path]:
+    """Copy every regular MinerU output without following parser-made links."""
+    destination_root = raw_directory / "mineru-output"
+    copied: list[Path] = []
+    for current_root, directory_names, file_names in os.walk(
+        source_directory,
+        followlinks=False,
+    ):
+        current = Path(current_root)
+        for directory_name in directory_names:
+            if (current / directory_name).is_symlink():
+                raise RuntimeError("MinerU output contains a symbolic link.")
+        for file_name in file_names:
+            source = current / file_name
+            if source.is_symlink() or not source.is_file():
+                raise RuntimeError("MinerU output contains a non-regular file.")
+            relative = source.relative_to(source_directory)
+            destination = destination_root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, destination)
+            copied.append(destination)
+    if not copied:
+        raise RuntimeError("MinerU produced no raw output files.")
+    return sorted(copied)
+
+
+def load_model_revision() -> str:
+    try:
+        metadata = json.loads(MODEL_REVISION_PATH.read_text("utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("Pinned MinerU model revision metadata is unavailable.") from error
+    repository = metadata.get("repository") if isinstance(metadata, dict) else None
+    revision = metadata.get("revision") if isinstance(metadata, dict) else None
+    identity = f"hf:{repository}@{revision}"
+    if identity != FIXED_OPTIONS["modelRevision"]:
+        raise RuntimeError("MinerU model revision does not match the component profile.")
+    return identity
 
 
 def safe_input_path(relative: object) -> Path:
@@ -434,6 +495,7 @@ def run() -> None:
         raise ValueError("Source SHA-256 does not match the stage request.")
 
     options = resolve_options(request.get("options"))
+    model_revision = load_model_revision()
     job_id = request.get("jobId")
     stage_run_id = request.get("stageRunId")
     raw_artifact_id = request.get("rawArtifactId") or f"raw:{stage_run_id}:parser-output"
@@ -544,16 +606,11 @@ def run() -> None:
 
     emit("stage.phase", jobId=job_id, stageRunId=stage_run_id, phase="normalizing")
     method_dir = find_method_dir(work_dir, options["method"])
-    markdown_src = single_output(method_dir, ".md")
-    middle_src = single_output(method_dir, "_middle.json")
-    content_src = single_output(method_dir, "_content_list.json")
-
-    raw_markdown = raw_dir / "mineru.md"
-    raw_middle = raw_dir / "mineru-middle.json"
-    raw_content = raw_dir / "mineru-content-list.json"
-    shutil.copyfile(markdown_src, raw_markdown)
-    shutil.copyfile(middle_src, raw_middle)
-    shutil.copyfile(content_src, raw_content)
+    raw_output_files = copy_raw_outputs(method_dir, raw_dir)
+    raw_output_dir = raw_dir / "mineru-output"
+    raw_markdown = single_output(raw_output_dir, ".md")
+    raw_middle = single_output(raw_output_dir, "_middle.json")
+    raw_content = single_output(raw_output_dir, "_content_list.json")
 
     middle = json.loads(raw_middle.read_text("utf-8"))
     content_list = json.loads(raw_content.read_text("utf-8"))
@@ -587,6 +644,7 @@ def run() -> None:
             "id": COMPONENT_ID,
             "adapterVersion": ADAPTER_VERSION,
             "upstreamVersion": UPSTREAM_VERSION,
+            "modelRevision": model_revision,
             "image": component.get("image"),
             "imageDigest": component.get("imageDigest"),
         },
@@ -597,9 +655,8 @@ def run() -> None:
             primary_path, "application/vnd.parser-arena.parsed-document+json"
         ),
         "rawArtifacts": [
-            file_descriptor(raw_middle, "application/json"),
-            file_descriptor(raw_content, "application/json"),
-            file_descriptor(raw_markdown, "text/markdown"),
+            file_descriptor(path, artifact_media_type(path))
+            for path in raw_output_files
         ],
         "timing": {
             "startedAt": started_at.isoformat(),

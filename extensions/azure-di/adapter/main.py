@@ -36,7 +36,7 @@ OUTPUT_ROOT = Path(os.environ.get("ARENA_OUTPUT_DIR", "/arena/output")).resolve(
 
 COMPONENT_ID = "azure-di"
 ADAPTER_VERSION = "0.1.0"
-UPSTREAM_VERSION = "prebuilt-layout"
+UPSTREAM_VERSION = "azure-ai-documentintelligence@1.0.2"
 MODEL_ID = "prebuilt-layout"
 API_VERSION = "2024-11-30"
 DEFAULT_FEATURES = [DocumentAnalysisFeature.OCR_HIGH_RESOLUTION.value]
@@ -94,6 +94,8 @@ def resolve_options(raw: object) -> dict:
     if not isinstance(options, dict):
         raise ValueError("Request options must be an object.")
     allowed = {
+        "modelId",
+        "apiVersion",
         "pages",
         "locale",
         "stringIndexType",
@@ -105,6 +107,11 @@ def resolve_options(raw: object) -> dict:
     for key in options:
         if key not in allowed:
             raise ValueError(f"Unsupported option: {key}")
+
+    if options.get("modelId", MODEL_ID) != MODEL_ID:
+        raise ValueError(f"Option modelId is fixed to {MODEL_ID}.")
+    if options.get("apiVersion", API_VERSION) != API_VERSION:
+        raise ValueError(f"Option apiVersion is fixed to {API_VERSION}.")
 
     pages = options.get("pages")
     if pages is not None and (
@@ -135,18 +142,18 @@ def resolve_options(raw: object) -> dict:
     ):
         raise ValueError("Invalid features option.")
 
-    query_fields = options.get("queryFields", [])
+    query_fields_input = options.get("queryFields", [])
+    if not isinstance(query_fields_input, list) or any(
+        not isinstance(value, str) for value in query_fields_input
+    ):
+        raise ValueError("Invalid queryFields option.")
+    query_fields = [value.strip() for value in query_fields_input]
     if (
-        not isinstance(query_fields, list)
-        or len(query_fields) > 20
-        or any(
-            not isinstance(value, str) or not value.strip() or len(value) > 128
-            for value in query_fields
-        )
+        len(query_fields) > 20
+        or any(not value or len(value) > 128 for value in query_fields)
         or len(query_fields) != len(set(query_fields))
     ):
         raise ValueError("Invalid queryFields option.")
-    query_fields = [value.strip() for value in query_fields]
     if query_fields and DocumentAnalysisFeature.QUERY_FIELDS.value not in features:
         features = [*features, DocumentAnalysisFeature.QUERY_FIELDS.value]
 

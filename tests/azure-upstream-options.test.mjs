@@ -52,6 +52,15 @@ test("Azure options mirror the pinned SDK surface", async () => {
     schema.properties.output.items.oneOf[1]["x-parser-arena"].disabledReason,
     /prebuilt-layout/i,
   );
+  assert.equal(
+    schema.properties.modelId["x-parser-arena"].availability.state,
+    "fixed",
+  );
+  assert.equal(
+    schema.properties.apiVersion["x-parser-arena"].availability.state,
+    "fixed",
+  );
+  assert.match(schema.properties.locale.pattern, /auto/);
 });
 
 test("Azure adapter preserves the complete service result and effective options", async () => {
@@ -62,10 +71,21 @@ test("Azure adapter preserves the complete service result and effective options"
   assert.match(source, /DocumentAnalysisFeature\(value\)/);
   assert.match(source, /get_analyze_result_figure/);
   assert.match(source, /"options": options/);
+  assert.match(source, /"modelId",\s*\n\s*"apiVersion"/);
+  assert.ok(
+    source.indexOf("query_fields = [value.strip()") <
+      source.indexOf("len(query_fields) != len(set(query_fields))"),
+    "query fields must be normalized before duplicate validation",
+  );
 });
 
 test("Azure SDK dependency is pinned to the researched release", async () => {
   const pyproject = await readFile(resolve(extensionRoot, "pyproject.toml"), "utf8");
+  const component = await readJson(resolve(extensionRoot, "component.json"));
 
   assert.match(pyproject, /azure-ai-documentintelligence==1\.0\.2/);
+  assert.equal(
+    component.metadata.upstreamVersion,
+    "azure-ai-documentintelligence@1.0.2",
+  );
 });

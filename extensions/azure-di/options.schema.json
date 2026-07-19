@@ -13,7 +13,11 @@
       "const": "prebuilt-layout",
       "default": "prebuilt-layout",
       "x-parser-arena": {
-        "disabledReason": "Locked by this component profile; other Azure models require their own profile and normalization review.",
+        "availability": {
+          "state": "fixed",
+          "reason": "Locked by this component profile; other Azure models require their own profile and normalization review.",
+          "reasonCode": "profile-model"
+        },
         "sourceUrl": "https://learn.microsoft.com/en-us/python/api/azure-ai-documentintelligence/azure.ai.documentintelligence.documentintelligenceclient"
       }
     },
@@ -24,7 +28,11 @@
       "const": "2024-11-30",
       "default": "2024-11-30",
       "x-parser-arena": {
-        "disabledReason": "Pinned with azure-ai-documentintelligence 1.0.2 for reproducible runs.",
+        "availability": {
+          "state": "fixed",
+          "reason": "Pinned with azure-ai-documentintelligence 1.0.2 for reproducible runs.",
+          "reasonCode": "profile-api-version"
+        },
         "sourceUrl": "https://learn.microsoft.com/en-us/python/api/overview/azure/ai-documentintelligence-readme?view=azure-python"
       }
     },
@@ -42,6 +50,7 @@
       "title": "OCR locale hint",
       "description": "Optional BCP 47 hint. Auto detection is recommended unless the document language is known; any service-supported locale can be entered.",
       "type": "string",
+      "pattern": "^(?:auto|[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)$",
       "default": "auto",
       "examples": ["auto", "ko-KR", "en-US", "ja-JP", "zh-Hans"],
       "x-parser-arena": {

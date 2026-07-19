@@ -12,33 +12,33 @@ RUN apt-get update \
         libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PIP_NO_CACHE_DIR=1 \
-    PYTHONUNBUFFERED=1
+COPY --from=ghcr.io/astral-sh/uv:0.10.5 /uv /uvx /bin/
 
-RUN pip install --no-cache-dir uv \
-    && uv pip install --system "mineru[pipeline]==3.4.4"
+ENV PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
 
-# Bake the pipeline models into the image under a fixed home, then point the
-# runtime at the resulting mineru.json while HOME moves to tmpfs.
-ENV HOME=/opt/mineru-home \
-    MINERU_MODEL_SOURCE=huggingface
-RUN mkdir -p /opt/mineru-home \
-    && mineru-models-download -s huggingface -m pipeline \
-    && chmod -R a+rX /opt/mineru-home
+WORKDIR /opt/parser-arena/extension
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-dev --no-install-project
 
-# 3.4.4 imports `six` transitively without declaring it; install it in a
-# separate layer so the model bake above stays cached.
-RUN uv pip install --system six
+ENV PATH="/opt/parser-arena/extension/.venv/bin:$PATH"
+
+# Bake the exact reviewed Hugging Face snapshot into a stable path and write
+# the matching local MinerU config without fetching the mutable master template.
+COPY build/download_models.py ./build/download_models.py
+RUN python build/download_models.py \
+    && chmod -R a+rX /opt/mineru-home /opt/mineru-models
 
 ENV HOME=/tmp \
     MINERU_TOOLS_CONFIG_JSON=/opt/mineru-home/mineru.json \
+    MINERU_MODEL_REVISION_PATH=/opt/mineru-home/model-revision.json \
     MINERU_MODEL_SOURCE=local \
     MINERU_DEVICE_MODE=cpu
 
 RUN groupadd --gid 10001 arena \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin arena
 
-WORKDIR /opt/parser-arena/extension
 COPY adapter/ ./adapter/
 
 LABEL org.opencontainers.image.title="Parser Arena MinerU Pipeline adapter"
@@ -46,6 +46,7 @@ LABEL parser-arena.component.id="mineru-pipeline"
 LABEL parser-arena.component.version="0.1.0"
 LABEL parser-arena.upstream.version="3.4.4"
 LABEL parser-arena.upstream.source="https://github.com/opendatalab/MinerU"
+LABEL parser-arena.model.revision="hf:opendatalab/PDF-Extract-Kit-1.0@ed6b654c018d742e65a17671e379c5e6ecc87ec9"
 
 USER 10001:10001
 ENTRYPOINT ["python", "adapter/main.py"]

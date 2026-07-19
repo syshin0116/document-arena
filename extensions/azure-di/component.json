@@ -5,7 +5,7 @@
     "id": "azure-di",
     "version": "0.1.0",
     "displayName": "Azure Document Intelligence",
-    "upstreamVersion": "prebuilt-layout"
+    "upstreamVersion": "azure-ai-documentintelligence@1.0.2"
   },
   "spec": {
     "role": "parser",

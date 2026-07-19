@@ -226,8 +226,8 @@
       "x-parser-arena": {
         "availability": {
           "state": "unavailable",
-          "reason": "This is only meaningful for a remote HTTP client backend.",
-          "reasonCode": "backend-incompatible"
+          "reason": "Locally regenerated Markdown and content lists have not yet passed this component's raw-artifact and evidence-equivalence review.",
+          "reasonCode": "artifact-path-unverified"
         },
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/cli/client.py#L1173-L1183"
       }
@@ -260,6 +260,21 @@
           "reasonCode": "profile-model-source"
         },
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/utils/config_reader.py#L16-L49"
+      }
+    },
+    "modelRevision": {
+      "title": "Pipeline model revision",
+      "description": "Exact Hugging Face snapshot containing the layout, OCR, formula, and table model artifacts baked into this image.",
+      "type": "string",
+      "const": "hf:opendatalab/PDF-Extract-Kit-1.0@ed6b654c018d742e65a17671e379c5e6ecc87ec9",
+      "default": "hf:opendatalab/PDF-Extract-Kit-1.0@ed6b654c018d742e65a17671e379c5e6ecc87ec9",
+      "x-parser-arena": {
+        "availability": {
+          "state": "fixed",
+          "reason": "Pinned at image build time so every run records the exact model snapshot.",
+          "reasonCode": "profile-model-revision"
+        },
+        "sourceUrl": "https://huggingface.co/opendatalab/PDF-Extract-Kit-1.0/commit/ed6b654c018d742e65a17671e379c5e6ecc87ec9"
       }
     },
     "chineseFormula": {

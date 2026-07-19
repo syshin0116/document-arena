@@ -17,11 +17,12 @@ legal review still pending before any hosted or redistributed use.
   code dependency (derived from AGPL YOLOv10); pipeline inference now runs
   through onnxruntime with upstream-shipped models. This removal is what made
   the relicense possible; the 2.x line remains AGPL-3.0.
-- **Pipeline model weights** (layout, formula, OCR, table models downloaded
-  by `mineru-models-download`): licensed individually by their upstream
-  releases. Weights descended from the DocLayout-YOLO research line have
-  their own terms and must be reviewed before the hosted catalog enables
-  this profile.
+- **Pipeline model weights** (layout, formula, OCR, and table files from
+  `opendatalab/PDF-Extract-Kit-1.0`, pinned to Hugging Face revision
+  `ed6b654c018d742e65a17671e379c5e6ecc87ec9`): the repository model card
+  declares AGPL-3.0, while individual upstream model families may carry
+  additional terms. These weights must complete legal review before the
+  hosted catalog enables or redistributes this profile.
 - **Adapter code** (`adapter/`): Parser Arena repository terms (root license
   still undecided).
 
