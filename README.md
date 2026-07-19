@@ -78,6 +78,11 @@ runner; the parser executes in an isolated container (`--network none`,
 read-only, non-root) and returns raw output plus a canonical document with
 native bounding boxes.
 
+The runner accepts browser requests only from the exact local web origins for
+`PARSER_ARENA_WEB_PORT` (`localhost` and `127.0.0.1` by default). Set
+`PARSER_ARENA_RUNNER_ALLOWED_ORIGINS` to a comma-separated list for a custom web
+origin. Origin-less local CLI and health requests remain available.
+
 ### CLI smoke test
 
 ```bash

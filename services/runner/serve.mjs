@@ -9,12 +9,17 @@ import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import {
+  runnerAllowedOrigins,
+  runnerCorsPolicy,
+} from "./origin-policy.mjs";
 import { runComponent } from "./run-local.mjs";
 
 const PORT = Number(process.env.PARSER_ARENA_RUNNER_PORT ?? 8799);
 const EXTENSIONS_ROOT = resolve(import.meta.dirname, "../../extensions");
 const SERVICE_RUN_ROOT = resolve(import.meta.dirname, "../../work/service-runs");
 const MAX_INPUT_BYTES = 100 * 1024 * 1024;
+const ALLOWED_ORIGINS = runnerAllowedOrigins();
 
 const COMPONENT_DIRECTORIES = {
   "opendataloader-pdf": "opendataloader-pdf",
@@ -22,17 +27,12 @@ const COMPONENT_DIRECTORIES = {
   "azure-di": "azure-di",
 };
 
-const CORS_HEADERS = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, POST, OPTIONS",
-  "access-control-allow-headers": "content-type, x-parser-arena-filename",
-  "access-control-max-age": "600",
-};
-
-function json(status, body) {
+function json(status, body, corsHeaders) {
+  const headers = new Headers(corsHeaders);
+  headers.set("content-type", "application/json");
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json", ...CORS_HEADERS },
+    headers,
   });
 }
 
@@ -81,19 +81,25 @@ async function componentInfo(componentId) {
   };
 }
 
-async function handleParse(request, componentId) {
+async function handleParse(request, componentId, corsHeaders) {
   const path = manifestPath(componentId);
   if (!path) {
-    return json(404, { error: `Unknown component: ${componentId}` });
+    return json(404, { error: `Unknown component: ${componentId}` }, corsHeaders);
   }
 
   const bytes = new Uint8Array(await request.arrayBuffer());
-  if (bytes.length === 0) return json(400, { error: "Empty request body." });
+  if (bytes.length === 0) {
+    return json(400, { error: "Empty request body." }, corsHeaders);
+  }
   if (bytes.length > MAX_INPUT_BYTES) {
-    return json(413, { error: `Input exceeds ${MAX_INPUT_BYTES} bytes.` });
+    return json(
+      413,
+      { error: `Input exceeds ${MAX_INPUT_BYTES} bytes.` },
+      corsHeaders,
+    );
   }
   if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") {
-    return json(415, { error: "Body must be a PDF file." });
+    return json(415, { error: "Body must be a PDF file." }, corsHeaders);
   }
 
   const fileName = sanitizeFileName(
@@ -108,7 +114,11 @@ async function handleParse(request, componentId) {
         requestOptions = parsed;
       }
     } catch {
-      return json(400, { error: "options must be a JSON object." });
+      return json(
+        400,
+        { error: "options must be a JSON object." },
+        corsHeaders,
+      );
     }
   }
   const runId = `service-${randomUUID()}`;
@@ -154,8 +164,10 @@ async function handleParse(request, componentId) {
       controller.close();
     },
   });
+  const headers = new Headers(corsHeaders);
+  headers.set("content-type", "application/x-ndjson");
   return new Response(stream, {
-    headers: { "content-type": "application/x-ndjson", ...CORS_HEADERS },
+    headers,
   });
 }
 
@@ -168,35 +180,50 @@ const server = Bun.serve({
   idleTimeout: 240,
   async fetch(request) {
     const url = new URL(request.url);
+    const cors = runnerCorsPolicy(
+      request.headers.get("origin"),
+      ALLOWED_ORIGINS,
+    );
+    if (!cors.allowed) {
+      return json(
+        403,
+        { error: "Origin is not allowed by the local runner." },
+        cors.headers,
+      );
+    }
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: CORS_HEADERS });
+      return new Response(null, { status: 204, headers: cors.headers });
     }
     if (request.method === "GET" && url.pathname === "/v1/health") {
       const fresh = await Promise.all(
         Object.keys(COMPONENT_DIRECTORIES).map((id) => componentInfo(id)),
       );
-      return json(200, {
-        ok: true,
-        protocol: "oci-batch/v1",
-        // Kept for older clients: the first component mirrors the previous
-        // single-component shape.
-        component: fresh[0],
-        components: fresh,
-      });
+      return json(
+        200,
+        {
+          ok: true,
+          protocol: "oci-batch/v1",
+          // Kept for older clients: the first component mirrors the previous
+          // single-component shape.
+          component: fresh[0],
+          components: fresh,
+        },
+        cors.headers,
+      );
     }
     if (request.method === "POST" && url.pathname === "/v1/parse") {
       const componentId =
         url.searchParams.get("component") ?? "opendataloader-pdf";
       try {
-        return await handleParse(request, componentId);
+        return await handleParse(request, componentId, cors.headers);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unknown runner error.";
         console.error(`parse failed (${componentId}): ${message}`);
-        return json(500, { error: message });
+        return json(500, { error: message }, cors.headers);
       }
     }
-    return json(404, { error: "Not found." });
+    return json(404, { error: "Not found." }, cors.headers);
   },
 });
 
