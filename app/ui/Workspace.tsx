@@ -40,7 +40,6 @@ import {
   runnerConnectionType,
   toEvidenceRegions,
   type LocalParseResult,
-  type OptionsSchemaProperty,
   type LocalRunnerComponent,
   type LocalRunnerInfo,
 } from "../local-runner";
@@ -51,7 +50,15 @@ import {
   type LocalDocument,
 } from "../local-document-store";
 import { preferredScrollBehavior } from "../motion-preference";
+import {
+  cleanRunOptionValues,
+  defaultRunOptionValues,
+  localComponentRunAvailability,
+  runOptionsInvalidReason,
+  type RunAvailability,
+} from "../run-options";
 import { Brand } from "./Brand";
+import { RunOptionFields, RunOptionsDialog } from "./RunOptionsDialog";
 
 // pdfjs must never load during SSR; the crop renderer is client-only.
 const SourceRegionImage = dynamic(
@@ -85,6 +92,13 @@ type PendingRemoteRun = {
   component: LocalRunnerComponent;
   document: LocalDocument;
   openedFromPicker: boolean;
+};
+
+type PendingRunOptions = {
+  parser: ParserId;
+  componentName: string;
+  schema: NonNullable<LocalRunnerComponent["optionsSchema"]> | null;
+  availability: RunAvailability;
 };
 
 type ResultContentView = "blocks" | "markdown";
@@ -315,6 +329,9 @@ export function Workspace({
   const [pendingRemoteRun, setPendingRemoteRun] =
     useState<PendingRemoteRun | null>(null);
   const [remoteConsentConfirming, setRemoteConsentConfirming] = useState(false);
+  const [pendingRunOptions, setPendingRunOptions] =
+    useState<PendingRunOptions | null>(null);
+  const [runOptionsSubmitting, setRunOptionsSubmitting] = useState(false);
   const [localView, setLocalView] = useState<ResultContentView>("blocks");
   // Rendered/Raw applies to both the Blocks and Markdown views.
   const [mergeRegions, setMergeRegions] = useState(false);
@@ -329,6 +346,8 @@ export function Workspace({
   const approvedRemoteRuns = useRef(new Set<string>());
   const remoteConsentSubmitting = useRef(false);
   const remoteConsentReturnFocus = useRef<HTMLElement | null>(null);
+  const runOptionsSubmittingRef = useRef(false);
+  const runOptionsReturnFocus = useRef<HTMLElement | null>(null);
   const pickerReturnFocus = useRef<HTMLElement | null>(null);
   // Bidirectional page sync between the results scroll and the source PDF.
   const resultsScrollRef = useRef<HTMLDivElement | null>(null);
@@ -428,7 +447,7 @@ export function Workspace({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        if (pendingRemoteRun) return;
+        if (pendingRemoteRun || pendingRunOptions) return;
         dispatch({ type: "clear-evidence" });
         setPickerOpen(false);
         setDetailsOpen(false);
@@ -436,7 +455,7 @@ export function Workspace({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [pendingRemoteRun]);
+  }, [pendingRemoteRun, pendingRunOptions]);
 
   useEffect(
     () => () => timers.current.forEach((timer) => window.clearTimeout(timer)),
@@ -711,6 +730,55 @@ export function Workspace({
     restoreConsentFocus(target);
     void runLocalParse(request.parser, request.options, request.document);
   }, [pendingRemoteRun, restoreConsentFocus, runLocalParse]);
+
+  const requestRunFromStrip = useCallback(
+    (
+      parser: ParserId,
+      component: LocalRunnerComponent | null,
+      fallbackName: string,
+      trigger: HTMLElement,
+    ) => {
+      const availability = localComponentRunAvailability(component);
+      const properties = component?.optionsSchema?.properties ?? {};
+      if (availability.available && Object.keys(properties).length === 0) {
+        void requestLocalParse(parser);
+        return;
+      }
+      runOptionsReturnFocus.current = trigger;
+      runOptionsSubmittingRef.current = false;
+      setRunOptionsSubmitting(false);
+      setPendingRunOptions({
+        parser,
+        componentName: component?.displayName?.trim() || fallbackName,
+        schema: component?.optionsSchema ?? null,
+        availability,
+      });
+    },
+    [requestLocalParse],
+  );
+
+  const cancelRunOptions = useCallback(() => {
+    if (runOptionsSubmittingRef.current) return;
+    const target = runOptionsReturnFocus.current;
+    runOptionsReturnFocus.current = null;
+    setPendingRunOptions(null);
+    restoreConsentFocus(target);
+  }, [restoreConsentFocus]);
+
+  const confirmRunOptions = useCallback(
+    (options: Record<string, unknown>) => {
+      if (!pendingRunOptions || runOptionsSubmittingRef.current) return;
+      runOptionsSubmittingRef.current = true;
+      setRunOptionsSubmitting(true);
+      const request = pendingRunOptions;
+      const target = runOptionsReturnFocus.current;
+      runOptionsReturnFocus.current = null;
+      if (target?.isConnected) target.focus();
+      setPendingRunOptions(null);
+      void requestLocalParse(request.parser, options);
+    },
+    [pendingRunOptions, requestLocalParse],
+  );
 
   function retrySelectedParser() {
     if (effectiveTab === null || effectiveTab === "compare") return;
@@ -1176,9 +1244,7 @@ export function Workspace({
               activeTab={effectiveTab}
               canCompareRuns={completedParsers.length >= 2}
               onSelect={setRunTab}
-              onRun={(parser, options) =>
-                void requestLocalParse(parser, options)
-              }
+              onRequestRun={requestRunFromStrip}
               onOptions={() => {
                 pickerReturnFocus.current =
                   document.activeElement instanceof HTMLElement
@@ -1430,6 +1496,16 @@ export function Workspace({
           onClose={() => setDetailsOpen(false)}
         />
       )}
+      {pendingRunOptions && (
+        <RunOptionsDialog
+          componentName={pendingRunOptions.componentName}
+          schema={pendingRunOptions.schema}
+          availability={pendingRunOptions.availability}
+          submitting={runOptionsSubmitting}
+          onCancel={cancelRunOptions}
+          onConfirm={confirmRunOptions}
+        />
+      )}
       {pendingRemoteRun && (
         <RemoteRunConsentDialog
           component={pendingRemoteRun.component}
@@ -1650,66 +1726,6 @@ function StageChecklist({ run }: { run: LocalParserRun }) {
   );
 }
 
-// Schema-driven option controls, shared by the runner strip's per-parser
-// options popover and the full parser sheet. Booleans render as checkboxes,
-// enums as dropdowns, everything else as a text field.
-function OptionFields({
-  properties,
-  values,
-  onChange,
-}: {
-  properties: Record<string, OptionsSchemaProperty>;
-  values: Record<string, unknown>;
-  onChange: (key: string, value: unknown) => void;
-}) {
-  return (
-    <>
-      {Object.entries(properties).map(([key, property]) => {
-        if (property.type === "boolean") {
-          return (
-            <label key={key} className="option-row">
-              <input
-                type="checkbox"
-                checked={Boolean(values[key] ?? property.default ?? false)}
-                onChange={(event) => onChange(key, event.target.checked)}
-              />
-              <span>{key}</span>
-            </label>
-          );
-        }
-        if (property.enum) {
-          return (
-            <label key={key} className="option-row">
-              <span>{key}</span>
-              <select
-                value={String(values[key] ?? property.default ?? "")}
-                onChange={(event) => onChange(key, event.target.value)}
-              >
-                {property.enum.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </label>
-          );
-        }
-        return (
-          <label key={key} className="option-row">
-            <span>{key}</span>
-            <input
-              type="text"
-              value={String(values[key] ?? "")}
-              placeholder={property.description ?? ""}
-              onChange={(event) => onChange(key, event.target.value)}
-            />
-          </label>
-        );
-      })}
-    </>
-  );
-}
-
 function RunnerStrip({
   runner,
   runs,
@@ -1717,7 +1733,7 @@ function RunnerStrip({
   activeTab,
   canCompareRuns,
   onSelect,
-  onRun,
+  onRequestRun,
   onOptions,
   onRecheck,
 }: {
@@ -1727,14 +1743,15 @@ function RunnerStrip({
   activeTab: ParserId | "compare" | null;
   canCompareRuns: boolean;
   onSelect: (tab: ParserId | "compare") => void;
-  onRun: (parser: ParserId, options?: Record<string, unknown>) => void;
+  onRequestRun: (
+    parser: ParserId,
+    component: LocalRunnerComponent | null,
+    fallbackName: string,
+    trigger: HTMLElement,
+  ) => void;
   onOptions: () => void;
   onRecheck: () => void;
 }) {
-  const [openOptions, setOpenOptions] = useState<ParserId | null>(null);
-  const [optionValues, setOptionValues] = useState<
-    Partial<Record<ParserId, Record<string, unknown>>>
-  >({});
   if (runner.status === "checking") {
     return (
       <div className="runner-strip" role="status">
@@ -1773,7 +1790,6 @@ function RunnerStrip({
     <div className="runner-strip" aria-label="Parser runs">
       {entries.map((entry) => {
         const letter = entry.parser === "mineru" ? "B" : "A";
-        const unavailable = entry.component?.imageAvailable === false;
         const result =
           entry.run?.status === "complete" ? entry.run.result : null;
         if (entry.status === "complete" && result) {
@@ -1852,85 +1868,38 @@ function RunnerStrip({
         }
         const properties = entry.component?.optionsSchema?.properties ?? {};
         const hasOptions = Object.keys(properties).length > 0;
-        const values = optionValues[entry.parser] ?? {};
-        const open = openOptions === entry.parser;
+        const availability = localComponentRunAvailability(entry.component);
+        const opensDialog = hasOptions || !availability.available;
         return (
           <span
             key={entry.parser}
             className="strip-chip"
             data-parser={entry.parser}
             data-state="idle"
-            data-options-open={open || undefined}
+            data-unavailable={!availability.available || undefined}
           >
             <span className="strip-name">
               {entry.component?.displayName ?? entry.parser}
             </span>
-            <small>{entry.meta.runtime}</small>
-            {hasOptions && (
-              <button
-                className="strip-options"
-                type="button"
-                aria-label={`Options for ${entry.component?.displayName ?? entry.parser}`}
-                aria-expanded={open}
-                title="Run options"
-                onClick={() =>
-                  setOpenOptions((current) =>
-                    current === entry.parser ? null : entry.parser,
-                  )
-                }
-              >
-                ⚙
-              </button>
-            )}
+            <small>
+              {availability.available ? entry.meta.runtime : "Unavailable"}
+            </small>
             <button
               className="primary-button strip-run"
               type="button"
-              disabled={unavailable}
-              title={
-                unavailable
-                  ? "Build the image first: make mineru-image"
-                  : "Run this parser"
+              aria-haspopup={opensDialog ? "dialog" : undefined}
+              title={availability.disabledReason ?? "Run this parser"}
+              onClick={(event) =>
+                onRequestRun(
+                  entry.parser,
+                  entry.component,
+                  entry.component?.displayName ?? entry.parser,
+                  event.currentTarget,
+                )
               }
-              onClick={() => {
-                onRun(entry.parser, optionValues[entry.parser]);
-                setOpenOptions(null);
-              }}
             >
               Run
             </button>
-            {open && hasOptions && (
-              <div className="strip-options-popover" role="group">
-                <div className="strip-options-title">
-                  {entry.component?.displayName ?? entry.parser} options
-                </div>
-                <div className="option-form">
-                  <OptionFields
-                    properties={properties}
-                    values={values}
-                    onChange={(key, value) =>
-                      setOptionValues((current) => ({
-                        ...current,
-                        [entry.parser]: {
-                          ...(current[entry.parser] ?? {}),
-                          [key]: value,
-                        },
-                      }))
-                    }
-                  />
-                </div>
-                <button
-                  className="primary-button"
-                  type="button"
-                  disabled={unavailable}
-                  onClick={() => {
-                    onRun(entry.parser, optionValues[entry.parser]);
-                    setOpenOptions(null);
-                  }}
-                >
-                  Run {entry.component?.displayName ?? entry.parser}
-                </button>
-              </div>
-            )}
           </span>
         );
       })}
@@ -1950,9 +1919,9 @@ function RunnerStrip({
         className="secondary-button strip-action"
         type="button"
         onClick={onOptions}
-        title="Choose a parser with custom options"
+        title="Browse every parser and its run details"
       >
-        Options…
+        All parsers…
       </button>
     </div>
   );
@@ -2720,15 +2689,6 @@ const LOCAL_PARSER_META: Record<
   },
 };
 
-function schemaDefaults(component: LocalRunnerComponent | null) {
-  const defaults: Record<string, unknown> = {};
-  const properties = component?.optionsSchema?.properties ?? {};
-  for (const [key, property] of Object.entries(properties)) {
-    if (property.default !== undefined) defaults[key] = property.default;
-  }
-  return defaults;
-}
-
 function LocalParserSheet({
   info,
   runs,
@@ -2748,36 +2708,45 @@ function LocalParserSheet({
       status: runs[parser],
     }),
   );
-  const selectable = (entry: (typeof entries)[number]) =>
-    entry.component?.imageAvailable === true &&
+  const inspectable = (entry: (typeof entries)[number]) =>
+    Boolean(entry.component);
+  const executable = (entry: (typeof entries)[number]) =>
+    inspectable(entry) &&
+    localComponentRunAvailability(entry.component).available &&
     entry.status !== "complete" &&
     entry.status !== "running";
 
   const [selected, setSelected] = useState<ParserId>(
-    () => entries.find(selectable)?.parser ?? "opendataloader",
+    () => entries.find(inspectable)?.parser ?? "opendataloader",
   );
   const selectedEntry = entries.find((entry) => entry.parser === selected);
   const [options, setOptions] = useState<Record<string, unknown>>(() =>
-    schemaDefaults(selectedEntry?.component ?? null),
+    defaultRunOptionValues(
+      selectedEntry?.component?.optionsSchema?.properties ?? {},
+    ),
   );
 
   const choose = (entry: (typeof entries)[number]) => {
-    if (!selectable(entry)) return;
+    if (!inspectable(entry)) return;
     setSelected(entry.parser);
-    setOptions(schemaDefaults(entry.component));
+    setOptions(
+      defaultRunOptionValues(entry.component?.optionsSchema?.properties ?? {}),
+    );
   };
 
   const properties = selectedEntry?.component?.optionsSchema?.properties ?? {};
-  const runnable = selectedEntry ? selectable(selectedEntry) : false;
+  const required = selectedEntry?.component?.optionsSchema?.required ?? [];
+  const invalidReason = runOptionsInvalidReason(properties, options, required);
+  const selectedAvailability = localComponentRunAvailability(
+    selectedEntry?.component,
+  );
+  const runnable = selectedEntry
+    ? executable(selectedEntry) && invalidReason === null
+    : false;
 
   const submit = () => {
     if (!runnable) return;
-    const cleaned: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(options)) {
-      if (value === "" || value === undefined || value === null) continue;
-      cleaned[key] = value;
-    }
-    onRun(selected, cleaned);
+    onRun(selected, cleanRunOptionValues(properties, options));
   };
 
   return (
@@ -2807,14 +2776,15 @@ function LocalParserSheet({
       </p>
       <div className="parser-options">
         {entries.map((entry) => {
-          const disabled = !selectable(entry);
+          const disabled = !inspectable(entry);
+          const availability = localComponentRunAvailability(entry.component);
           const statusLabel =
             entry.status === "complete"
               ? "Complete"
               : entry.status === "running"
                 ? "Running…"
-                : entry.component?.imageAvailable === false
-                  ? "Image not built"
+                : !availability.available
+                  ? "Unavailable"
                   : entry.status === "failed"
                     ? "Retry"
                     : entry.meta.tag;
@@ -2823,13 +2793,10 @@ function LocalParserSheet({
               key={entry.parser}
               className="parser-option"
               type="button"
-              data-selected={(selected === entry.parser && !disabled) || undefined}
+              data-selected={selected === entry.parser || undefined}
+              data-unavailable={!availability.available || undefined}
               disabled={disabled}
-              title={
-                entry.component?.imageAvailable === false
-                  ? "Build the image first: make mineru-image"
-                  : undefined
-              }
+              title={availability.disabledReason}
               onClick={() => choose(entry)}
             >
               <span className="option-radio" aria-hidden="true" />
@@ -2841,6 +2808,11 @@ function LocalParserSheet({
                     : ""}
                 </strong>
                 <small>{entry.meta.purpose}</small>
+                {!availability.available && (
+                  <small className="parser-option-reason">
+                    {availability.disabledReason}
+                  </small>
+                )}
               </span>
               <span className="option-meta">
                 <b>{statusLabel}</b>
@@ -2909,66 +2881,34 @@ function LocalParserSheet({
         </div>
       )}
 
-      {runnable && Object.keys(properties).length > 0 && (
+      {selectedEntry?.component && Object.keys(properties).length > 0 && (
         <div className="option-form" aria-label="Parser options">
           <span className="eyebrow">Options</span>
-          {Object.entries(properties).map(([key, property]) => {
-            if (property.type === "boolean") {
-              return (
-                <label key={key} className="option-row">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(options[key])}
-                    onChange={(event) =>
-                      setOptions((current) => ({
-                        ...current,
-                        [key]: event.target.checked,
-                      }))
-                    }
-                  />
-                  <span>{key}</span>
-                </label>
-              );
+          {!selectedAvailability.available && (
+            <div className="parser-selection-availability" role="status">
+              <strong>Unavailable in this environment</strong>
+              <span>{selectedAvailability.disabledReason}</span>
+            </div>
+          )}
+          <RunOptionFields
+            properties={properties}
+            required={required}
+            values={options}
+            componentDisabled={!selectedAvailability.available}
+            onChange={(key, value) =>
+              setOptions((current) => {
+                const next = { ...current };
+                if (value === undefined) delete next[key];
+                else next[key] = value;
+                return next;
+              })
             }
-            if (property.enum) {
-              return (
-                <label key={key} className="option-row">
-                  <span>{key}</span>
-                  <select
-                    value={String(options[key] ?? property.default ?? "")}
-                    onChange={(event) =>
-                      setOptions((current) => ({
-                        ...current,
-                        [key]: event.target.value,
-                      }))
-                    }
-                  >
-                    {property.enum.map((value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              );
-            }
-            return (
-              <label key={key} className="option-row">
-                <span>{key}</span>
-                <input
-                  type="text"
-                  value={String(options[key] ?? "")}
-                  placeholder={property.description ?? ""}
-                  onChange={(event) =>
-                    setOptions((current) => ({
-                      ...current,
-                      [key]: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-            );
-          })}
+          />
+          {invalidReason && (
+            <small className="option-note" data-invalid>
+              {invalidReason}
+            </small>
+          )}
           <small className="option-note">
             Resolved values are recorded with the run and shown in Details.
           </small>

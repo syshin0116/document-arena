@@ -11,11 +11,57 @@ import {
 // passes through the web control plane.
 const LOCAL_RUNNER_ORIGIN = "http://localhost:8799";
 
+export type OptionsSchemaPrimitive = string | number | boolean | null;
+
+export type OptionsSchemaAvailability = {
+  state: "fixed" | "unavailable";
+  reason: string;
+  reasonCode?: string;
+};
+
+export type OptionsSchemaAnnotation = {
+  disabledReason?: string;
+  sourceUrl?: string;
+  availability?: OptionsSchemaAvailability;
+};
+
+export type OptionsSchemaChoice = {
+  const?: OptionsSchemaPrimitive;
+  enum?: readonly OptionsSchemaPrimitive[];
+  title?: string;
+  description?: string;
+  "x-parser-arena"?: OptionsSchemaAnnotation;
+};
+
+export type OptionsSchemaItems = {
+  type?: "string" | "boolean" | "number" | "integer";
+  enum?: readonly OptionsSchemaPrimitive[];
+  oneOf?: readonly OptionsSchemaChoice[];
+  minLength?: number;
+  maxLength?: number;
+};
+
 export type OptionsSchemaProperty = {
-  type?: string;
-  enum?: readonly string[];
+  type?: "string" | "boolean" | "number" | "integer" | "array";
+  title?: string;
+  const?: OptionsSchemaPrimitive;
+  enum?: readonly OptionsSchemaPrimitive[];
+  oneOf?: readonly OptionsSchemaChoice[];
+  not?: {
+    const?: OptionsSchemaPrimitive;
+  };
+  items?: OptionsSchemaItems;
   default?: unknown;
   description?: string;
+  pattern?: string;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
+  uniqueItems?: boolean;
+  "x-parser-arena"?: OptionsSchemaAnnotation;
 };
 
 export type LocalRunnerRequirements = Record<string, unknown> & {
@@ -34,10 +80,19 @@ export type LocalRunnerComponent = {
   displayName?: string;
   image: string;
   imageAvailable?: boolean;
+  availability?: {
+    runnable: boolean;
+    reasons?: readonly {
+      code?: string;
+      message: string;
+    }[];
+  };
   capabilities?: Record<string, unknown>;
   requirements?: LocalRunnerRequirements;
   optionsSchema?: {
     title?: string;
+    description?: string;
+    required?: readonly string[];
     properties?: Record<string, OptionsSchemaProperty>;
   } | null;
 };
