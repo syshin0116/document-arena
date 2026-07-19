@@ -56,3 +56,6 @@ tsconfig.tsbuildinfo
 /dist/
 /outputs/
 /work/
+
+# local agent tooling
+/.agents/
