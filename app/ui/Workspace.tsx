@@ -49,6 +49,7 @@ import {
   saveLocalParseResult,
   type LocalDocument,
 } from "../local-document-store";
+import { preferredScrollBehavior } from "../motion-preference";
 import { Brand } from "./Brand";
 
 // pdfjs must never load during SSR; the crop renderer is client-only.
@@ -680,7 +681,10 @@ export function Workspace({
     const target = container?.querySelector<HTMLElement>(
       `[data-evidence-id="${CSS.escape(pinned)}"]`,
     );
-    target?.scrollIntoView({ block: "center", behavior: "smooth" });
+    target?.scrollIntoView({
+      block: "center",
+      behavior: preferredScrollBehavior(),
+    });
   }, [state.pinnedEvidence, demo]);
 
   // Scrolling the results moves the source PDF to whichever page section sits
@@ -733,7 +737,10 @@ export function Workspace({
     );
     if (!target) return;
     pageSyncSource.current = "page";
-    target.scrollIntoView({ block: "start", behavior: "smooth" });
+    target.scrollIntoView({
+      block: "start",
+      behavior: preferredScrollBehavior(),
+    });
     const timer = window.setTimeout(() => {
       pageSyncSource.current = null;
     }, 500);
