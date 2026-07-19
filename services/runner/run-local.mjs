@@ -134,7 +134,7 @@ async function runStreaming(command, args, onEvent) {
         if (line.startsWith("{")) {
           try {
             const event = JSON.parse(line);
-            if (event?.apiVersion === "parser-arena.dev/job-event/v1alpha1") {
+            if (event?.apiVersion === "document-arena.dev/job-event/v1alpha1") {
               onEvent(event);
             }
           } catch {
@@ -217,7 +217,7 @@ async function inspectImage(image) {
 
 function validateManifest(value) {
   const manifest = assertRecord(value, "Component manifest must be an object.");
-  if (manifest.apiVersion !== "parser-arena.dev/component/v1alpha1") {
+  if (manifest.apiVersion !== "document-arena.dev/component/v1alpha1") {
     throw new Error("Unsupported component manifest apiVersion.");
   }
   const metadata = assertRecord(
@@ -356,7 +356,7 @@ function validateCanonicalDocument(document, sourceArtifactId) {
     document,
     "Canonical parsed document must be an object.",
   );
-  if (parsed.apiVersion !== "parser-arena.dev/parsed-document/v1alpha1") {
+  if (parsed.apiVersion !== "document-arena.dev/parsed-document/v1alpha1") {
     throw new Error("Canonical parsed document apiVersion is invalid.");
   }
   if (parsed.sourceArtifactRef !== sourceArtifactId) {
@@ -446,7 +446,7 @@ export async function validateResultBundle({
     "Result bundle must be an object.",
   );
   if (
-    bundle.apiVersion !== "parser-arena.dev/result-bundle/v1alpha1" ||
+    bundle.apiVersion !== "document-arena.dev/result-bundle/v1alpha1" ||
     bundle.status !== "completed"
   ) {
     throw new Error("Result bundle status or apiVersion is invalid.");
@@ -474,7 +474,7 @@ export async function validateResultBundle({
   );
   if (
     primary.mediaType !==
-    "application/vnd.parser-arena.parsed-document+json"
+    "application/vnd.document-arena.parsed-document+json"
   ) {
     throw new Error("Result bundle primary media type is invalid.");
   }
@@ -628,7 +628,7 @@ export async function runComponent({
 
   const imageId = await inspectImage(component.image);
   const request = {
-    apiVersion: "parser-arena.dev/stage-request/v1alpha1",
+    apiVersion: "document-arena.dev/stage-request/v1alpha1",
     jobId,
     stageRunId,
     component: {
@@ -648,7 +648,7 @@ export async function runComponent({
   const requestPath = resolve(runDirectory, "request.json");
   await writeFile(requestPath, `${JSON.stringify(request, null, 2)}\n`);
 
-  const containerName = `parser-arena-${sanitizeName(component.id)}-${randomUUID()
+  const containerName = `document-arena-${sanitizeName(component.id)}-${randomUUID()
     .replaceAll("-", "")
     .slice(0, 12)}`;
   await runStreaming(
@@ -672,7 +672,7 @@ export async function runComponent({
     sourceSha256,
   });
   const runnerManifest = {
-    apiVersion: "parser-arena.dev/local-run/v1alpha1",
+    apiVersion: "document-arena.dev/local-run/v1alpha1",
     jobId,
     stageRunId,
     component: {

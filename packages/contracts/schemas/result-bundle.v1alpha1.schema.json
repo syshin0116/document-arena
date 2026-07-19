@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://parser-arena.dev/schemas/result-bundle.v1alpha1.json",
+  "$id": "https://document-arena.dev/schemas/result-bundle.v1alpha1.json",
   "$defs": {
     "file": {
       "type": "object",
@@ -43,7 +43,7 @@
   ],
   "properties": {
     "apiVersion": {
-      "const": "parser-arena.dev/result-bundle/v1alpha1"
+      "const": "document-arena.dev/result-bundle/v1alpha1"
     },
     "status": {
       "const": "completed"

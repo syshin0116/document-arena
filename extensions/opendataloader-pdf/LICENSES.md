@@ -1,6 +1,6 @@
 # OpenDataLoader extension licenses
 
-The adapter source in this directory follows the Parser Arena project's root
+The adapter source in this directory follows the Document Arena project's root
 license once that license is selected.
 
 Runtime dependencies:

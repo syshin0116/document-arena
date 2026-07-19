@@ -75,7 +75,7 @@ function firstPageContent() {
     text("F1", 8, 306, 280, "0.94"),
     text("F1", 8, 394, 280, "0.95"),
     text("F1", 8, 474, 280, "11.8s"),
-    text("F1", 8, 72, 54, "Parser Arena demo source / page 1"),
+    text("F1", 8, 72, 54, "Document Arena demo source / page 1"),
   ].join("\n");
 }
 
@@ -87,7 +87,7 @@ function continuationPageContent(pageNumber: number) {
     text("F2", 22, 72, 700, `Evaluation notes / page ${pageNumber}`),
     text("F1", 10, 72, 660, "This continuation page exercises real PDF navigation."),
     text("F1", 10, 72, 640, "Parser-native evidence in the demo belongs to page 1 only."),
-    text("F1", 8, 72, 54, `Parser Arena demo source / page ${pageNumber}`),
+    text("F1", 8, 72, 54, `Document Arena demo source / page ${pageNumber}`),
   ].join("\n");
 }
 

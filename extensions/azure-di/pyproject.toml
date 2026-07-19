@@ -1,7 +1,7 @@
 [project]
-name = "parser-arena-azure-di"
+name = "document-arena-azure-di"
 version = "0.1.0"
-description = "Parser Arena Azure Document Intelligence adapter (oci-batch/v1)"
+description = "Document Arena Azure Document Intelligence adapter (oci-batch/v1)"
 requires-python = ">=3.11"
 dependencies = [
     "azure-ai-documentintelligence==1.0.2",

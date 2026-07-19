@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://parser-arena.dev/schemas/parsed-document.v1alpha1.json",
+  "$id": "https://document-arena.dev/schemas/parsed-document.v1alpha1.json",
   "$defs": {
     "bbox": {
       "type": "array",
@@ -90,7 +90,7 @@
   ],
   "properties": {
     "apiVersion": {
-      "const": "parser-arena.dev/parsed-document/v1alpha1"
+      "const": "document-arena.dev/parsed-document/v1alpha1"
     },
     "sourceArtifactRef": {
       "type": "string"

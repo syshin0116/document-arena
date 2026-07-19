@@ -41,7 +41,7 @@ test("Azure options mirror the pinned SDK surface", async () => {
     ["unicodeCodePoint", "textElements", "utf16CodeUnit"],
   );
   assert.match(
-    schema.properties.stringIndexType.oneOf[1]["x-parser-arena"].disabledReason,
+    schema.properties.stringIndexType.oneOf[1]["x-document-arena"].disabledReason,
     /normalizer/i,
   );
   assert.deepEqual(
@@ -49,15 +49,15 @@ test("Azure options mirror the pinned SDK surface", async () => {
     ["figures", "pdf"],
   );
   assert.match(
-    schema.properties.output.items.oneOf[1]["x-parser-arena"].disabledReason,
+    schema.properties.output.items.oneOf[1]["x-document-arena"].disabledReason,
     /prebuilt-layout/i,
   );
   assert.equal(
-    schema.properties.modelId["x-parser-arena"].availability.state,
+    schema.properties.modelId["x-document-arena"].availability.state,
     "fixed",
   );
   assert.equal(
-    schema.properties.apiVersion["x-parser-arena"].availability.state,
+    schema.properties.apiVersion["x-document-arena"].availability.state,
     "fixed",
   );
   assert.match(schema.properties.locale.pattern, /auto/);

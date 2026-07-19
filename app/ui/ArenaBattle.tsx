@@ -116,7 +116,7 @@ export function ArenaBattle() {
           <Link className="back-button" href="/" aria-label="Back to upload">
             ←
           </Link>
-          <Link className="workspace-brand" href="/" aria-label="Parser Arena home">
+          <Link className="workspace-brand" href="/" aria-label="Document Arena home">
             <Brand compact />
           </Link>
           <span className="header-separator" aria-hidden="true" />

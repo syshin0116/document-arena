@@ -17,6 +17,7 @@ export type BlindVote = {
   blind: boolean;
 };
 
+// Persistent browser data keeps its original stable key across the product rename.
 const STORAGE_KEY = "parser-arena/blind-votes/v1";
 
 export function loadVotes(): BlindVote[] {

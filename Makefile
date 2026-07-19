@@ -2,14 +2,14 @@ SHELL := /bin/sh
 .DEFAULT_GOAL := help
 
 COMPOSE ?= docker compose
-PARSER_ARENA_WEB_PORT ?= 3000
-PARSER_ARENA_UID ?= $(shell id -u)
-PARSER_ARENA_GID ?= $(shell id -g)
+DOCUMENT_ARENA_WEB_PORT ?= $(if $(PARSER_ARENA_WEB_PORT),$(PARSER_ARENA_WEB_PORT),3000)
+DOCUMENT_ARENA_UID ?= $(shell id -u)
+DOCUMENT_ARENA_GID ?= $(shell id -g)
 DEV_HOST ?= 127.0.0.1
 
-export PARSER_ARENA_WEB_PORT
-export PARSER_ARENA_UID
-export PARSER_ARENA_GID
+export DOCUMENT_ARENA_WEB_PORT
+export DOCUMENT_ARENA_UID
+export DOCUMENT_ARENA_GID
 
 .PHONY: help doctor deps dev up down logs ps test lint check parser-fixture parser-image parser-smoke runner-serve mineru-image azure-di-image
 
@@ -19,7 +19,7 @@ help: ## Show available commands.
 doctor: ## Verify the required local tools.
 	@command -v bun >/dev/null
 	@command -v node >/dev/null
-	@node -e 'if (process.versions.node.split(".")[0] !== "24") { console.error("Parser Arena requires Node.js 24.x"); process.exit(1) }'
+	@node -e 'if (process.versions.node.split(".")[0] !== "24") { console.error("Document Arena requires Node.js 24.x"); process.exit(1) }'
 	@command -v docker >/dev/null
 	@docker compose version
 	@docker info >/dev/null
@@ -30,11 +30,11 @@ deps: ## Install the locked JavaScript dependencies with Bun.
 	bun install --frozen-lockfile
 
 dev: deps ## Run the web app on the host with hot reload.
-	bun run dev -- --hostname $(DEV_HOST) --port $(PARSER_ARENA_WEB_PORT)
+	bun run dev -- --hostname $(DEV_HOST) --port $(DOCUMENT_ARENA_WEB_PORT)
 
 up: ## Start the Compose development stack in the background.
 	$(COMPOSE) up --detach --build --wait --wait-timeout 120
-	@printf "Parser Arena: http://localhost:%s\n" "$(PARSER_ARENA_WEB_PORT)"
+	@printf "Document Arena: http://localhost:%s\n" "$(DOCUMENT_ARENA_WEB_PORT)"
 
 down: ## Stop the Compose stack while retaining dependency caches.
 	$(COMPOSE) down --remove-orphans
@@ -60,13 +60,13 @@ parser-image: ## Build the pinned OpenDataLoader component image.
 	bun run parser:build:opendataloader
 
 parser-smoke: parser-fixture parser-image ## Run the first parser end to end.
-	bun run parser:run:opendataloader -- --input work/fixtures/parser-arena-smoke.pdf
+	bun run parser:run:opendataloader -- --input work/fixtures/document-arena-smoke.pdf
 
 runner-serve: parser-image ## Serve the local runner so the web app can run real parses.
 	bun services/runner/serve.mjs
 
 mineru-image: ## Build the pinned MinerU pipeline image (downloads models, several GB).
-	docker build -t parser-arena/mineru-pipeline:3.4.4 extensions/mineru-pipeline
+	docker build -t document-arena/mineru-pipeline:3.4.4 extensions/mineru-pipeline
 
 azure-di-image: ## Build the Azure Document Intelligence adapter image (remote API; needs AZURE_DI_* in .env).
-	docker build -t parser-arena/azure-di:0.1.0 extensions/azure-di
+	docker build -t document-arena/azure-di:0.1.0 extensions/azure-di

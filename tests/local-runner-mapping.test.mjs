@@ -22,7 +22,7 @@ const nativeRegion = (pageNumber, bbox) => ({
 
 test("toEvidenceRegions maps only valid native regions and never invents geometry", () => {
   const parsed = {
-    apiVersion: "parser-arena.dev/parsed-document/v1alpha1",
+    apiVersion: "document-arena.dev/parsed-document/v1alpha1",
     parser: { id: "opendataloader-pdf" },
     pages: [
       {
@@ -151,7 +151,7 @@ test("merged mode unions one table's native boxes into a single region", () => {
     },
   });
   const parsed = {
-    apiVersion: "parser-arena.dev/parsed-document/v1alpha1",
+    apiVersion: "document-arena.dev/parsed-document/v1alpha1",
     parser: { id: "opendataloader-pdf" },
     pages: [
       {
@@ -228,7 +228,7 @@ test("merged mode unions one table's native boxes into a single region", () => {
 
 test("native mode expands Azure DI word boxes; merged keeps the line union", () => {
   const parsed = {
-    apiVersion: "parser-arena.dev/parsed-document/v1alpha1",
+    apiVersion: "document-arena.dev/parsed-document/v1alpha1",
     parser: { id: "azure-di" },
     pages: [
       {

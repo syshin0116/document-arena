@@ -1,7 +1,8 @@
-# Parser Arena working guide
+# Document Arena working guide
 
-Parser Arena is an independent PDF parser evaluation product. Keep it separate
-from the `syshin0116.dev` blog and its source material.
+Document Arena is an independent document pipeline evaluation product, currently
+shipping a parser-first PDF workflow. Keep it separate from the `syshin0116.dev`
+blog and its source material.
 
 ## Product contract
 

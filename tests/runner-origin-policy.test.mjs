@@ -8,7 +8,7 @@ import {
 
 test("the local runner defaults to the exact localhost web origins", () => {
   assert.deepEqual(
-    [...runnerAllowedOrigins({ PARSER_ARENA_WEB_PORT: "4310" })],
+    [...runnerAllowedOrigins({ DOCUMENT_ARENA_WEB_PORT: "4310" })],
     ["http://localhost:4310", "http://127.0.0.1:4310"],
   );
   assert.deepEqual([...runnerAllowedOrigins({})], [
@@ -17,15 +17,34 @@ test("the local runner defaults to the exact localhost web origins", () => {
   ]);
 });
 
+test("the runner accepts the legacy web port during the product rename", () => {
+  assert.deepEqual(
+    [...runnerAllowedOrigins({ PARSER_ARENA_WEB_PORT: "4311" })],
+    ["http://localhost:4311", "http://127.0.0.1:4311"],
+  );
+});
+
+test("the canonical origin override takes precedence over the legacy name", () => {
+  assert.deepEqual(
+    [
+      ...runnerAllowedOrigins({
+        DOCUMENT_ARENA_RUNNER_ALLOWED_ORIGINS: "https://document-arena.test",
+        PARSER_ARENA_RUNNER_ALLOWED_ORIGINS: "https://legacy.test",
+      }),
+    ],
+    ["https://document-arena.test"],
+  );
+});
+
 test("an explicit comma-separated origin list replaces the local defaults", () => {
   const origins = runnerAllowedOrigins({
-    PARSER_ARENA_WEB_PORT: "3000",
-    PARSER_ARENA_RUNNER_ALLOWED_ORIGINS:
-      " https://parser-arena.test, http://localhost:4400 ",
+    DOCUMENT_ARENA_WEB_PORT: "3000",
+    DOCUMENT_ARENA_RUNNER_ALLOWED_ORIGINS:
+      " https://document-arena.test, http://localhost:4400 ",
   });
 
   assert.deepEqual([...origins], [
-    "https://parser-arena.test",
+    "https://document-arena.test",
     "http://localhost:4400",
   ]);
   assert.equal(origins.has("http://localhost:3000"), false);
@@ -33,18 +52,18 @@ test("an explicit comma-separated origin list replaces the local defaults", () =
 
 test("invalid ports and non-origin overrides fail closed at startup", () => {
   assert.throws(
-    () => runnerAllowedOrigins({ PARSER_ARENA_WEB_PORT: "70000" }),
+    () => runnerAllowedOrigins({ DOCUMENT_ARENA_WEB_PORT: "70000" }),
     /integer from 1 to 65535/,
   );
   assert.throws(
     () =>
       runnerAllowedOrigins({
-        PARSER_ARENA_RUNNER_ALLOWED_ORIGINS: "https://example.test/path",
+        DOCUMENT_ARENA_RUNNER_ALLOWED_ORIGINS: "https://example.test/path",
       }),
     /without paths/,
   );
   assert.throws(
-    () => runnerAllowedOrigins({ PARSER_ARENA_RUNNER_ALLOWED_ORIGINS: "" }),
+    () => runnerAllowedOrigins({ DOCUMENT_ARENA_RUNNER_ALLOWED_ORIGINS: "" }),
     /at least one origin/,
   );
 });

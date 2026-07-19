@@ -73,7 +73,7 @@ test("MinerU schema mirrors the pinned public CLI choices", async () => {
   );
   assert.equal(schema.properties.lang.default, "ch");
   assert.equal(
-    schema.properties.backend["x-parser-arena"].availability.state,
+    schema.properties.backend["x-document-arena"].availability.state,
     "fixed",
   );
   for (const name of [
@@ -86,7 +86,7 @@ test("MinerU schema mirrors the pinned public CLI choices", async () => {
     "clientSideOutputGeneration",
   ]) {
     assert.equal(
-      schema.properties[name]["x-parser-arena"].availability.state,
+      schema.properties[name]["x-document-arena"].availability.state,
       "unavailable",
       `${name} must stay visible with an unavailable reason`,
     );
@@ -200,10 +200,10 @@ test("MinerU process uses supported CLI flags and pipeline environment controls"
   assert.match(source, /"MINERU_PROCESSING_WINDOW_SIZE"/);
   assert.match(source, /env=process_env/);
   assert.equal(component.spec.requirements.memoryMiB, 16384);
-  assert.match(dockerfile, /parser-arena\.upstream\.version="3\.4\.4"/);
+  assert.match(dockerfile, /document-arena\.upstream\.version="3\.4\.4"/);
   assert.match(
     dockerfile,
-    /parser-arena\.model\.revision="hf:opendatalab\/PDF-Extract-Kit-1\.0@ed6b654c018d742e65a17671e379c5e6ecc87ec9"/,
+    /document-arena\.model\.revision="hf:opendatalab\/PDF-Extract-Kit-1\.0@ed6b654c018d742e65a17671e379c5e6ecc87ec9"/,
   );
   assert.match(
     modelBuild,

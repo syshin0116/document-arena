@@ -30,7 +30,7 @@ export type OptionsSchemaChoice = {
   enum?: readonly OptionsSchemaPrimitive[];
   title?: string;
   description?: string;
-  "x-parser-arena"?: OptionsSchemaAnnotation;
+  "x-document-arena"?: OptionsSchemaAnnotation;
 };
 
 export type OptionsSchemaItems = {
@@ -61,7 +61,7 @@ export type OptionsSchemaProperty = {
   minItems?: number;
   maxItems?: number;
   uniqueItems?: boolean;
-  "x-parser-arena"?: OptionsSchemaAnnotation;
+  "x-document-arena"?: OptionsSchemaAnnotation;
 };
 
 export type LocalRunnerRequirements = Record<string, unknown> & {
@@ -233,7 +233,7 @@ export async function parseWithLocalRunner(
       method: "POST",
       headers: {
         "content-type": "application/pdf",
-        "x-parser-arena-filename": encodeURIComponent(file.name),
+        "x-document-arena-filename": encodeURIComponent(file.name),
       },
       body: file,
     },

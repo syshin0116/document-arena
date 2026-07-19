@@ -23,7 +23,7 @@ Side-by-side multi-parser viewing is no longer a differentiator by itself.
 | [Chunkr](https://docs.chunkr.ai/pages/get-started/web-interface) | Parse/extract viewers with granular bboxes and citations | Result-viewer quality bar |
 | [Design Arena methodology](https://notes.designarena.ai/methodology/) | Public Bradley-Terry methodology page | Publish methodology as a page |
 
-Parser Arena's defensible differentiators are: (1) the parser-native evidence
+Document Arena's defensible differentiators are: (1) the parser-native evidence
 contract, (2) reproducible pinned-OCI execution with fingerprints and
 reproduction manifests, and (3) per-document verdicts with integrity-preserving
 vote records, instead of a global leaderboard.

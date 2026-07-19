@@ -82,7 +82,7 @@ test("normalizeOdlDocument preserves native geometry and nested table provenance
     sourceArtifactId: "artifact:source-pdf",
   });
 
-  assert.equal(document.apiVersion, "parser-arena.dev/parsed-document/v1alpha1");
+  assert.equal(document.apiVersion, "document-arena.dev/parsed-document/v1alpha1");
   assert.equal(document.sourceArtifactRef, "artifact:source-pdf");
   assert.deepEqual(document.rawArtifactRefs, [
     "artifact:raw-opendataloader-json",

@@ -263,7 +263,7 @@ function OptionPropertyField({
         data-run-option-control
         value={
           selectedChoice?.value === undefined
-            ? "__parser_arena_unset__"
+            ? "__document_arena_unset__"
             : optionValueToken(selectedChoice.value)
         }
         disabled={disabled || scalarChoices.every((choice) => choice.disablement)}
@@ -278,13 +278,13 @@ function OptionPropertyField({
           onChange(selected?.value);
         }}
       >
-        <option value="__parser_arena_unset__">Choose…</option>
+        <option value="__document_arena_unset__">Choose…</option>
         {scalarChoices.map((choice) => (
           <option
             key={choice.id}
             value={
               choice.value === undefined
-                ? `__parser_arena_invalid_${choice.id}`
+                ? `__document_arena_invalid_${choice.id}`
                 : optionValueToken(choice.value)
             }
             disabled={choice.value === undefined || Boolean(choice.disablement)}

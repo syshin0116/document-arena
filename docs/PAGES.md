@@ -1,4 +1,4 @@
-# Parser Arena page definitions
+# Document Arena page definitions
 
 Status: accepted MVP information architecture  
 Date: 2026-07-15

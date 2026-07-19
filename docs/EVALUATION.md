@@ -1,4 +1,4 @@
-# Parser Arena evaluation design
+# Document Arena evaluation design
 
 Status: accepted post-MVP research plan  
 Date: 2026-07-15

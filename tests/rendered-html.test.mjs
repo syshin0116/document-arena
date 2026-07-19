@@ -140,7 +140,7 @@ test("server-renders the focused PDF upload experience", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Parser Arena · Compare document parsers<\/title>/i);
+  assert.match(html, /<title>Document Arena · Compare document pipelines<\/title>/i);
   assert.match(html, /See what your parser actually saw/);
   assert.match(html, /Drop a PDF here/);
   assert.match(html, /type="file"/);

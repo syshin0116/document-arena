@@ -1,47 +1,50 @@
-<h1 align="center">Parser Arena</h1>
+<h1 align="center">Document Arena</h1>
 
 <p align="center">
-  <strong>See what your parser actually saw.</strong>
+  <strong>Inspect every stage. Compare the whole document pipeline.</strong>
 </p>
 <p align="center">
-  Upload a PDF, run open-source document parsers on your own machine, and inspect
-  every result beside the source with parser-native bounding-box evidence.
+  Start with real PDF parsers today, then compose preprocessing, OCR,
+  postprocessing, chunking, embedding, indexing, and retrieval through the same
+  evidence-first component contract.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/web_runtime-Node.js%2024-339933" alt="Node.js 24">
   <img src="https://img.shields.io/badge/toolchain-Bun%20%E2%89%A51.3-black" alt="Bun">
-  <img src="https://img.shields.io/badge/parsers-pinned%20OCI%20images-2496ED" alt="Docker">
-  <img src="https://img.shields.io/badge/evidence-parser--native%20bbox-5147c7" alt="Evidence">
+  <img src="https://img.shields.io/badge/components-pinned%20OCI%20images-2496ED" alt="Docker">
+  <img src="https://img.shields.io/badge/evidence-stage--native-5147c7" alt="Evidence">
   <img src="https://img.shields.io/badge/status-early%20prototype-orange" alt="Status">
   <img src="https://img.shields.io/badge/license-TBD-lightgrey" alt="License">
 </p>
 
-<p align="center">
-  <img src="docs/assets/workspace.jpg" alt="Parser Arena workspace: source PDF beside real parser output with a pinned native bounding box" width="920" />
-</p>
+---
+
+Global leaderboards tell you which component is best on average. They cannot
+tell you which pipeline is best **for your document**. Document Arena begins
+with real parsers in pinned containers, keeps every stage's raw output
+untouched, and links results back to the exact source evidence a component
+reported. The same linear recipe can grow from preprocessing and OCR through
+parsing, enrichment, chunking, embedding, indexing, and retrieval without
+putting component-specific behavior in the core.
 
 ---
 
-Global leaderboards tell you which parser is best on average. They cannot tell
-you which parser is best **for your document**. Parser Arena runs real parsers
-in pinned containers, keeps their raw output untouched, and links every parsed
-block back to the exact source region the parser reported — so you can judge
-with evidence instead of vibes.
+## Why Document Arena
 
----
-
-## Why Parser Arena
-
-- **Evidence first.** Hover any parsed block and the parser-reported bounding
-  box lights up on the original page. Only parser-native geometry is shown;
-  nothing is inferred or invented. Blocks without geometry say so.
-- **Reproducible by construction.** Every parser runs as a pinned OCI image
-  with network disabled, raw JSON/Markdown preserved byte-for-byte, and a
-  reproduction manifest (source hash, image digest, options, timing).
-- **Your document, your machine.** The device-local path keeps the PDF in your
-  browser and sends it straight to a local Docker runner. Nothing is uploaded
-  to a server.
+- **Evidence first.** Hover any parsed block and its component-reported bounding
+  box lights up on the original page. Derived artifacts never masquerade as
+  native evidence, and blocks without geometry say so.
+- **Composable by contract.** Components declare roles, artifact types,
+  capabilities, and JSON Schema options. A compatible OCR engine,
+  postprocessor, chunker, embedder, or vector sink should not require a core UI
+  change.
+- **Reproducible by construction.** Each executable component uses a pinned OCI
+  image, preserves raw artifacts, and records source hashes, image digests,
+  model revisions, resolved options, timing, and status.
+- **Your document, your choice.** Device-local components send the PDF straight
+  from the browser to a local Docker runner. Remote components are labeled and
+  require explicit consent before document bytes leave the machine.
 - **Honest failure.** A scanned PDF in a no-OCR profile fails with the real
   reason, not a fake result. Evidence coverage (share of blocks with native
   geometry) is shown on every run.
@@ -52,7 +55,7 @@ with evidence instead of vibes.
 
 | Surface | What it does | Status |
 |---|---|---|
-| **Workspace** `/documents/[id]` | Upload → run a parser for real → Blocks / Markdown (rendered + raw) views, bidirectional evidence hover, image-region crops, resizable panes | Working prototype |
+| **Workspace** `/documents/[id]` | Upload → run a parser for real → Blocks / Markdown (rendered + raw) views, bidirectional evidence hover, image-region crops, resizable panes | Parser-first prototype |
 | **Arena** `/arena` | Blind battle: two anonymous results, listwise vote, reveal after voting | Simulated flow |
 | **Leaderboard** `/leaderboard` | Per-document-type rankings from blind votes only | Device-local votes |
 
@@ -79,8 +82,8 @@ read-only, non-root) and returns raw output plus a canonical document with
 native bounding boxes.
 
 The runner accepts browser requests only from the exact local web origins for
-`PARSER_ARENA_WEB_PORT` (`localhost` and `127.0.0.1` by default). Set
-`PARSER_ARENA_RUNNER_ALLOWED_ORIGINS` to a comma-separated list for a custom web
+`DOCUMENT_ARENA_WEB_PORT` (`localhost` and `127.0.0.1` by default). Set
+`DOCUMENT_ARENA_RUNNER_ALLOWED_ORIGINS` to a comma-separated list for a custom web
 origin. Origin-less local CLI and health requests remain available.
 
 ### CLI smoke test
@@ -95,7 +98,7 @@ in `work/runs/`.
 
 ---
 
-## Parsers
+## Current components
 
 | Parser | Profile | Status |
 |---|---|---|
@@ -104,10 +107,10 @@ in `work/runs/`.
 | [Azure Document Intelligence](https://learn.microsoft.com/azure/ai-services/document-intelligence/) | prebuilt-layout, cloud OCR, strong on Korean · needs `AZURE_DI_*` in `.env` | ✅ Runnable (remote) |
 | LightOnOCR, Docling, PaddleOCR, … | See the [parser landscape](docs/PARSER_LANDSCAPE.md) | Planned |
 
-A parser integrates as a self-contained extension package — an OCI image, a
+A component integrates as a self-contained extension package — an OCI image, a
 declarative `component.json` manifest, an options schema, and an adapter that
 maps raw output to the canonical document. The core contains no
-parser-specific code; see the
+component-specific code; see the
 [pipeline component contract](docs/PIPELINE_COMPONENTS.md).
 
 ```text
@@ -129,7 +132,7 @@ Browser (PDF in IndexedDB, PDF.js viewer + evidence overlay)
 Local runner service (Bun, :8799)
    │  oci-batch/v1: mount input → run container → validate result bundle
    ▼
-Parser container (pinned image · network none · read-only · non-root)
+Parser component (pinned image · policy-controlled network · read-only · non-root)
    │  raw JSON/MD (untouched) + canonical blocks + native bboxes
    ▼
 Workspace: Blocks / Markdown views · evidence hover · coverage badge
@@ -147,10 +150,10 @@ running code.
 | Milestone | Scope |
 |---|---|
 | **M1** | Real upload → runner → result pipeline (local slice ✅), result persistence, contracts + fingerprint spec |
-| **M2** | MinerU as the second parser; real two-parser comparison; catalog API |
+| **M2** | Multiple parser/OCR components; real comparison; catalog API |
 | **M3** | Arena with real runs; blind listwise votes with recorded permutations |
-| **M4** | Leaderboard from blind votes; hosted CPU parsing; stage-level caching |
-| Later | LLM postprocessor slots, LLM Judge validated against human votes, GPU/BYO runners |
+| **M4** | Preprocess/parser/postprocess recipes, stage-level caching, hosted and BYO runners |
+| Later | Chunk/embed/vector sinks, retrieval and end-to-end RAG evaluation, LLM Judge validated against human votes |
 
 Full planning documents:
 
@@ -175,14 +178,14 @@ Full planning documents:
 app/                   Web app (Next.js App Router) and comparison UI
 services/runner/       Generic OCI batch runner + local runner HTTP service
 packages/contracts/    Artifact, component, catalog, and result schemas
-extensions/            Self-contained parser packages (one directory per parser)
+extensions/            Self-contained component packages (one directory per component)
 infra/                 Compose and deployment configuration
 docs/                  Product, architecture, and evaluation decisions
 fixtures/              Redistributable test PDFs
 tests/                 Bun test suite (SSR, contracts, runner bundle, mapping)
 ```
 
-Parser binaries, uploaded documents, generated outputs, model weights, API
+Component binaries, uploaded documents, generated outputs, model weights, API
 keys, and benchmark datasets are never committed.
 
 ---
@@ -210,11 +213,12 @@ web routes do not execute parser containers or proxy uploaded PDF bodies.
 
 ## Contributing
 
-The most valuable contribution is a parser adapter. The bar: a new parser must
+The most valuable contribution is a component adapter. The bar: a compatible
+preprocessor, parser/OCR engine, postprocessor, or retrieval component must
 integrate through an extension package alone — if it needs a change in the
 runner, API, or UI, that is a bug in our contract and we want to know. Start
 from `extensions/opendataloader-pdf/` as the reference, and open an issue with
-the parser and profile you have in mind.
+the component and profile you have in mind.
 
 Bug reports with a specific PDF and a wrong parse are equally welcome; that
 is exactly what this tool exists to surface.

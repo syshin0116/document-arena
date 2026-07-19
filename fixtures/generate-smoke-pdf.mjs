@@ -30,7 +30,7 @@ function pageOneContent() {
     "0 G",
     "0 g",
     "1 w",
-    text("F2", 18, 72, 724, "Parser Arena Smoke Fixture"),
+    text("F2", 18, 72, 724, "Document Arena Smoke Fixture"),
     text("F1", 11, 72, 692, "A deterministic two-page PDF for parser adapter tests."),
     text("F1", 11, 72, 674, "The first page contains a paragraph and a simple ruled table."),
     text("F2", 14, 72, 620, "Structured table"),
@@ -45,7 +45,7 @@ function pageOneContent() {
     text("F1", 11, 88, 502, "native bbox"),
     text("F1", 11, 322, 502, "enabled"),
     text("F1", 10, 72, 430, "PAGE_ONE_SENTINEL: ALPHA-4107"),
-    text("F1", 9, 72, 54, "Parser Arena generated fixture - page 1"),
+    text("F1", 9, 72, 54, "Document Arena generated fixture - page 1"),
   ].join("\n");
 }
 
@@ -63,7 +63,7 @@ function pageTwoContent() {
     text("F1", 10, 324, 632, "RIGHT-2 contains a unique marker."),
     text("F1", 10, 324, 612, "RIGHT-3 ends the second column."),
     text("F1", 10, 72, 540, "PAGE_TWO_SENTINEL: OMEGA-9231"),
-    text("F1", 9, 72, 54, "Parser Arena generated fixture - page 2"),
+    text("F1", 9, 72, 54, "Document Arena generated fixture - page 2"),
   ].join("\n");
 }
 
@@ -129,7 +129,7 @@ const isMain =
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 
 if (isMain) {
-  const outputPath = process.argv[2] ?? "work/fixtures/parser-arena-smoke.pdf";
+  const outputPath = process.argv[2] ?? "work/fixtures/document-arena-smoke.pdf";
   const result = await generateSmokePdf(outputPath);
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }

@@ -1,11 +1,11 @@
-# Parser Arena product plan
+# Document Arena product plan
 
 Status: accepted MVP plan  
 Date: 2026-07-15
 
 ## Product goal
 
-Parser Arena should make it easy to see which PDF parser works best for one real
+Document Arena should make it easy to see which PDF parser works best for one real
 document. A user uploads a PDF, runs a recommended parser with sensible defaults,
 and adds another parser only when comparison is useful.
 

@@ -11,7 +11,7 @@ legal review still pending before any hosted or redistributed use.
   - a commercial license is required only above **100M monthly active users**
     or **USD 20M monthly revenue**;
   - an **online-service attribution obligation** applies when MinerU powers a
-    public service (Parser Arena's hosted catalog entry must show visible
+    public service (Document Arena's hosted catalog entry must show visible
     MinerU attribution).
 - **Dependency change vs 2.x**: 3.x removed the AGPL-3.0 `doclayout_yolo`
   code dependency (derived from AGPL YOLOv10); pipeline inference now runs
@@ -23,7 +23,7 @@ legal review still pending before any hosted or redistributed use.
   declares AGPL-3.0, while individual upstream model families may carry
   additional terms. These weights must complete legal review before the
   hosted catalog enables or redistributes this profile.
-- **Adapter code** (`adapter/`): Parser Arena repository terms (root license
+- **Adapter code** (`adapter/`): Document Arena repository terms (root license
   still undecided).
 
 ## History

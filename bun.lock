@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "parser-arena",
+      "name": "document-arena",
       "dependencies": {
         "next": "16.2.6",
         "pdfjs-dist": "5.4.296",

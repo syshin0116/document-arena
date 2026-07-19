@@ -87,7 +87,7 @@ Run the implemented path with:
 ```bash
 bun run parser:fixture
 bun run parser:build:opendataloader
-bun run parser:run:opendataloader -- --input work/fixtures/parser-arena-smoke.pdf
+bun run parser:run:opendataloader -- --input work/fixtures/document-arena-smoke.pdf
 ```
 
 OpenDataLoader exposes batch conversion rather than a structured page-complete

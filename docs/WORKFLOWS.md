@@ -5,7 +5,7 @@ Date: 2026-07-15
 
 ## Decision
 
-Parser Arena wraps the three long-running product lifecycles—document ingest,
+Document Arena wraps the three long-running product lifecycles—document ingest,
 each pipeline run, and each evaluation run—in one shared thin LangGraph workflow
 envelope. LangGraph checkpoints the execution cursor and
 allows a job to resume after an orchestrator restart. It does not define the

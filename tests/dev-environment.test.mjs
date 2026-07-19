@@ -19,7 +19,7 @@ test("Make and Compose expose the minimal safe development paths", async () => {
   assert.match(compose, /healthcheck:/);
   assert.match(compose, /- \.\:\/workspace(?:\s|$)/m);
   assert.match(compose, /web-next:\/workspace\/\.next/);
-  assert.match(compose, /user: "\$\{PARSER_ARENA_UID/);
+  assert.match(compose, /user: "\$\{DOCUMENT_ARENA_UID/);
   assert.doesNotMatch(compose, /docker\.sock/);
   assert.doesNotMatch(compose, /\/root\//);
   assert.match(entrypoint, /bun install --frozen-lockfile/);

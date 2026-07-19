@@ -1,5 +1,5 @@
 {
-  "apiVersion": "parser-arena.dev/catalog/v1alpha1",
+  "apiVersion": "document-arena.dev/catalog/v1alpha1",
   "kind": "CatalogEntry",
   "componentId": "opendataloader-pdf",
   "componentVersion": "0.1.0",

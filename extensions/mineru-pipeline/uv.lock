@@ -1347,7 +1347,7 @@ wheels = [
 ]
 
 [[package]]
-name = "parser-arena-mineru-pipeline"
+name = "document-arena-mineru-pipeline"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

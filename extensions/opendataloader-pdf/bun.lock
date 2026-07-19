@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "@parser-arena/extension-opendataloader-pdf",
+      "name": "@document-arena/extension-opendataloader-pdf",
       "dependencies": {
         "@opendataloader/pdf": "2.5.0",
         "pdfjs-dist": "6.1.200",

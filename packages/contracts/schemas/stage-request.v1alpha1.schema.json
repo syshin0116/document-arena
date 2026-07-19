@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://parser-arena.dev/schemas/stage-request.v1alpha1.json",
+  "$id": "https://document-arena.dev/schemas/stage-request.v1alpha1.json",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -14,7 +14,7 @@
   ],
   "properties": {
     "apiVersion": {
-      "const": "parser-arena.dev/stage-request/v1alpha1"
+      "const": "document-arena.dev/stage-request/v1alpha1"
     },
     "jobId": {
       "type": "string",

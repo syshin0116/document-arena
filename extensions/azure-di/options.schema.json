@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://parser-arena.dev/schemas/extensions/azure-di/options.json",
+  "$id": "https://document-arena.dev/schemas/extensions/azure-di/options.json",
   "title": "Azure Document Intelligence 1.0.2 · prebuilt-layout options",
   "description": "Options verified against azure-ai-documentintelligence 1.0.2 and service API 2024-11-30. Locked and unavailable upstream choices remain visible for inspection.",
   "type": "object",
@@ -12,7 +12,7 @@
       "type": "string",
       "const": "prebuilt-layout",
       "default": "prebuilt-layout",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "Locked by this component profile; other Azure models require their own profile and normalization review.",
@@ -27,7 +27,7 @@
       "type": "string",
       "const": "2024-11-30",
       "default": "2024-11-30",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "Pinned with azure-ai-documentintelligence 1.0.2 for reproducible runs.",
@@ -42,7 +42,7 @@
       "type": "string",
       "pattern": "^[1-9][0-9]*(?:-[1-9][0-9]*)?(?:,[1-9][0-9]*(?:-[1-9][0-9]*)?)*$",
       "examples": ["1-3,5,7-9"],
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/Azure/azure-sdk-for-python/blob/azure-ai-documentintelligence_1.0.2/sdk/documentintelligence/azure-ai-documentintelligence/azure/ai/documentintelligence/_operations/_patch.py"
       }
     },
@@ -53,7 +53,7 @@
       "pattern": "^(?:auto|[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)$",
       "default": "auto",
       "examples": ["auto", "ko-KR", "en-US", "ja-JP", "zh-Hans"],
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/language-support/ocr?view=doc-intel-4.0.0"
       }
     },
@@ -70,19 +70,19 @@
         {
           "const": "textElements",
           "title": "Text elements · grapheme clusters",
-          "x-parser-arena": {
+          "x-document-arena": {
             "disabledReason": "The current Python normalizer cannot safely slice grapheme-cluster offsets."
           }
         },
         {
           "const": "utf16CodeUnit",
           "title": "UTF-16 code units · JavaScript/Java/.NET",
-          "x-parser-arena": {
+          "x-document-arena": {
             "disabledReason": "The current Python normalizer cannot safely slice UTF-16 offsets."
           }
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/Azure/azure-sdk-for-python/blob/azure-ai-documentintelligence_1.0.2/sdk/documentintelligence/azure-ai-documentintelligence/azure/ai/documentintelligence/models/_enums.py"
       }
     },
@@ -124,7 +124,7 @@
           }
         ]
       },
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/add-on-capabilities?view=doc-intel-4.0.0"
       }
     },
@@ -141,7 +141,7 @@
         "maxLength": 128
       },
       "examples": ["Party1", "PaymentTerms", "TermEndDate"],
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/add-on-capabilities?view=doc-intel-4.0.0#query-fields"
       }
     },
@@ -158,12 +158,12 @@
         {
           "const": "text",
           "title": "Plain text",
-          "x-parser-arena": {
+          "x-document-arena": {
             "disabledReason": "The current block and table normalizer requires Azure Markdown."
           }
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/Azure/azure-sdk-for-python/blob/azure-ai-documentintelligence_1.0.2/sdk/documentintelligence/azure-ai-documentintelligence/azure/ai/documentintelligence/models/_enums.py"
       }
     },
@@ -182,13 +182,13 @@
           {
             "const": "pdf",
             "title": "Searchable PDF",
-            "x-parser-arena": {
+            "x-document-arena": {
               "disabledReason": "Azure only supports searchable PDF output with prebuilt-read, not this prebuilt-layout profile."
             }
           }
         ]
       },
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://learn.microsoft.com/en-us/python/api/overview/azure/ai-documentintelligence-readme?view=azure-python"
       }
     }

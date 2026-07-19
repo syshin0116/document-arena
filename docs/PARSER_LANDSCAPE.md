@@ -4,7 +4,7 @@ Snapshot: 2026-07-14
 Status: research input, not a permanent ranking
 
 GitHub stars and release numbers change quickly. They are maintenance/adoption
-signals, not quality evidence; Parser Arena's own paired evaluation outranks
+signals, not quality evidence; Document Arena's own paired evaluation outranks
 upstream benchmark claims.
 
 ## Initial shortlist

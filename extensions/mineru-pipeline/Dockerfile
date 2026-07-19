@@ -18,11 +18,11 @@ ENV PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
-WORKDIR /opt/parser-arena/extension
+WORKDIR /opt/document-arena/extension
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-install-project
 
-ENV PATH="/opt/parser-arena/extension/.venv/bin:$PATH"
+ENV PATH="/opt/document-arena/extension/.venv/bin:$PATH"
 
 # Bake the exact reviewed Hugging Face snapshot into a stable path and write
 # the matching local MinerU config without fetching the mutable master template.
@@ -41,12 +41,12 @@ RUN groupadd --gid 10001 arena \
 
 COPY adapter/ ./adapter/
 
-LABEL org.opencontainers.image.title="Parser Arena MinerU Pipeline adapter"
-LABEL parser-arena.component.id="mineru-pipeline"
-LABEL parser-arena.component.version="0.1.0"
-LABEL parser-arena.upstream.version="3.4.4"
-LABEL parser-arena.upstream.source="https://github.com/opendatalab/MinerU"
-LABEL parser-arena.model.revision="hf:opendatalab/PDF-Extract-Kit-1.0@ed6b654c018d742e65a17671e379c5e6ecc87ec9"
+LABEL org.opencontainers.image.title="Document Arena MinerU Pipeline adapter"
+LABEL document-arena.component.id="mineru-pipeline"
+LABEL document-arena.component.version="0.1.0"
+LABEL document-arena.upstream.version="3.4.4"
+LABEL document-arena.upstream.source="https://github.com/opendatalab/MinerU"
+LABEL document-arena.model.revision="hf:opendatalab/PDF-Extract-Kit-1.0@ed6b654c018d742e65a17671e379c5e6ecc87ec9"
 
 USER 10001:10001
 ENTRYPOINT ["python", "adapter/main.py"]

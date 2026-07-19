@@ -1,5 +1,5 @@
 {
-  "apiVersion": "parser-arena.dev/component/v1alpha1",
+  "apiVersion": "document-arena.dev/component/v1alpha1",
   "kind": "Component",
   "metadata": {
     "id": "azure-di",
@@ -10,12 +10,12 @@
   "spec": {
     "role": "parser",
     "accepts": [
-      "parser-arena/source-document@v1alpha1"
+      "document-arena/source-document@v1alpha1"
     ],
-    "produces": "parser-arena/parsed-document@v1alpha1",
+    "produces": "document-arena/parsed-document@v1alpha1",
     "executor": {
       "protocol": "oci-batch/v1",
-      "image": "parser-arena/azure-di:0.1.0"
+      "image": "document-arena/azure-di:0.1.0"
     },
     "optionsSchema": "./options.schema.json",
     "capabilities": {

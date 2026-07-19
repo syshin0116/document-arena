@@ -12,22 +12,22 @@ ENV PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
     HOME=/tmp
 
-WORKDIR /opt/parser-arena/extension
+WORKDIR /opt/document-arena/extension
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-install-project
 
-ENV PATH="/opt/parser-arena/extension/.venv/bin:$PATH"
+ENV PATH="/opt/document-arena/extension/.venv/bin:$PATH"
 
 RUN groupadd --gid 10001 arena \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin arena
 
 COPY adapter/ ./adapter/
 
-LABEL org.opencontainers.image.title="Parser Arena Azure Document Intelligence adapter"
-LABEL parser-arena.component.id="azure-di"
-LABEL parser-arena.component.version="0.1.0"
-LABEL parser-arena.upstream.version="azure-ai-documentintelligence@1.0.2"
-LABEL parser-arena.upstream.source="https://learn.microsoft.com/azure/ai-services/document-intelligence/"
+LABEL org.opencontainers.image.title="Document Arena Azure Document Intelligence adapter"
+LABEL document-arena.component.id="azure-di"
+LABEL document-arena.component.version="0.1.0"
+LABEL document-arena.upstream.version="azure-ai-documentintelligence@1.0.2"
+LABEL document-arena.upstream.source="https://learn.microsoft.com/azure/ai-services/document-intelligence/"
 
 USER 10001:10001
 ENTRYPOINT ["python", "adapter/main.py"]

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://parser-arena.dev/schemas/extensions/opendataloader-pdf/options.v1.json",
+  "$id": "https://document-arena.dev/schemas/extensions/opendataloader-pdf/options.v1.json",
   "title": "OpenDataLoader PDF 2.5.0 conversion options",
   "description": "The complete public Node convert/CLI surface from upstream v2.5.0. Fixed and unavailable settings remain visible with adapter-specific reasons.",
   "type": "object",
@@ -12,7 +12,7 @@
       "type": "string",
       "const": "raw",
       "default": "raw",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "The adapter owns the output directory so every generated file stays inside the immutable artifact root.",
@@ -26,7 +26,7 @@
       "description": "Password used to open an encrypted PDF.",
       "type": "string",
       "writeOnly": true,
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "Plaintext passwords cannot be placed in immutable run options; a transient secret-reference channel is required first.",
@@ -53,7 +53,7 @@
           {
             "const": "json",
             "title": "JSON",
-            "x-parser-arena": {
+            "x-document-arena": {
               "availability": {
                 "state": "fixed",
                 "reason": "Canonical normalization and native geometry evidence require the raw JSON output.",
@@ -64,7 +64,7 @@
           {
             "const": "text",
             "title": "Plain text",
-            "x-parser-arena": {
+            "x-document-arena": {
               "availability": {
                 "state": "unavailable",
                 "reason": "The current result bundle does not declare a raw text artifact.",
@@ -75,7 +75,7 @@
           {
             "const": "html",
             "title": "HTML",
-            "x-parser-arena": {
+            "x-document-arena": {
               "availability": {
                 "state": "unavailable",
                 "reason": "The current result bundle does not declare or sanitize a raw HTML artifact.",
@@ -86,7 +86,7 @@
           {
             "const": "pdf",
             "title": "Annotated PDF",
-            "x-parser-arena": {
+            "x-document-arena": {
               "availability": {
                 "state": "unavailable",
                 "reason": "The current result bundle does not declare the generated annotated-PDF artifact.",
@@ -97,7 +97,7 @@
           {
             "const": "markdown",
             "title": "Markdown",
-            "x-parser-arena": {
+            "x-document-arena": {
               "availability": {
                 "state": "fixed",
                 "reason": "The adapter preserves Markdown as raw evidence and uses it during normalization.",
@@ -108,7 +108,7 @@
           {
             "const": "tagged-pdf",
             "title": "Tagged PDF",
-            "x-parser-arena": {
+            "x-document-arena": {
               "availability": {
                 "state": "unavailable",
                 "reason": "The current result bundle does not declare the generated Tagged PDF artifact.",
@@ -118,7 +118,7 @@
           }
         ]
       },
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "JSON and Markdown are mandatory raw artifacts; additional formats need explicit artifact contracts.",
@@ -129,11 +129,11 @@
     },
     "quiet": {
       "title": "Quiet logging",
-      "description": "Suppresses upstream console logging while Parser Arena emits its own structured job events.",
+      "description": "Suppresses upstream console logging while Document Arena emits its own structured job events.",
       "type": "boolean",
       "const": true,
       "default": true,
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "Upstream logs are suppressed so adapter stdout remains a structured event stream.",
@@ -172,10 +172,10 @@
           }
         ]
       },
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
-          "reason": "Parser Arena keeps upstream prompt-injection and hidden-content protections enabled for untrusted PDFs.",
+          "reason": "Document Arena keeps upstream prompt-injection and hidden-content protections enabled for untrusted PDFs.",
           "reasonCode": "safety-policy"
         },
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L16-L17"
@@ -186,7 +186,7 @@
       "description": "Replaces detected emails, phone numbers, IP addresses, credit cards, and URLs with placeholders.",
       "type": "boolean",
       "default": false,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L18-L19"
       }
     },
@@ -195,7 +195,7 @@
       "description": "Preserves original line breaks instead of merging lines into paragraphs.",
       "type": "boolean",
       "default": false,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L20-L21"
       }
     },
@@ -205,7 +205,7 @@
       "type": "string",
       "minLength": 1,
       "default": " ",
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L22-L23"
       }
     },
@@ -214,7 +214,7 @@
       "description": "Uses native Tagged PDF structure for reading order and semantics when tags are present.",
       "type": "boolean",
       "default": false,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L24-L25"
       }
     },
@@ -233,7 +233,7 @@
           "title": "Cluster · border and cluster"
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L26-L27"
       }
     },
@@ -252,7 +252,7 @@
           "title": "XY-Cut++"
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L28-L29"
       }
     },
@@ -261,7 +261,7 @@
       "description": "Text inserted between Markdown pages; %page-number% is replaced with the 1-based page number. Empty means none.",
       "type": "string",
       "default": "",
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L30-L31"
       }
     },
@@ -270,7 +270,7 @@
       "description": "Allows HTML tags in Markdown for structures such as tables with row spans.",
       "type": "boolean",
       "default": false,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L32-L33"
       }
     },
@@ -278,7 +278,7 @@
       "title": "Text page separator",
       "description": "Text inserted between plain-text pages; %page-number% is replaced with the page number.",
       "type": "string",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "Plain-text output is not part of this adapter's raw artifact contract.",
@@ -291,7 +291,7 @@
       "title": "HTML page separator",
       "description": "Markup inserted between HTML pages; %page-number% is replaced with the page number.",
       "type": "string",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "HTML output is not part of this adapter's raw artifact contract.",
@@ -310,7 +310,7 @@
         {
           "const": "off",
           "title": "Off",
-          "x-parser-arena": {
+          "x-document-arena": {
             "availability": {
               "state": "fixed",
               "reason": "This adapter profile keeps image extraction disabled.",
@@ -321,7 +321,7 @@
         {
           "const": "embedded",
           "title": "Embedded Base64",
-          "x-parser-arena": {
+          "x-document-arena": {
             "availability": {
               "state": "unavailable",
               "reason": "Embedded images need output-size and memory limits before they can be retained safely.",
@@ -332,7 +332,7 @@
         {
           "const": "external",
           "title": "External files",
-          "x-parser-arena": {
+          "x-document-arena": {
             "availability": {
               "state": "unavailable",
               "reason": "External images require immutable image descriptors and preserved link references.",
@@ -341,7 +341,7 @@
           }
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "The current result bundle preserves JSON and Markdown only; image artifacts are not declared.",
@@ -365,7 +365,7 @@
           "title": "JPEG"
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "Image format has no effect while image output is fixed off.",
@@ -378,7 +378,7 @@
       "title": "External image directory",
       "description": "Directory used for extracted image files when image output is external.",
       "type": "string",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "External images are disabled, and output paths must remain adapter-managed inside the artifact root.",
@@ -396,7 +396,7 @@
         "1,3,5-7",
         "1, 3, 5 - 7"
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L44-L45"
       }
     },
@@ -405,7 +405,7 @@
       "description": "Includes detected page headers and footers in generated output.",
       "type": "boolean",
       "default": false,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L46-L47"
       }
     },
@@ -414,7 +414,7 @@
       "description": "Experimental detection that emits Markdown ~~ markers or HTML del tags.",
       "type": "boolean",
       "default": false,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendataloader-project/opendataloader-pdf/blob/2bd7466d4742491b05920483bdf2ea7395444a16/node/opendataloader-pdf/src/convert-options.generated.ts#L48-L49"
       }
     },
@@ -428,7 +428,7 @@
         {
           "const": "off",
           "title": "Off · Java only",
-          "x-parser-arena": {
+          "x-document-arena": {
             "availability": {
               "state": "fixed",
               "reason": "This component is the deterministic local Java profile.",
@@ -439,7 +439,7 @@
         {
           "const": "docling-fast",
           "title": "Docling Fast server",
-          "x-parser-arena": {
+          "x-document-arena": {
             "availability": {
               "state": "unavailable",
               "reason": "The component contains no Python Docling backend or model artifacts and declares network=none.",
@@ -450,7 +450,7 @@
         {
           "const": "hancom-ai",
           "title": "Hancom AI HOCR service",
-          "x-parser-arena": {
+          "x-document-arena": {
             "availability": {
               "state": "unavailable",
               "reason": "The required Hancom AI service is not part of this component and network access is disabled.",
@@ -459,7 +459,7 @@
           }
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "This reviewed component has no hybrid service and declares network=none.",
@@ -483,7 +483,7 @@
           "title": "Full · every page"
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "Hybrid mode is fixed off because no backend service is configured.",
@@ -496,7 +496,7 @@
       "title": "Hybrid server URL",
       "description": "Overrides the selected hybrid backend's default server URL.",
       "type": "string",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "The component declares network=none and has no hybrid service connection.",
@@ -511,7 +511,7 @@
       "type": "string",
       "pattern": "^(?:0|[1-9][0-9]*)$",
       "default": "0",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "Hybrid mode is fixed off because no backend service is configured.",
@@ -525,7 +525,7 @@
       "description": "Falls back to native Java processing when a hybrid backend request fails.",
       "type": "boolean",
       "default": false,
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "Hybrid mode is fixed off, so backend fallback cannot apply.",
@@ -549,7 +549,7 @@
           "title": "List only"
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "This setting requires the unavailable hancom-ai hybrid backend.",
@@ -577,7 +577,7 @@
           "title": "Force OCR"
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "This setting requires the unavailable hancom-ai hybrid backend.",
@@ -601,7 +601,7 @@
           "title": "Disk"
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "This setting requires the unavailable hancom-ai hybrid backend.",
@@ -616,7 +616,7 @@
       "type": "boolean",
       "const": false,
       "default": false,
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "The adapter requires JSON and Markdown files for immutable raw artifacts and normalization.",
@@ -632,7 +632,7 @@
       "const": "1",
       "default": "1",
       "pattern": "^[1-9][0-9]*$",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "Sequential processing is kept for stable, comparable parser output.",

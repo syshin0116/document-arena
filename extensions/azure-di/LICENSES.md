@@ -9,7 +9,7 @@ use.
   Azure agreement and billed per page. No Azure model or weight ships in this
   image.
 - **`azure-ai-documentintelligence`** (Python SDK, pinned 1.0.2): MIT.
-- **Adapter code** (`adapter/`, including `webview.py`): Parser Arena
+- **Adapter code** (`adapter/`, including `webview.py`): Document Arena
   repository terms (root license still undecided). The line-alignment logic in
   `webview.py` is ported from the mirae-poc reference with permission of the
   project owner; confirm attribution requirements before redistribution.

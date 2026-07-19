@@ -55,7 +55,7 @@ test("the example catalog entry matches the catalog contract's key rules", async
     resolve(root, "packages/contracts/examples/catalog-entry.opendataloader.json"),
   );
 
-  assert.equal(entry.apiVersion, "parser-arena.dev/catalog/v1alpha1");
+  assert.equal(entry.apiVersion, "document-arena.dev/catalog/v1alpha1");
   assert.equal(entry.kind, "CatalogEntry");
 
   for (const field of schema.required) {

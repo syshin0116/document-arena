@@ -1,4 +1,4 @@
-# Parser Arena core features
+# Document Arena core features
 
 Status: accepted MVP UX contract  
 Date: 2026-07-15

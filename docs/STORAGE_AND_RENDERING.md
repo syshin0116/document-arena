@@ -5,7 +5,7 @@ Date: 2026-07-15
 
 ## Storage decision
 
-Parser Arena's production and reference deployments do not depend on the AWS S3
+Document Arena's production and reference deployments do not depend on the AWS S3
 service. They depend on a small S3-compatible BlobStore contract. This is the
 accepted target boundary; the current uploaded-document UI slice still uses the
 device-local handoff described below.

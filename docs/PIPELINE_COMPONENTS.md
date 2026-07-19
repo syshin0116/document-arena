@@ -5,7 +5,7 @@ Date: 2026-07-15
 
 ## Goal
 
-Parser Arena should be easy to use as a parser comparison tool while allowing
+Document Arena should be easy to use as a parser comparison tool while allowing
 different preprocessing, LLM post-processing, embedding, vector-store, and
 evaluation choices later. The component recipe does not need a general DAG or
 visual workflow builder. A thin LangGraph job envelope sits outside this
@@ -63,7 +63,7 @@ A component manifest describes what can be executed without teaching the core
 about a specific parser, model, or provider.
 
 ```yaml
-apiVersion: parser-arena.dev/component/v1alpha1
+apiVersion: document-arena.dev/component/v1alpha1
 kind: Component
 metadata:
   id: mineru-pipeline
@@ -71,11 +71,11 @@ metadata:
   displayName: MinerU Pipeline
 spec:
   role: parser
-  accepts: [parser-arena/source-document@v1]
-  produces: parser-arena/parsed-document@v1
+  accepts: [document-arena/source-document@v1]
+  produces: document-arena/parsed-document@v1
   executor:
     protocol: oci-batch/v1
-    image: ghcr.io/parser-arena/mineru@sha256:...
+    image: ghcr.io/document-arena/mineru@sha256:...
   optionsSchema: ./options.schema.json
   requirements:
     gpu: optional
@@ -101,12 +101,12 @@ component manifest, not a separate execution system.
 ### Complete option surfaces and availability
 
 Option forms render directly from each component's JSON Schema. Standard
-keywords define types, defaults, choices, and constraints. Parser Arena adds
-only presentation metadata under `x-parser-arena`:
+keywords define types, defaults, choices, and constraints. Document Arena adds
+only presentation metadata under `x-document-arena`:
 
 ```json
 {
-  "x-parser-arena": {
+  "x-document-arena": {
     "sourceUrl": "https://github.com/vendor/project/blob/pinned-tag/options.ts",
     "availability": {
       "state": "fixed",
@@ -137,7 +137,7 @@ cloud URLs.
 {
   "id": "artifact_...",
   "sha256": "...",
-  "mediaType": "application/vnd.parser-arena.parsed-document+json",
+  "mediaType": "application/vnd.document-arena.parsed-document+json",
   "schemaVersion": "v1",
   "sizeBytes": 12345,
   "createdByStageRunId": "stage_...",
@@ -299,7 +299,7 @@ them to immutable executor and model revisions and records those resolutions in
 the run manifest.
 
 ```yaml
-apiVersion: parser-arena.dev/pipeline/v1alpha1
+apiVersion: document-arena.dev/pipeline/v1alpha1
 kind: PipelineRecipe
 metadata:
   id: mineru-clean-rag
@@ -333,7 +333,7 @@ spec:
     vectorStore:
       uses: qdrant@1
       options:
-        collection: parser-arena
+        collection: document-arena
       connectionRef: team-qdrant
 ```
 

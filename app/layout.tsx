@@ -13,16 +13,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://parser-arena.dev"),
   title: {
-    default: "Parser Arena",
+    default: "Document Arena",
     template: "%s",
   },
   description:
-    "An open workbench for inspecting and comparing document parser outputs.",
+    "An evidence-first workbench for inspecting and comparing document pipelines.",
   openGraph: {
-    title: "Parser Arena",
-    description: "See what your document parser actually saw.",
+    title: "Document Arena",
+    description: "Inspect every stage and compare the whole document pipeline.",
     type: "website",
   },
   icons: {

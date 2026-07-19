@@ -19,11 +19,11 @@ const [css, workspaceSource] = await Promise.all([
 ]);
 
 const unavailable = (reason) => ({
-  "x-parser-arena": { disabledReason: reason },
+  "x-document-arena": { disabledReason: reason },
 });
 
 const fixed = (reason, sourceUrl) => ({
-  "x-parser-arena": {
+  "x-document-arena": {
     availability: { state: "fixed", reason, reasonCode: "fixed-upstream" },
     sourceUrl,
   },

@@ -211,7 +211,7 @@ export function normalizeOdlDocument({
   walk(raw.kids, ["kids"], undefined, undefined);
 
   return {
-    apiVersion: "parser-arena.dev/parsed-document/v1alpha1",
+    apiVersion: "document-arena.dev/parsed-document/v1alpha1",
     sourceArtifactRef: sourceArtifactId,
     parser: {
       id: "opendataloader-pdf",

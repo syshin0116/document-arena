@@ -13,7 +13,7 @@ test("the smoke PDF fixture is deterministic and self-contained", () => {
   assert.deepEqual(first, second);
   assert.equal(
     createHash("sha256").update(first).digest("hex"),
-    "4eeb317654a251c6b36366c8b200a29b07b0bd5c8128ee877d05b2455c4dd6c6",
+    "ed302ca6cfe8613419840eff67075887af33be31ca8c4c0d3a58610747a1f2bb",
   );
 
   const source = first.toString("latin1");

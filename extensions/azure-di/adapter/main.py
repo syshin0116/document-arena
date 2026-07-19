@@ -1,4 +1,4 @@
-"""Azure Document Intelligence adapter for the Parser Arena oci-batch/v1 protocol.
+"""Azure Document Intelligence adapter for the Document Arena oci-batch/v1 protocol.
 
 Calls the pinned prebuilt-layout profile, preserves the complete SDK result,
 then folds Azure DI's near-per-character Korean word polygons into markdown
@@ -52,7 +52,7 @@ def emit(event_type: str, **fields: object) -> None:
     sys.stdout.write(
         json.dumps(
             {
-                "apiVersion": "parser-arena.dev/job-event/v1alpha1",
+                "apiVersion": "document-arena.dev/job-event/v1alpha1",
                 "type": event_type,
                 **fields,
             },
@@ -349,7 +349,7 @@ def build_canonical(
 
     markdown = "\n\n".join(part for part in markdown_parts if part)
     canonical = {
-        "apiVersion": "parser-arena.dev/parsed-document/v1alpha1",
+        "apiVersion": "document-arena.dev/parsed-document/v1alpha1",
         "sourceArtifactRef": source_artifact_id,
         "parser": {"id": COMPONENT_ID, "upstreamVersion": UPSTREAM_VERSION},
         "metadata": {
@@ -367,7 +367,7 @@ def build_canonical(
 def run() -> None:
     started_at = datetime.now(timezone.utc)
     request = json.loads(REQUEST_PATH.read_text("utf-8"))
-    if request.get("apiVersion") != "parser-arena.dev/stage-request/v1alpha1":
+    if request.get("apiVersion") != "document-arena.dev/stage-request/v1alpha1":
         raise ValueError("Unsupported stage request apiVersion.")
     component = request.get("component") or {}
     if component.get("id") != COMPONENT_ID:
@@ -508,7 +508,7 @@ def run() -> None:
 
     completed_at = datetime.now(timezone.utc)
     bundle = {
-        "apiVersion": "parser-arena.dev/result-bundle/v1alpha1",
+        "apiVersion": "document-arena.dev/result-bundle/v1alpha1",
         "status": "completed",
         "jobId": job_id,
         "stageRunId": stage_run_id,
@@ -523,7 +523,7 @@ def run() -> None:
         "options": options,
         "progress": {"mode": "phase", "partialResults": "none"},
         "primary": file_descriptor(
-            primary_path, "application/vnd.parser-arena.parsed-document+json"
+            primary_path, "application/vnd.document-arena.parsed-document+json"
         ),
         "rawArtifacts": [
             file_descriptor(raw_result, "application/json"),
@@ -558,7 +558,7 @@ if __name__ == "__main__":
             (OUTPUT_ROOT / "failure.json").write_text(
                 json.dumps(
                     {
-                        "apiVersion": "parser-arena.dev/stage-failure/v1alpha1",
+                        "apiVersion": "document-arena.dev/stage-failure/v1alpha1",
                         "status": "failed",
                         "error": {"type": error.__class__.__name__, "message": message},
                     },

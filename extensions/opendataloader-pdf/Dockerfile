@@ -1,6 +1,6 @@
 FROM oven/bun:1.3.10-debian@sha256:367842b35abbdf23f39e23c71f3a08eee940ff2679a14e08a5afcf4a1436cd89 AS dependencies
 
-WORKDIR /opt/parser-arena/extension
+WORKDIR /opt/document-arena/extension
 
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --ignore-scripts
@@ -16,9 +16,9 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
     && groupadd --gid 10001 arena \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin arena
 
-WORKDIR /opt/parser-arena/extension
+WORKDIR /opt/document-arena/extension
 
-COPY --from=dependencies /opt/parser-arena/extension/node_modules ./node_modules
+COPY --from=dependencies /opt/document-arena/extension/node_modules ./node_modules
 COPY package.json bun.lock ./
 
 COPY adapter/ ./adapter/
@@ -26,11 +26,11 @@ COPY adapter/ ./adapter/
 ENV NODE_ENV=production
 ENV JAVA_TOOL_OPTIONS="-Djava.awt.headless=true -Dfile.encoding=UTF-8"
 
-LABEL org.opencontainers.image.title="Parser Arena OpenDataLoader PDF adapter"
-LABEL parser-arena.component.id="opendataloader-pdf"
-LABEL parser-arena.component.version="0.1.0"
-LABEL parser-arena.upstream.version="2.5.0"
-LABEL parser-arena.upstream.source="https://github.com/opendataloader-project/opendataloader-pdf"
+LABEL org.opencontainers.image.title="Document Arena OpenDataLoader PDF adapter"
+LABEL document-arena.component.id="opendataloader-pdf"
+LABEL document-arena.component.version="0.1.0"
+LABEL document-arena.upstream.version="2.5.0"
+LABEL document-arena.upstream.source="https://github.com/opendataloader-project/opendataloader-pdf"
 
 USER 10001:10001
 ENTRYPOINT ["node", "adapter/main.mjs"]

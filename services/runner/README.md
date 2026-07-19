@@ -14,7 +14,7 @@ changing the extension protocol.
 ```bash
 bun services/runner/run-local.mjs \
   --manifest extensions/opendataloader-pdf/component.json \
-  --input work/fixtures/parser-arena-smoke.pdf
+  --input work/fixtures/document-arena-smoke.pdf
 ```
 
 Use `--output <new-directory>` to choose an output directory and

@@ -2,7 +2,7 @@ const DEFAULT_WEB_PORT = 3000;
 
 export const CORS_REQUEST_HEADERS = [
   "content-type",
-  "x-parser-arena-filename",
+  "x-document-arena-filename",
 ];
 
 const CORS_METHODS = ["GET", "POST", "OPTIONS"];
@@ -10,7 +10,7 @@ const CORS_METHODS = ["GET", "POST", "OPTIONS"];
 function parsePort(value) {
   const port = Number(value ?? DEFAULT_WEB_PORT);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error("PARSER_ARENA_WEB_PORT must be an integer from 1 to 65535.");
+    throw new Error("DOCUMENT_ARENA_WEB_PORT must be an integer from 1 to 65535.");
   }
   return port;
 }
@@ -21,7 +21,7 @@ function parseOrigin(value) {
     url = new URL(value);
   } catch {
     throw new Error(
-      `PARSER_ARENA_RUNNER_ALLOWED_ORIGINS contains an invalid origin: ${value}`,
+      `DOCUMENT_ARENA_RUNNER_ALLOWED_ORIGINS contains an invalid origin: ${value}`,
     );
   }
   if (
@@ -33,14 +33,16 @@ function parseOrigin(value) {
     url.hash
   ) {
     throw new Error(
-      `PARSER_ARENA_RUNNER_ALLOWED_ORIGINS must contain HTTP(S) origins without paths: ${value}`,
+      `DOCUMENT_ARENA_RUNNER_ALLOWED_ORIGINS must contain HTTP(S) origins without paths: ${value}`,
     );
   }
   return url.origin;
 }
 
 export function runnerAllowedOrigins(env = process.env) {
-  const override = env.PARSER_ARENA_RUNNER_ALLOWED_ORIGINS;
+  const override =
+    env.DOCUMENT_ARENA_RUNNER_ALLOWED_ORIGINS ??
+    env.PARSER_ARENA_RUNNER_ALLOWED_ORIGINS;
   if (override !== undefined) {
     const entries = override
       .split(",")
@@ -48,13 +50,15 @@ export function runnerAllowedOrigins(env = process.env) {
       .filter(Boolean);
     if (entries.length === 0) {
       throw new Error(
-        "PARSER_ARENA_RUNNER_ALLOWED_ORIGINS must contain at least one origin when set.",
+        "DOCUMENT_ARENA_RUNNER_ALLOWED_ORIGINS must contain at least one origin when set.",
       );
     }
     return new Set(entries.map(parseOrigin));
   }
 
-  const port = parsePort(env.PARSER_ARENA_WEB_PORT);
+  const port = parsePort(
+    env.DOCUMENT_ARENA_WEB_PORT ?? env.PARSER_ARENA_WEB_PORT,
+  );
   return new Set([
     `http://localhost:${port}`,
     `http://127.0.0.1:${port}`,

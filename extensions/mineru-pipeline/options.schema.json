@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://parser-arena.dev/schemas/extensions/mineru-pipeline/options.json",
+  "$id": "https://document-arena.dev/schemas/extensions/mineru-pipeline/options.json",
   "title": "MinerU 3.4.4 pipeline options",
   "description": "Options verified against the mineru-3.4.4-released CLI and pipeline configuration sources. Runner-managed and unavailable choices remain visible for inspection.",
   "type": "object",
@@ -8,11 +8,11 @@
   "properties": {
     "inputPath": {
       "title": "Input path",
-      "description": "The CLI requires --path. Parser Arena supplies the uploaded stage source inside the isolated container.",
+      "description": "The CLI requires --path. Document Arena supplies the uploaded stage source inside the isolated container.",
       "type": "string",
       "const": "stage-source",
       "default": "stage-source",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "Managed by the runner from the stage source artifact.",
@@ -23,11 +23,11 @@
     },
     "outputDirectory": {
       "title": "Output directory",
-      "description": "The CLI requires --output. Parser Arena uses a fresh ephemeral workspace and then imports validated artifacts.",
+      "description": "The CLI requires --output. Document Arena uses a fresh ephemeral workspace and then imports validated artifacts.",
       "type": "string",
       "const": "runner-workspace",
       "default": "runner-workspace",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "Managed by the isolated runner workspace.",
@@ -41,7 +41,7 @@
       "description": "Routes CLI orchestration through a MinerU FastAPI service instead of this component's direct isolated process.",
       "type": "string",
       "format": "uri",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "The CLI's runner-managed temporary loopback API is used; connecting to an external MinerU API would require a different networked profile.",
@@ -60,7 +60,7 @@
         { "const": "txt", "title": "Text · embedded text extraction" },
         { "const": "ocr", "title": "OCR · image-based PDF" }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/cli/client.py#L1063-L1078"
       }
     },
@@ -75,25 +75,25 @@
         {
           "const": "vlm-engine",
           "title": "VLM engine · local high accuracy",
-          "x-parser-arena": { "disabledReason": "The VLM runtime and model are not installed in this pipeline image." }
+          "x-document-arena": { "disabledReason": "The VLM runtime and model are not installed in this pipeline image." }
         },
         {
           "const": "hybrid-engine",
           "title": "Hybrid engine · local high accuracy",
-          "x-parser-arena": { "disabledReason": "The hybrid runtime and models are not installed in this pipeline image." }
+          "x-document-arena": { "disabledReason": "The hybrid runtime and models are not installed in this pipeline image." }
         },
         {
           "const": "vlm-http-client",
           "title": "VLM HTTP client",
-          "x-parser-arena": { "disabledReason": "Runtime networking and a compatible remote server are not configured." }
+          "x-document-arena": { "disabledReason": "Runtime networking and a compatible remote server are not configured." }
         },
         {
           "const": "hybrid-http-client",
           "title": "Hybrid HTTP client",
-          "x-parser-arena": { "disabledReason": "Runtime networking and a compatible remote server are not configured." }
+          "x-document-arena": { "disabledReason": "Runtime networking and a compatible remote server are not configured." }
         }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "Locked to the dependency and local models baked into this component image.",
@@ -111,7 +111,7 @@
         { "const": "medium", "title": "Medium · faster, no image analysis" },
         { "const": "high", "title": "High · more analysis, slower" }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "Hybrid effort does not apply to the fixed pipeline backend.",
@@ -139,7 +139,7 @@
         { "const": "cyrillic", "title": "Cyrillic-family scripts + English" },
         { "const": "devanagari", "title": "Devanagari-family scripts + English" }
       ],
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/utils/ocr_language.py#L3-L49"
       }
     },
@@ -148,7 +148,7 @@
       "description": "The --url endpoint used by vlm-http-client and hybrid-http-client.",
       "type": "string",
       "format": "uri",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "HTTP client backends and runtime network access are not enabled for this component.",
@@ -163,7 +163,7 @@
       "type": "integer",
       "minimum": 0,
       "default": 0,
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "The current normalizer does not yet preserve original page-number provenance after page slicing.",
@@ -177,7 +177,7 @@
       "description": "Zero-based final page passed through --end. Empty means the document end.",
       "type": "integer",
       "minimum": 0,
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "The current normalizer does not yet preserve original page-number provenance after page slicing.",
@@ -191,7 +191,7 @@
       "description": "Enable formula detection and recognition.",
       "type": "boolean",
       "default": true,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/cli/client.py#L1146-L1153"
       }
     },
@@ -200,7 +200,7 @@
       "description": "Enable table detection and structure recognition.",
       "type": "boolean",
       "default": true,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/cli/client.py#L1154-L1161"
       }
     },
@@ -209,7 +209,7 @@
       "description": "VLM and hybrid backends can describe images and charts; hybrid medium effort disables it automatically.",
       "type": "boolean",
       "default": true,
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "Image analysis is not supported by the fixed pipeline backend.",
@@ -223,7 +223,7 @@
       "description": "Generate Markdown and content lists locally from artifacts returned by an HTTP backend.",
       "type": "boolean",
       "default": false,
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "unavailable",
           "reason": "Locally regenerated Markdown and content lists have not yet passed this component's raw-artifact and evidence-equivalence review.",
@@ -238,7 +238,7 @@
       "type": "string",
       "const": "cpu",
       "default": "cpu",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "This component is the reproducible CPU pipeline profile.",
@@ -253,7 +253,7 @@
       "type": "string",
       "const": "local",
       "default": "local",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "Runtime downloads are disabled; the image uses its baked model bundle.",
@@ -268,7 +268,7 @@
       "type": "string",
       "const": "hf:opendatalab/PDF-Extract-Kit-1.0@ed6b654c018d742e65a17671e379c5e6ecc87ec9",
       "default": "hf:opendatalab/PDF-Extract-Kit-1.0@ed6b654c018d742e65a17671e379c5e6ecc87ec9",
-      "x-parser-arena": {
+      "x-document-arena": {
         "availability": {
           "state": "fixed",
           "reason": "Pinned at image build time so every run records the exact model snapshot.",
@@ -282,7 +282,7 @@
       "description": "Use pp_formulanet_plus_m instead of unimernet_small via MINERU_FORMULA_CH_SUPPORT.",
       "type": "boolean",
       "default": false,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/backend/pipeline/model_init.py#L62-L69"
       }
     },
@@ -291,7 +291,7 @@
       "description": "Merge table fragments that continue on the next page.",
       "type": "boolean",
       "default": true,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/backend/utils/runtime_utils.py#L10-L27"
       }
     },
@@ -301,7 +301,7 @@
       "type": "integer",
       "minimum": 1,
       "default": 300,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/utils/os_env_config.py#L10-L13"
       }
     },
@@ -311,7 +311,7 @@
       "type": "integer",
       "minimum": 1,
       "default": 3,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/utils/os_env_config.py#L15-L18"
       }
     },
@@ -321,7 +321,7 @@
       "type": "integer",
       "minimum": 1,
       "default": 64,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/utils/config_reader.py#L158-L169"
       }
     },
@@ -332,7 +332,7 @@
       "minimum": -1,
       "not": { "const": 0 },
       "default": -1,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/utils/os_env_config.py#L5-L8"
       }
     },
@@ -343,7 +343,7 @@
       "minimum": -1,
       "not": { "const": 0 },
       "default": -1,
-      "x-parser-arena": {
+      "x-document-arena": {
         "sourceUrl": "https://github.com/opendatalab/MinerU/blob/mineru-3.4.4-released/mineru/utils/os_env_config.py#L5-L8"
       }
     }

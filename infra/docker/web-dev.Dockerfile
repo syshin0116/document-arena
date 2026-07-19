@@ -14,18 +14,18 @@ WORKDIR /workspace
 RUN mkdir -p \
       /workspace/node_modules \
       /workspace/.next \
-      /tmp/parser-arena-home/.bun/install/cache \
+      /tmp/document-arena-home/.bun/install/cache \
     && chmod 0777 \
       /workspace/node_modules \
       /workspace/.next \
-      /tmp/parser-arena-home \
-      /tmp/parser-arena-home/.bun \
-      /tmp/parser-arena-home/.bun/install \
-      /tmp/parser-arena-home/.bun/install/cache
+      /tmp/document-arena-home \
+      /tmp/document-arena-home/.bun \
+      /tmp/document-arena-home/.bun/install \
+      /tmp/document-arena-home/.bun/install/cache
 
 ENV BUN_INSTALL_BIN=/usr/local/bin \
-    HOME=/tmp/parser-arena-home
+    HOME=/tmp/document-arena-home
 
-LABEL parser-arena.image.role="web-development"
+LABEL document-arena.image.role="web-development"
 
 CMD ["sh", "/workspace/infra/scripts/web-dev.sh"]

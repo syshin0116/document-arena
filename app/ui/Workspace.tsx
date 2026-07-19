@@ -973,7 +973,7 @@ export function Workspace({
           <Link className="back-button" href="/" aria-label="Back to upload">
             ←
           </Link>
-          <Link className="workspace-brand" href="/" aria-label="Parser Arena home">
+          <Link className="workspace-brand" href="/" aria-label="Document Arena home">
             <Brand compact />
           </Link>
           <span className="header-separator" aria-hidden="true" />
@@ -1615,7 +1615,7 @@ export function RemoteRunConsentDialog({
           )}
         </dl>
         <p id="remote-consent-warning" className="remote-consent-warning">
-          Provider billing may apply. Parser Arena cannot verify the external
+          Provider billing may apply. Document Arena cannot verify the external
           provider&apos;s logging or retention, so review your provider agreement
           before continuing. No connection secrets are displayed or added to
           the run record.

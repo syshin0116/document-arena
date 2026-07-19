@@ -1,4 +1,4 @@
-# Parser Arena contracts
+# Document Arena contracts
 
 The `schemas/` directory contains the first portable contracts exercised by the
 OpenDataLoader vertical slice:

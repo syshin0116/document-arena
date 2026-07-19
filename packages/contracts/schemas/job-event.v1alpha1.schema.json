@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://parser-arena.dev/schemas/job-event.v1alpha1.json",
+  "$id": "https://document-arena.dev/schemas/job-event.v1alpha1.json",
   "type": "object",
   "required": [
     "apiVersion",
@@ -8,7 +8,7 @@
   ],
   "properties": {
     "apiVersion": {
-      "const": "parser-arena.dev/job-event/v1alpha1"
+      "const": "document-arena.dev/job-event/v1alpha1"
     },
     "type": {
       "enum": [

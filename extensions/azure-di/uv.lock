@@ -131,7 +131,7 @@ wheels = [
 ]
 
 [[package]]
-name = "parser-arena-azure-di"
+name = "document-arena-azure-di"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Workspace } from "../../ui/Workspace";
 
 export const metadata: Metadata = {
-  title: "Document workspace · Parser Arena",
+  title: "Document workspace · Document Arena",
   description: "Inspect and compare parser results against the source PDF.",
 };
 

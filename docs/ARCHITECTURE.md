@@ -1,4 +1,4 @@
-# Parser Arena architecture
+# Document Arena architecture
 
 Status: accepted minimal core  
 Date: 2026-07-15

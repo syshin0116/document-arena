@@ -10,7 +10,7 @@ function demoSource(): DocumentContentSource {
   const bytes = getDemoPdf();
   return {
     size: bytes.byteLength,
-    etag: '"parser-arena-demo-pdf-v1"',
+    etag: '"document-arena-demo-pdf-v1"',
     fileName: "attention-is-all-you-need.pdf",
     mediaType: "application/pdf",
     cacheControl: "public, max-age=3600, immutable, no-transform",

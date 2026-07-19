@@ -13,7 +13,7 @@ const OUTPUT_ROOT = resolve(process.env.ARENA_OUTPUT_DIR ?? "/arena/output");
 function emit(type, fields = {}) {
   process.stdout.write(
     `${JSON.stringify({
-      apiVersion: "parser-arena.dev/job-event/v1alpha1",
+      apiVersion: "document-arena.dev/job-event/v1alpha1",
       type,
       ...fields,
     })}\n`,
@@ -108,7 +108,7 @@ async function run() {
     JSON.parse(await readFile(REQUEST_PATH, "utf8")),
     "Stage request must be an object.",
   );
-  if (request.apiVersion !== "parser-arena.dev/stage-request/v1alpha1") {
+  if (request.apiVersion !== "document-arena.dev/stage-request/v1alpha1") {
     throw new Error("Unsupported stage request apiVersion.");
   }
   if (request.component?.id !== "opendataloader-pdf") {
@@ -171,7 +171,7 @@ async function run() {
 
   const primary = await fileDescriptor(
     primaryPath,
-    "application/vnd.parser-arena.parsed-document+json",
+    "application/vnd.document-arena.parsed-document+json",
   );
   const rawArtifacts = [
     await fileDescriptor(rawJsonPath, "application/json"),
@@ -179,7 +179,7 @@ async function run() {
   ];
   const completedAt = new Date();
   const bundle = {
-    apiVersion: "parser-arena.dev/result-bundle/v1alpha1",
+    apiVersion: "document-arena.dev/result-bundle/v1alpha1",
     status: "completed",
     jobId: request.jobId,
     stageRunId: request.stageRunId,
@@ -229,7 +229,7 @@ try {
       resolve(OUTPUT_ROOT, "failure.json"),
       `${JSON.stringify(
         {
-          apiVersion: "parser-arena.dev/stage-failure/v1alpha1",
+          apiVersion: "document-arena.dev/stage-failure/v1alpha1",
           status: "failed",
           error: {
             type: error instanceof Error ? error.name : "Error",

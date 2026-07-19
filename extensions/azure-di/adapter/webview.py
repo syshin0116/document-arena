@@ -1,7 +1,7 @@
 """Azure DI markdown + word polygons -> line segments with a native word list.
 
 Ported from the mirae-poc reference (apps/ai/src/mirae_ai/ingestion/webview.py),
-adapted to Parser Arena's canonical block shape. Azure DI tokenizes Korean text
+adapted to Document Arena's canonical block shape. Azure DI tokenizes Korean text
 almost per-character, so each markdown line is matched back to its reading-order
 words; the line keeps every matched word box (native) and their union (merged).
 Nothing is inferred: a line whose text cannot be aligned to words emits no

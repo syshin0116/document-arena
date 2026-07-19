@@ -1,5 +1,6 @@
 "use client";
 
+// Persistent browser data keeps its original stable key across the product rename.
 const DATABASE_NAME = "parser-arena-local-documents";
 const DATABASE_VERSION = 3;
 const STORE_NAME = "documents";

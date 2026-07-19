@@ -129,7 +129,7 @@ test("OpenDataLoader schema declares generic availability and exact-tag sources"
   assert.equal(editable.size + fixed.size + unavailable.size, 31);
   for (const [name, property] of Object.entries(schema.properties)) {
     assert.ok(property.description?.trim(), `${name} needs a description`);
-    const annotation = property["x-parser-arena"];
+    const annotation = property["x-document-arena"];
     assert.match(
       annotation?.sourceUrl ?? "",
       /^https:\/\/github\.com\/opendataloader-project\/opendataloader-pdf\/blob\/2bd7466d4742491b05920483bdf2ea7395444a16\//,
@@ -153,16 +153,16 @@ test("OpenDataLoader schema declares generic availability and exact-tag sources"
   }
 
   assert.equal(
-    schema.properties.password["x-parser-arena"].availability.reasonCode,
+    schema.properties.password["x-document-arena"].availability.reasonCode,
     "secret-channel-required",
   );
   assert.equal(
-    schema.properties.contentSafetyOff["x-parser-arena"].availability
+    schema.properties.contentSafetyOff["x-document-arena"].availability
       .reasonCode,
     "safety-policy",
   );
   assert.equal(
-    schema.properties.threads["x-parser-arena"].availability.reasonCode,
+    schema.properties.threads["x-document-arena"].availability.reasonCode,
     "deterministic-output",
   );
 });
@@ -174,7 +174,7 @@ test("OpenDataLoader fixed choices retain unavailable alternatives and reasons",
   assert.deepEqual(
     formatChoices.map((choice) => [
       choice.const,
-      choice["x-parser-arena"].availability.state,
+      choice["x-document-arena"].availability.state,
     ]),
     [
       ["json", "fixed"],
@@ -188,7 +188,7 @@ test("OpenDataLoader fixed choices retain unavailable alternatives and reasons",
   assert.deepEqual(
     schema.properties.imageOutput.oneOf.map((choice) => [
       choice.const,
-      choice["x-parser-arena"].availability.state,
+      choice["x-document-arena"].availability.state,
     ]),
     [
       ["off", "fixed"],
@@ -199,7 +199,7 @@ test("OpenDataLoader fixed choices retain unavailable alternatives and reasons",
   assert.deepEqual(
     schema.properties.hybrid.oneOf.map((choice) => [
       choice.const,
-      choice["x-parser-arena"].availability.state,
+      choice["x-document-arena"].availability.state,
     ]),
     [
       ["off", "fixed"],

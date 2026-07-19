@@ -33,7 +33,7 @@ async function descriptor(outputRoot, path, mediaType) {
 }
 
 test("validateResultBundle accepts intact artifacts and rejects descriptor tampering", async (t) => {
-  const outputRoot = await mkdtemp(resolve(tmpdir(), "parser-arena-bundle-"));
+  const outputRoot = await mkdtemp(resolve(tmpdir(), "document-arena-bundle-"));
   t.after(async () => {
     await rm(outputRoot, { recursive: true, force: true });
   });
@@ -42,7 +42,7 @@ test("validateResultBundle accepts intact artifacts and rejects descriptor tampe
   await mkdir(resolve(outputRoot, "raw"));
 
   const canonicalDocument = {
-    apiVersion: "parser-arena.dev/parsed-document/v1alpha1",
+    apiVersion: "document-arena.dev/parsed-document/v1alpha1",
     sourceArtifactRef: sourceArtifactId,
     pages: [
       {
@@ -86,7 +86,7 @@ test("validateResultBundle accepts intact artifacts and rejects descriptor tampe
   );
 
   const bundle = {
-    apiVersion: "parser-arena.dev/result-bundle/v1alpha1",
+    apiVersion: "document-arena.dev/result-bundle/v1alpha1",
     status: "completed",
     component: {
       id: componentId,
@@ -102,7 +102,7 @@ test("validateResultBundle accepts intact artifacts and rejects descriptor tampe
     primary: await descriptor(
       outputRoot,
       "primary/parsed-document.json",
-      "application/vnd.parser-arena.parsed-document+json",
+      "application/vnd.document-arena.parsed-document+json",
     ),
     rawArtifacts: [
       await descriptor(

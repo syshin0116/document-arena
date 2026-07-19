@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://parser-arena.dev/schemas/catalog-entry.v1alpha1.json",
+  "$id": "https://document-arena.dev/schemas/catalog-entry.v1alpha1.json",
   "description": "One reviewed, runnable component in the served catalog. An entry is derived from a component manifest plus registry-level review metadata; it never contains secrets or runner-local paths.",
   "type": "object",
   "additionalProperties": false,
@@ -21,7 +21,7 @@
   ],
   "properties": {
     "apiVersion": {
-      "const": "parser-arena.dev/catalog/v1alpha1"
+      "const": "document-arena.dev/catalog/v1alpha1"
     },
     "kind": {
       "const": "CatalogEntry"

@@ -33,7 +33,7 @@ export type NormalizedOptionChoice = {
 
 type ChoiceSchema = Pick<OptionsSchemaProperty, "enum" | "oneOf"> | OptionsSchemaItems;
 type AnnotatedSchema = {
-  "x-parser-arena"?: OptionsSchemaAnnotation;
+  "x-document-arena"?: OptionsSchemaAnnotation;
 };
 
 const hasOwn = (value: object, key: PropertyKey) =>
@@ -70,7 +70,7 @@ export function safeSchemaSourceUrl(value: unknown): string | undefined {
 export function schemaDisablement(
   schema: AnnotatedSchema | null | undefined,
 ): SchemaDisablement | undefined {
-  const annotation = schema?.["x-parser-arena"];
+  const annotation = schema?.["x-document-arena"];
   const availability = annotation?.availability;
   if (
     availability &&
@@ -95,7 +95,7 @@ export function schemaDisablement(
 export function schemaSourceUrl(
   schema: AnnotatedSchema | null | undefined,
 ): string | undefined {
-  return safeSchemaSourceUrl(schema?.["x-parser-arena"]?.sourceUrl);
+  return safeSchemaSourceUrl(schema?.["x-document-arena"]?.sourceUrl);
 }
 
 export function formatOptionValue(value: unknown): string {

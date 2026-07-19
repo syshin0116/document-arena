@@ -16,7 +16,11 @@ import {
 import { componentAvailability } from "./component-availability.mjs";
 import { runComponent } from "./run-local.mjs";
 
-const PORT = Number(process.env.PARSER_ARENA_RUNNER_PORT ?? 8799);
+const PORT = Number(
+  process.env.DOCUMENT_ARENA_RUNNER_PORT ??
+    process.env.PARSER_ARENA_RUNNER_PORT ??
+    8799,
+);
 const EXTENSIONS_ROOT = resolve(import.meta.dirname, "../../extensions");
 const SERVICE_RUN_ROOT = resolve(import.meta.dirname, "../../work/service-runs");
 const MAX_INPUT_BYTES = 100 * 1024 * 1024;
@@ -119,7 +123,7 @@ async function handleParse(request, componentId, corsHeaders) {
   }
 
   const fileName = sanitizeFileName(
-    request.headers.get("x-parser-arena-filename"),
+    request.headers.get("x-document-arena-filename"),
   );
   let requestOptions = {};
   const rawOptions = new URL(request.url).searchParams.get("options");
@@ -244,7 +248,7 @@ const server = Bun.serve({
 });
 
 console.log(
-  `Parser Arena local runner listening on http://localhost:${server.port}`,
+  `Document Arena local runner listening on http://localhost:${server.port}`,
 );
 for (const component of components) {
   console.log(
