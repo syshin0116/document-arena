@@ -1704,6 +1704,108 @@ button:disabled {
 
 /* Sheets */
 
+.remote-consent-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  padding: 24px;
+  overflow-y: auto;
+  place-items: center;
+  background: rgb(25 26 23 / 0.56);
+  overscroll-behavior: contain;
+}
+
+.remote-consent-dialog {
+  width: min(520px, 100%);
+  max-height: calc(100dvh - 48px);
+  padding: 24px;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-large);
+}
+
+.remote-consent-dialog .eyebrow {
+  color: var(--amber);
+}
+
+.remote-consent-dialog h2 {
+  margin: 10px 0 0;
+  font-size: 25px;
+  font-weight: 690;
+  letter-spacing: -0.04em;
+  line-height: 1.14;
+}
+
+.remote-consent-dialog > p:not(.eyebrow) {
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.remote-consent-details {
+  display: grid;
+  gap: 0;
+  margin: 20px 0 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface-subtle);
+}
+
+.remote-consent-details > div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 16px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.remote-consent-details > div:first-child {
+  border-top: 0;
+}
+
+.remote-consent-details dt,
+.remote-consent-details dd {
+  margin: 0;
+  font-size: 11px;
+}
+
+.remote-consent-details dt {
+  color: var(--ink-faint);
+  font-weight: 620;
+}
+
+.remote-consent-details dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.remote-consent-dialog .remote-consent-warning {
+  padding: 12px;
+  border: 1px solid #ead5bb;
+  border-radius: 10px;
+  background: #fff9f0;
+  color: #754820;
+}
+
+.remote-consent-dialog .remote-consent-session-note {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.remote-consent-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 22px;
+}
+
 .side-sheet {
   position: fixed;
   top: 72px;
@@ -2060,6 +2162,26 @@ button:disabled {
   .details-button { font-size: 0; }
   .details-button span { font-size: 20px; }
 
+  .remote-consent-backdrop {
+    padding: 12px;
+    place-items: end center;
+  }
+
+  .remote-consent-dialog {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    padding: 20px;
+  }
+
+  .remote-consent-details > div {
+    grid-template-columns: 94px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .remote-consent-actions > button {
+    flex: 1;
+  }
+
   .side-sheet {
     top: auto;
     right: 0;
@@ -2137,6 +2259,7 @@ button:disabled {
   .workspace-header,
   .pane-toolbar,
   .run-dock,
+  .remote-consent-dialog,
   .side-sheet {
     background: #fff;
     backdrop-filter: none;

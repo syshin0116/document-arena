@@ -18,6 +18,15 @@ export type OptionsSchemaProperty = {
   description?: string;
 };
 
+export type LocalRunnerRequirements = Record<string, unknown> & {
+  network?: string;
+  connection?:
+    | (Record<string, unknown> & {
+        type?: string;
+      })
+    | null;
+};
+
 export type LocalRunnerComponent = {
   id: string;
   version: string;
@@ -26,12 +35,45 @@ export type LocalRunnerComponent = {
   image: string;
   imageAvailable?: boolean;
   capabilities?: Record<string, unknown>;
-  requirements?: Record<string, unknown>;
+  requirements?: LocalRunnerRequirements;
   optionsSchema?: {
     title?: string;
     properties?: Record<string, OptionsSchemaProperty>;
   } | null;
 };
+
+/**
+ * Remote execution is a manifest capability, never a property of a known
+ * component id. Keeping this predicate at the runner boundary lets every run
+ * entry point apply the same consent policy as the catalog grows.
+ */
+export function requiresRemoteConsent(
+  component: LocalRunnerComponent | null | undefined,
+): boolean {
+  return component?.requirements?.network === "remote";
+}
+
+export function remoteConsentApprovalKey(
+  documentId: string,
+  component: Pick<LocalRunnerComponent, "id" | "version">,
+): string {
+  return JSON.stringify([documentId, component.id, component.version]);
+}
+
+export function runnerConnectionType(
+  component: LocalRunnerComponent | null | undefined,
+): string | null {
+  const connection = component?.requirements?.connection;
+  if (
+    !connection ||
+    typeof connection !== "object" ||
+    Array.isArray(connection)
+  ) {
+    return null;
+  }
+  const type = connection.type;
+  return typeof type === "string" && type.trim().length > 0 ? type.trim() : null;
+}
 
 export type LocalRunnerInfo = {
   component: LocalRunnerComponent;

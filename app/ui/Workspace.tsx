@@ -32,7 +32,10 @@ import {
   checkLocalRunner,
   evidenceIdForBlock,
   parseWithLocalRunner,
+  remoteConsentApprovalKey,
+  requiresRemoteConsent,
   runnerComponent,
+  runnerConnectionType,
   toEvidenceRegions,
   type LocalParseResult,
   type OptionsSchemaProperty,
@@ -43,6 +46,7 @@ import {
   loadLocalDocument,
   loadLocalParseResults,
   saveLocalParseResult,
+  type LocalDocument,
 } from "../local-document-store";
 import { Brand } from "./Brand";
 
@@ -71,6 +75,14 @@ type LocalParserRun =
     }
   | { status: "complete"; result: LocalParseResult }
   | { status: "failed"; error: string };
+
+type PendingRemoteRun = {
+  parser: ParserId;
+  options?: Record<string, unknown>;
+  component: LocalRunnerComponent;
+  document: LocalDocument;
+  openedFromPicker: boolean;
+};
 
 const LOCAL_COMPONENT_IDS: Record<ParserId, string> = {
   opendataloader: "opendataloader-pdf",
@@ -202,6 +214,9 @@ export function Workspace({
   const [localRuns, setLocalRuns] = useState<
     Partial<Record<ParserId, LocalParserRun>>
   >({});
+  const [pendingRemoteRun, setPendingRemoteRun] =
+    useState<PendingRemoteRun | null>(null);
+  const [remoteConsentConfirming, setRemoteConsentConfirming] = useState(false);
   const [localView, setLocalView] = useState<"blocks" | "markdown">("blocks");
   // Rendered/Raw applies to both the Blocks and Markdown views.
   const [mergeRegions, setMergeRegions] = useState(false);
@@ -212,6 +227,10 @@ export function Workspace({
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const timers = useRef<number[]>([]);
+  const approvedRemoteRuns = useRef(new Set<string>());
+  const remoteConsentSubmitting = useRef(false);
+  const remoteConsentReturnFocus = useRef<HTMLElement | null>(null);
+  const pickerReturnFocus = useRef<HTMLElement | null>(null);
   // Bidirectional page sync between the results scroll and the source PDF.
   const resultsScrollRef = useRef<HTMLDivElement | null>(null);
   const pageSyncSource = useRef<"scroll" | "page" | null>(null);
@@ -310,6 +329,7 @@ export function Workspace({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        if (pendingRemoteRun) return;
         dispatch({ type: "clear-evidence" });
         setPickerOpen(false);
         setDetailsOpen(false);
@@ -317,7 +337,7 @@ export function Workspace({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [pendingRemoteRun]);
 
   useEffect(
     () => () => timers.current.forEach((timer) => window.clearTimeout(timer)),
@@ -386,7 +406,11 @@ export function Workspace({
   }, []);
 
   const runLocalParse = useCallback(
-    async (parser: ParserId, options?: Record<string, unknown>) => {
+    async (
+      parser: ParserId,
+      options?: Record<string, unknown>,
+      preparedDocument?: LocalDocument,
+    ) => {
       if (demo) return;
       setLocalRuns((current) =>
         current[parser]?.status === "running"
@@ -395,7 +419,8 @@ export function Workspace({
       );
       dispatch({ type: "start-run", parser });
       try {
-        const document = await loadLocalDocument(documentId);
+        const document =
+          preparedDocument ?? (await loadLocalDocument(documentId));
         if (!document) {
           throw new Error(
             "This local PDF is no longer available in the browser store.",
@@ -465,6 +490,137 @@ export function Workspace({
     },
     [demo, documentId],
   );
+
+  const failRunRequest = useCallback((parser: ParserId, message: string) => {
+    dispatch({ type: "start-run", parser });
+    setLocalRuns((current) => ({
+      ...current,
+      [parser]: { status: "failed", error: message },
+    }));
+    dispatch({ type: "fail-run", parser });
+    setRunTab(parser);
+  }, []);
+
+  /**
+   * The single boundary for every real run request. Local components pass
+   * through immediately. A manifest-declared remote component pauses before
+   * any run state or network submission changes, loads the exact local file
+   * metadata, and waits for explicit consent once per component version and
+   * document in this workspace session.
+   */
+  const requestLocalParse = useCallback(
+    async (parser: ParserId, options?: Record<string, unknown>) => {
+      if (demo) return;
+
+      const componentId = LOCAL_COMPONENT_IDS[parser];
+      const component =
+        localRunner.status === "ready"
+          ? runnerComponent(localRunner.info, componentId)
+          : null;
+      if (!component) {
+        failRunRequest(
+          parser,
+          "The local runner did not advertise this component. Check the runner and try again.",
+        );
+        return;
+      }
+
+      if (
+        !requiresRemoteConsent(component) ||
+        approvedRemoteRuns.current.has(
+          remoteConsentApprovalKey(documentId, component),
+        )
+      ) {
+        if (pickerOpen) setPickerOpen(false);
+        await runLocalParse(parser, options);
+        return;
+      }
+
+      remoteConsentReturnFocus.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      try {
+        const localDocument = await loadLocalDocument(documentId);
+        if (!localDocument) {
+          throw new Error(
+            "This local PDF is no longer available in the browser store.",
+          );
+        }
+        remoteConsentSubmitting.current = false;
+        setRemoteConsentConfirming(false);
+        setPendingRemoteRun({
+          parser,
+          options,
+          component,
+          document: localDocument,
+          openedFromPicker: pickerOpen,
+        });
+      } catch (error) {
+        failRunRequest(
+          parser,
+          error instanceof Error
+            ? error.message
+            : "The browser could not read this local PDF.",
+        );
+      }
+    },
+    [
+      demo,
+      documentId,
+      failRunRequest,
+      localRunner,
+      pickerOpen,
+      runLocalParse,
+    ],
+  );
+
+  const restoreConsentFocus = useCallback((target: HTMLElement | null) => {
+    window.requestAnimationFrame(() => {
+      if (target?.isConnected) {
+        target.focus();
+        return;
+      }
+      document
+        .querySelector<HTMLElement>(".runner-strip button:not([disabled])")
+        ?.focus();
+    });
+  }, []);
+
+  const cancelRemoteRun = useCallback(() => {
+    if (remoteConsentSubmitting.current) return;
+    const target = remoteConsentReturnFocus.current;
+    remoteConsentReturnFocus.current = null;
+    setPendingRemoteRun(null);
+    restoreConsentFocus(target);
+  }, [restoreConsentFocus]);
+
+  const confirmRemoteRun = useCallback(() => {
+    if (!pendingRemoteRun || remoteConsentSubmitting.current) return;
+    remoteConsentSubmitting.current = true;
+    setRemoteConsentConfirming(true);
+    const request = pendingRemoteRun;
+    const target = request.openedFromPicker
+      ? pickerReturnFocus.current
+      : remoteConsentReturnFocus.current;
+    approvedRemoteRuns.current.add(
+      remoteConsentApprovalKey(request.document.id, request.component),
+    );
+    remoteConsentReturnFocus.current = null;
+    setPendingRemoteRun(null);
+    if (request.openedFromPicker) setPickerOpen(false);
+    restoreConsentFocus(target);
+    void runLocalParse(request.parser, request.options, request.document);
+  }, [pendingRemoteRun, restoreConsentFocus, runLocalParse]);
+
+  function retrySelectedParser() {
+    if (effectiveTab === null || effectiveTab === "compare") return;
+    void requestLocalParse(effectiveTab);
+  }
+
+  function runMineruFallback() {
+    void requestLocalParse("mineru");
+  }
 
   const liveMessage = useMemo(() => {
     if (state.runs.mineru === "running") return "MinerU is parsing the document.";
@@ -915,8 +1071,16 @@ export function Workspace({
               activeTab={effectiveTab}
               canCompareRuns={completedParsers.length >= 2}
               onSelect={setRunTab}
-              onRun={(parser, options) => void runLocalParse(parser, options)}
-              onOptions={() => setPickerOpen(true)}
+              onRun={(parser, options) =>
+                void requestLocalParse(parser, options)
+              }
+              onOptions={() => {
+                pickerReturnFocus.current =
+                  document.activeElement instanceof HTMLElement
+                    ? document.activeElement
+                    : null;
+                setPickerOpen(true);
+              }}
               onRecheck={recheckLocalRunner}
             />
           )}
@@ -1052,7 +1216,7 @@ export function Workspace({
                 return (
                   <LocalFailedResult
                     error={run.error}
-                    onRetry={() => void runLocalParse(parser)}
+                    onRetry={retrySelectedParser}
                     mineruAvailable={
                       parser === "opendataloader" &&
                       localRunner.status === "ready" &&
@@ -1060,7 +1224,7 @@ export function Workspace({
                         ?.imageAvailable === true &&
                       state.runs.mineru === "idle"
                     }
-                    onRunMineru={() => void runLocalParse("mineru")}
+                    onRunMineru={runMineruFallback}
                   />
                 );
               }
@@ -1198,8 +1362,7 @@ export function Workspace({
               runs={state.runs}
               onClose={() => setPickerOpen(false)}
               onRun={(parser, options) => {
-                setPickerOpen(false);
-                void runLocalParse(parser, options);
+                void requestLocalParse(parser, options);
               }}
             />
           )
@@ -1218,7 +1381,145 @@ export function Workspace({
           onClose={() => setDetailsOpen(false)}
         />
       )}
+      {pendingRemoteRun && (
+        <RemoteRunConsentDialog
+          component={pendingRemoteRun.component}
+          fileName={pendingRemoteRun.document.file.name}
+          fileSize={pendingRemoteRun.document.file.size}
+          confirming={remoteConsentConfirming}
+          onCancel={cancelRemoteRun}
+          onConfirm={confirmRemoteRun}
+        />
+      )}
     </main>
+  );
+}
+
+export function RemoteRunConsentDialog({
+  component,
+  fileName,
+  fileSize,
+  confirming,
+  onCancel,
+  onConfirm,
+}: {
+  component: LocalRunnerComponent;
+  fileName: string;
+  fileSize: number;
+  confirming: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const displayName = component.displayName?.trim() || component.id;
+  const connectionType = runnerConnectionType(component);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const frame = window.requestAnimationFrame(() => cancelRef.current?.focus());
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  return (
+    <div
+      className="remote-consent-backdrop"
+      onMouseDown={(event) => {
+        if (event.currentTarget === event.target) onCancel();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        className="remote-consent-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-busy={confirming}
+        aria-labelledby="remote-consent-title"
+        aria-describedby="remote-consent-description remote-consent-warning"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            onCancel();
+            return;
+          }
+          if (event.key !== "Tab") return;
+          const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          );
+          if (!focusable || focusable.length === 0) return;
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }}
+      >
+        <p className="eyebrow">External document transfer</p>
+        <h2 id="remote-consent-title">Send this PDF to {displayName}?</h2>
+        <p id="remote-consent-description">
+          This component declares remote execution. The complete PDF will leave
+          this device and be sent to an external service before parsing starts.
+        </p>
+        <dl className="remote-consent-details">
+          <div>
+            <dt>Document</dt>
+            <dd>{fileName}</dd>
+          </div>
+          <div>
+            <dt>Exact size</dt>
+            <dd>{fileSize.toLocaleString("en-US")} bytes</dd>
+          </div>
+          <div>
+            <dt>Component</dt>
+            <dd>{displayName}</dd>
+          </div>
+          {connectionType && (
+            <div>
+              <dt>Connection type</dt>
+              <dd>{connectionType}</dd>
+            </div>
+          )}
+        </dl>
+        <p id="remote-consent-warning" className="remote-consent-warning">
+          Provider billing may apply. Parser Arena cannot verify the external
+          provider&apos;s logging or retention, so review your provider agreement
+          before continuing. No connection secrets are displayed or added to
+          the run record.
+        </p>
+        <p className="remote-consent-session-note">
+          If approved, this component stays approved for this document until
+          the page is refreshed.
+        </p>
+        <div className="remote-consent-actions">
+          <button
+            ref={cancelRef}
+            className="secondary-button"
+            type="button"
+            disabled={confirming}
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={confirming}
+            onClick={onConfirm}
+          >
+            {confirming ? "Starting…" : "Send and run"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
