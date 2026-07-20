@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { after, before, test } from "node:test";
+import { afterAll, beforeAll, test } from "bun:test";
 
 const root = resolve(import.meta.dirname, "..");
 const [arenaSource, globalCss] = await Promise.all([
@@ -98,11 +98,11 @@ function startNextServer() {
   });
 }
 
-before(async () => {
+beforeAll(async () => {
   appOrigin = await startNextServer();
 });
 
-after(async () => {
+afterAll(async () => {
   if (!nextServer || nextServer.exitCode !== null) return;
 
   const exited = once(nextServer, "exit");

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 
 const root = resolve(import.meta.dirname, "..");
 const extensionRoot = resolve(root, "extensions/mineru-pipeline");

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import test from "node:test";
+import { afterEach, test } from "bun:test";
 
 import {
   sha256File,
@@ -32,11 +32,19 @@ async function descriptor(outputRoot, path, mediaType) {
   };
 }
 
-test("validateResultBundle accepts intact artifacts and rejects descriptor tampering", async (t) => {
+// bun:test has no per-test context hook (node:test's `t.after`), so the temp
+// dir is tracked at module scope and cleaned by afterEach, which still runs if
+// the test throws.
+let bundleTempRoot;
+afterEach(async () => {
+  if (!bundleTempRoot) return;
+  await rm(bundleTempRoot, { recursive: true, force: true });
+  bundleTempRoot = undefined;
+});
+
+test("validateResultBundle accepts intact artifacts and rejects descriptor tampering", async () => {
   const outputRoot = await mkdtemp(resolve(tmpdir(), "document-arena-bundle-"));
-  t.after(async () => {
-    await rm(outputRoot, { recursive: true, force: true });
-  });
+  bundleTempRoot = outputRoot;
 
   await mkdir(resolve(outputRoot, "primary"));
   await mkdir(resolve(outputRoot, "raw"));
