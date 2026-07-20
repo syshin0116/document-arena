@@ -268,9 +268,10 @@
   font-size: var(--text-sm);
 }
 
-.details-button,
-.back-button,
-.sheet-close {
+/* buttonVariants supplies the box, radius, cursor and transition. .back-button
+   is not migrated yet, so it keeps the chassis; the other two only need the
+   colour and the letter-spacing the variants do not set. */
+.back-button {
   display: inline-flex;
   min-height: 40px;
   align-items: center;
@@ -281,19 +282,19 @@
   cursor: pointer;
   font-weight: 600;
   letter-spacing: -0.01em;
+  width: 36px;
+  padding: 0;
+  background: transparent;
+  color: var(--ink-soft);
   transition:
     transform var(--motion-fast) var(--ease-out),
     background-color var(--motion-normal) ease,
-    border-color var(--motion-normal) ease,
     color var(--motion-normal) ease;
 }
 
-.back-button,
+.details-button,
 .sheet-close {
-  width: 36px;
-  min-height: 36px;
-  padding: 0;
-  background: transparent;
+  letter-spacing: -0.01em;
   color: var(--ink-soft);
 }
 
@@ -1346,20 +1347,16 @@ button:disabled {
   user-select: none;
 }
 
+/* buttonVariants outline/icon-xs draws the border, radius, hover and focus
+   ring. These two sit inside a 28px toolbar row, so they keep their 22px size
+   and the faint resting colour. */
 .source-rail-toggle,
 .source-collapse-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 22px;
   height: 22px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--surface) 90%, transparent);
   color: var(--ink-faint);
   font-size: var(--text-sm);
   line-height: 1;
-  cursor: pointer;
 }
 
 .source-collapse-toggle {
@@ -1370,7 +1367,6 @@ button:disabled {
 .source-rail-toggle:hover,
 .source-collapse-toggle:hover {
   color: var(--ink);
-  border-color: var(--ink-faint);
 }
 
 .pane-divider[data-inert] {
@@ -2286,6 +2282,8 @@ button:disabled {
   background: var(--surface-subtle);
   font-size: var(--text-lg);
   font-weight: 400;
+  /* The glyph is a multiplication sign, which sits high in the em box. */
+  line-height: 1;
 }
 
 .sheet-intro {

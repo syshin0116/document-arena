@@ -1071,7 +1071,7 @@ export function Workspace({
           <section className="source-pane source-rail" aria-label="Source PDF (collapsed)">
             <button
               type="button"
-              className="source-rail-toggle"
+              className={cn(buttonVariants({ variant: "outline", size: "icon-xs" }), "source-rail-toggle")}
               aria-label="Expand the source panel"
               title="Expand the source panel"
               onClick={() => setSourceCollapsed(false)}
@@ -1086,7 +1086,7 @@ export function Workspace({
             <div className="source-title">
               <button
                 type="button"
-                className="source-collapse-toggle"
+                className={cn(buttonVariants({ variant: "outline", size: "icon-xs" }), "source-collapse-toggle")}
                 aria-label="Collapse the source panel"
                 title="Collapse the source panel to widen the results"
                 onClick={() => setSourceCollapsed(true)}
@@ -1472,7 +1472,11 @@ export function Workspace({
             </button>
           )}
         </div>
-        <button className="details-button" type="button" onClick={() => setDetailsOpen(true)}>
+        <button
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "details-button")}
+          type="button"
+          onClick={() => setDetailsOpen(true)}
+        >
           Details &amp; artifacts
           <span aria-hidden="true">›</span>
         </button>
@@ -2681,7 +2685,7 @@ function ParserSheet({
     <aside className="side-sheet parser-sheet" role="dialog" aria-modal="false" aria-labelledby="parser-sheet-title">
       <header className="sheet-header">
         <div><span className="eyebrow">New independent run</span><h2 id="parser-sheet-title">Choose a parser</h2></div>
-        <button className="sheet-close" type="button" onClick={onClose} aria-label="Close parser picker">×</button>
+        <button className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "sheet-close")} type="button" onClick={onClose} aria-label="Close parser picker">×</button>
       </header>
       <p className="sheet-intro">The source stays unchanged. Each parser keeps its own raw and normalized output.</p>
       <div className="parser-options">
@@ -2838,7 +2842,7 @@ function LocalParserSheet({
           <h2 id="local-parser-sheet-title">Choose a parser</h2>
         </div>
         <button
-          className="sheet-close"
+          className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "sheet-close")}
           type="button"
           onClick={onClose}
           aria-label="Close parser picker"
@@ -3017,7 +3021,7 @@ function DetailsSheet({
 }) {
   return (
     <aside className="side-sheet" role="dialog" aria-modal="false" aria-labelledby="details-title">
-      <header className="sheet-header"><div><span className="eyebrow">Reproducibility</span><h2 id="details-title">Run details</h2></div><button className="sheet-close" type="button" onClick={onClose} aria-label="Close details">×</button></header>
+      <header className="sheet-header"><div><span className="eyebrow">Reproducibility</span><h2 id="details-title">Run details</h2></div><button className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "sheet-close")} type="button" onClick={onClose} aria-label="Close details">×</button></header>
       {demo || entries.length === 0 ? (
         <div className="detail-list">
           <section><span>Source</span><strong>SHA-256 verified</strong><small>Immutable original PDF</small></section>
