@@ -366,17 +366,58 @@ export type LocalParseResult = {
   parsedDocument: CanonicalParsedDocument;
 };
 
-export async function checkLocalRunner(): Promise<LocalRunnerInfo | null> {
+/**
+ * A runner that answers with an error is not the same as no runner at all, and
+ * telling someone to start a runner they already started sends them looking in
+ * the wrong place. This collapsed all three outcomes to `null`, so a runner
+ * left over from before a directory rename - serving 500s because the absolute
+ * extension paths it resolved at startup no longer exist - reported as
+ * "offline" while `make runner-serve` reported the port already in use.
+ */
+export type LocalRunnerProbe =
+  | { status: "ready"; info: LocalRunnerInfo }
+  /**
+   * No usable answer. This covers more than "not started": a crashed runner
+   * replies with the runtime's own error page, which carries no CORS headers,
+   * so the browser blocks it and `fetch` rejects without exposing the status.
+   * A process holding the port but serving 500s is indistinguishable here from
+   * nothing listening at all, which is why the copy names both.
+   */
+  | { status: "unreachable" }
+  /** Answered with CORS but is not ready to accept runs. */
+  | { status: "failing"; detail: string };
+
+export async function checkLocalRunner(): Promise<LocalRunnerProbe> {
+  let response: Response;
   try {
-    const response = await fetch(`${LOCAL_RUNNER_ORIGIN}/v1/health`, {
+    response = await fetch(`${LOCAL_RUNNER_ORIGIN}/v1/health`, {
       signal: AbortSignal.timeout(1500),
     });
-    if (!response.ok) return null;
-    const body = (await response.json()) as { ok?: boolean } & LocalRunnerInfo;
-    return body.ok && body.component ? body : null;
   } catch {
-    return null;
+    return { status: "unreachable" };
   }
+
+  if (!response.ok) {
+    return {
+      status: "failing",
+      detail: `answered HTTP ${response.status} on /v1/health`,
+    };
+  }
+
+  let body: ({ ok?: boolean } & LocalRunnerInfo) | undefined;
+  try {
+    body = (await response.json()) as { ok?: boolean } & LocalRunnerInfo;
+  } catch {
+    return { status: "failing", detail: "answered with a malformed response" };
+  }
+
+  if (!body.ok || !body.component) {
+    return {
+      status: "failing",
+      detail: "reported that it is not ready to accept runs",
+    };
+  }
+  return { status: "ready", info: body };
 }
 
 export type ParseProgress = {

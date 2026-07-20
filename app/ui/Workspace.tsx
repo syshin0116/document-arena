@@ -33,6 +33,7 @@ import {
   blockLabel,
   buildReadingNodes,
   checkLocalRunner,
+  type LocalRunnerProbe,
   deviceExecutionPlan,
   evidenceIdForBlock,
   parseWithLocalRunner,
@@ -75,8 +76,7 @@ const IMAGE_KINDS = new Set(["image", "figure", "picture", "graphic", "chart"]);
 
 type LocalRunnerState =
   | { status: "checking" }
-  | { status: "unavailable" }
-  | { status: "ready"; info: LocalRunnerInfo };
+  | LocalRunnerProbe;
 
 type StageProgress = { stage: string; current: number; total: number };
 
@@ -508,11 +508,9 @@ export function Workspace({
   useEffect(() => {
     if (demo) return;
     let cancelled = false;
-    checkLocalRunner().then((info) => {
+    checkLocalRunner().then((probe) => {
       if (cancelled) return;
-      setLocalRunner(
-        info ? { status: "ready", info } : { status: "unavailable" },
-      );
+      setLocalRunner(probe);
     });
     return () => {
       cancelled = true;
@@ -557,11 +555,7 @@ export function Workspace({
 
   const recheckLocalRunner = useCallback(() => {
     setLocalRunner({ status: "checking" });
-    checkLocalRunner().then((info) => {
-      setLocalRunner(
-        info ? { status: "ready", info } : { status: "unavailable" },
-      );
-    });
+    checkLocalRunner().then(setLocalRunner);
   }, []);
 
   const runLocalParse = useCallback(
@@ -1806,12 +1800,18 @@ function RunnerStrip({
       </div>
     );
   }
-  if (runner.status === "unavailable") {
+  if (runner.status === "unreachable" || runner.status === "failing") {
     return (
       <div className="runner-strip">
         <span className="strip-note">
-          Local runner offline · start it with{" "}
-          <code>make runner-serve</code>
+          {runner.status === "failing" ? (
+            <>Local runner {runner.detail} · running but not usable</>
+          ) : (
+            <>
+              No answer from the local runner · start it, or restart one already
+              holding the port, with <code>make runner-serve</code>
+            </>
+          )}
         </span>
         <button className={cn(buttonVariants({ variant: "outline", size: "sm" }), "strip-action")} type="button" onClick={onRecheck}>
           Check again
@@ -1978,7 +1978,8 @@ function LocalIdleHint({
   runner: LocalRunnerState;
   onRecheck: () => void;
 }) {
-  if (runner.status === "unavailable") {
+  if (runner.status === "unreachable" || runner.status === "failing") {
+    const failing = runner.status === "failing";
     return (
       <div className="empty-result local-source-ready">
         <div className="empty-result-visual" aria-hidden="true">
@@ -1988,10 +1989,29 @@ function LocalIdleHint({
           <span className="empty-result-block three" />
         </div>
         <p className="eyebrow">Local source ready</p>
-        <h2>The PDF is open. Parsing needs the local runner.</h2>
+        <h2>
+          {failing
+            ? "The local runner is answering, but not with a result."
+            : "The PDF is open. Parsing needs the local runner."}
+        </h2>
+        {/* "Offline" sent people who had already started a runner looking in
+            the wrong place. A crashed runner's error page carries no CORS
+            headers, so the browser blocks it and this probe cannot tell it
+            apart from nothing listening — so the copy names both cases instead
+            of asserting the one it cannot verify. */}
         <p>
-          Your document stays on this device. To parse it for real, start the
-          local runner in a terminal, then check again:
+          {failing ? (
+            <>
+              It {runner.detail}. Restart it, then check again:
+            </>
+          ) : (
+            <>
+              Your document stays on this device. Nothing usable answered on the
+              runner port — either it is not started, or a process from an older
+              checkout is still holding it. Start or restart it, then check
+              again:
+            </>
+          )}
         </p>
         <pre className="local-runner-command">make runner-serve</pre>
         <div className="empty-result-actions">
