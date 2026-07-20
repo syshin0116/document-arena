@@ -44,19 +44,39 @@ export function LeaderboardView() {
         }
       />
 
+      {/* Framing on the left, standings on the right. Stacking them put a
+          two-row table in a 450px column on a 1440px screen with the caveats
+          below the fold, so the numbers looked incidental and the reason they
+          cannot be trusted as a global ranking was the easiest thing to miss. */}
       <section className="leaderboard-main" aria-labelledby="leaderboard-title">
-        <div className="landing-copy">
-          <p className="eyebrow">
-            <span className="eyebrow-dot" aria-hidden="true" />
-            Digital text documents
-          </p>
-          <h1 id="leaderboard-title">Who wins blind votes?</h1>
-          <p className="landing-lede">
-            Rankings are grouped by document type and count only blind votes.
-            Labeled preferences never count. Until hosted battles exist, this
-            aggregates the votes cast on this device.
-          </p>
-        </div>
+        <aside className="leaderboard-aside">
+          <div className="landing-copy">
+            <p className="eyebrow">
+              <span className="eyebrow-dot" aria-hidden="true" />
+              Digital text documents
+            </p>
+            <h1 id="leaderboard-title">Who wins blind votes?</h1>
+            <p className="landing-lede">
+              Rankings are grouped by document type and count only blind votes.
+              Labeled preferences never count. Until hosted battles exist, this
+              aggregates the votes cast on this device.
+            </p>
+          </div>
+
+          <div className="leaderboard-method">
+            <strong>Methodology</strong>
+            <p>
+              Every battle randomizes candidate order and masks labels, versions,
+              timing, and runner details until the vote is cast. Each vote stores
+              the exact artifacts shown and the displayed permutation.
+              {voteCount > 0 && ` Based on ${voteCount} blind vote${voteCount === 1 ? "" : "s"}.`}
+              {" "}
+              Win rate is wins over decisive battles; ties are shown separately.
+              One device is not a benchmark: treat this as your own verdict
+              history, not a global truth.
+            </p>
+          </div>
+        </aside>
 
         {standings.length === 0 ? (
           <div className="leaderboard-empty">
@@ -109,20 +129,6 @@ export function LeaderboardView() {
             })}
           </div>
         )}
-
-        <div className="leaderboard-method">
-          <strong>Methodology</strong>
-          <p>
-            Every battle randomizes candidate order and masks labels, versions,
-            timing, and runner details until the vote is cast. Each vote stores
-            the exact artifacts shown and the displayed permutation.
-            {voteCount > 0 && ` Based on ${voteCount} blind vote${voteCount === 1 ? "" : "s"}.`}
-            {" "}
-            Win rate is wins over decisive battles; ties are shown separately.
-            One device is not a benchmark: treat this as your own verdict
-            history, not a global truth.
-          </p>
-        </div>
       </section>
     </main>
   );
