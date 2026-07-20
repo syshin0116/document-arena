@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowRight, Clock, FileText, LockKeyhole } from "lucide-react";
 import { m } from "motion/react";
 import {
@@ -113,12 +112,22 @@ export function UploadLanding() {
                 href={`/documents/${sample.id}`}
                 title={sample.title}
               >
-                <Image
+                {/* A plain <img>, not next/image. These are already the exact
+                    size they render at (320px wide, 17-29 KB), so the optimizer
+                    has nothing to save, and it routes them through
+                    /_next/image?url=...&w=...&q=... - a query-string image
+                    proxy that content blockers drop. Arc blocks it and the
+                    shelf renders empty; Chrome does not. Serving the static
+                    file removes the failure mode along with the hop. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   className="sample-thumb"
                   src={sample.thumbnailPath}
                   alt={`First page of ${sample.title}`}
                   width={320}
                   height={414}
+                  loading="lazy"
+                  decoding="async"
                 />
                 <span className="sample-name">{sample.shortTitle}</span>
                 <span className="sample-meta">
