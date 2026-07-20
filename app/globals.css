@@ -1284,9 +1284,13 @@ button:disabled {
   gap: 10px;
   min-width: 0;
   padding: 3px 5px;
-  border: 1px solid var(--line);
+  /* --muted/--border, not --surface-raised/--line: a later rule used to
+     override the base here, and it was welded onto .arena-intro's hero layout
+     when the .view-toggle block it shared a selector list with was deleted.
+     Folded in so there is one source of truth. */
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--surface-raised);
+  background: var(--muted);
 }
 
 .result-view-group {
@@ -3146,7 +3150,6 @@ body {
   background: color-mix(in oklab, var(--muted) 94%, var(--foreground));
 }
 
-.result-view-cluster,
 .arena-intro {
   width: min(760px, calc(100% - 40px));
   min-height: calc(100dvh - 64px);

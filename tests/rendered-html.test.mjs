@@ -98,9 +98,14 @@ function startNextServer() {
   });
 }
 
+// node:test's `before` had no default timeout, so startNextServer's own 20s
+// boot / 15s reachability deadlines were the real limit. bun:test caps hooks at
+// 5s by default, which would kill a cold `next start` (spawned right after a
+// build) before those deadlines could fire. The explicit 25s here keeps the
+// original budget; afterAll's SIGTERM->SIGKILL teardown can likewise exceed 5s.
 beforeAll(async () => {
   appOrigin = await startNextServer();
-});
+}, 25_000);
 
 afterAll(async () => {
   if (!nextServer || nextServer.exitCode !== null) return;
@@ -121,7 +126,7 @@ afterAll(async () => {
     nextServer.kill("SIGKILL");
     await once(nextServer, "exit");
   }
-});
+}, 10_000);
 
 async function requestApp(path = "/", init = {}) {
   return fetch(`${appOrigin}${path}`, {
