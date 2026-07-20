@@ -1237,6 +1237,13 @@ export function Workspace({
           aria-orientation="vertical"
           aria-label="Resize the source and result panes"
           tabIndex={0}
+          /* A focusable, adjustable separator owes a screen reader its current
+             and bounded position. Both the pointer drag and the arrow keys
+             clamp the ratio to 0.24-0.72, so the value range is 24-72. Reported
+             as a percentage of the source pane, which is what the drag moves. */
+          aria-valuemin={24}
+          aria-valuemax={72}
+          aria-valuenow={sourceCollapsed ? undefined : Math.round(splitRatio * 100)}
           data-active={splitDragging || undefined}
           data-inert={sourceCollapsed || undefined}
           onPointerDown={(event) => {
