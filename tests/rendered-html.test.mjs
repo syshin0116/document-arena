@@ -141,41 +141,19 @@ test("server-renders the focused PDF upload experience", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>Document Arena · Compare document pipelines<\/title>/i);
-  assert.match(html, /See what your parser actually saw/);
-  assert.match(html, /Drop a PDF here/);
+  assert.match(html, /Parse first\. Compare with evidence\./);
+  assert.match(html, /Bring your PDF into focus/);
   assert.match(html, /type="file"/);
   assert.match(html, /accept="application\/pdf,.pdf"/);
-  assert.match(html, /Blind-battle votes stay on this\s*device too/);
+  assert.match(html, /Your document stays in this browser until you choose a runner/);
+  // Arena and standings are navigation, so the home page names them. It still
+  // must not surface parser choice: that is a decision the workspace makes
+  // after upload, and putting it here is what docs/PAGES.md rules out.
   assert.match(html, /href="\/arena"/);
   assert.match(html, /href="\/leaderboard"/);
-  assert.match(html, /href="\/settings\/connections"/);
+  assert.doesNotMatch(html, /href="\/settings\/connections"/);
   assert.doesNotMatch(html, /OpenDataLoader|MinerU/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
-});
-
-test("server-renders the local connection settings shell", async () => {
-  const response = await render("/settings/connections");
-  assert.equal(response.status, 200);
-
-  const html = await response.text();
-  assert.match(html, /<title>Connections · Document Arena<\/title>/i);
-  assert.match(html, /Use your own provider connection/);
-  assert.match(html, /Session-only by default/);
-  assert.match(html, /Checking the local runner/);
-  assert.doesNotMatch(html, /AZURE_DI_KEY|api[_ -]?key=/i);
-
-  const returning = await render(
-    "/settings/connections?returnTo=%2Fdocuments%2Fdemo",
-  );
-  const returningHtml = await returning.text();
-  assert.match(returningHtml, /href="\/documents\/demo"/);
-  assert.match(returningHtml, /Return to run/);
-
-  const unsafe = await render(
-    "/settings/connections?returnTo=https%3A%2F%2Fevil.test%2F",
-  );
-  const unsafeHtml = await unsafe.text();
-  assert.doesNotMatch(unsafeHtml, /href="https:\/\/evil\.test/);
 });
 
 test("server-renders the source-linked demo workspace", async () => {
@@ -183,17 +161,17 @@ test("server-renders the source-linked demo workspace", async () => {
   assert.equal(response.status, 200);
 
   const html = await response.text();
-  assert.match(html, /attention-is-all-you-need\.pdf/);
+  assert.match(html, /llama-open-and-efficient-foundation-language-models\.pdf/);
   assert.match(html, /Source PDF/);
   assert.match(html, /Original file/);
   assert.match(html, /OpenDataLoader/);
+  // The demo shows one real run, not a real one beside a hand-written second
+  // candidate. MinerU has not been run over the sample, so it must not appear.
+  assert.doesNotMatch(html, /MinerU/);
   assert.match(html, /Loading source PDF/);
   assert.match(html, /Starting the local PDF renderer/);
   assert.match(html, /Run another parser/);
-  assert.match(
-    html,
-    /\/settings\/connections\?returnTo=%2Fdocuments%2Fdemo/,
-  );
+  assert.doesNotMatch(html, /\/settings\/connections/);
   assert.doesNotMatch(html, /Hover either side/);
   assert.doesNotMatch(html, /Parsed result</);
   assert.doesNotMatch(html, /Parser-native source regions/);
@@ -263,7 +241,7 @@ test("built demo content endpoint serves complete and ranged PDF bytes", async (
   const size = Number(complete.headers.get("content-length"));
   const completeBytes = new Uint8Array(await complete.arrayBuffer());
   assert.equal(completeBytes.length, size);
-  assert.equal(new TextDecoder().decode(completeBytes.slice(0, 8)), "%PDF-1.4");
+  assert.match(new TextDecoder().decode(completeBytes.slice(0, 8)), /^%PDF-1\.\d$/);
 
   const ranged = await requestApp("/v1/documents/demo/content", {
     headers: { accept: "application/pdf", range: "bytes=0-7" },
@@ -271,8 +249,8 @@ test("built demo content endpoint serves complete and ranged PDF bytes", async (
   assert.equal(ranged.status, 206);
   assert.equal(ranged.headers.get("content-range"), `bytes 0-7/${size}`);
   assert.equal(ranged.headers.get("content-length"), "8");
-  assert.equal(
+  assert.match(
     new TextDecoder().decode(await ranged.arrayBuffer()),
-    "%PDF-1.4",
+    /^%PDF-1\.\d$/,
   );
 });

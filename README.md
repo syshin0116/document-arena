@@ -111,17 +111,13 @@ in `work/runs/`.
 | [Azure Document Intelligence](https://learn.microsoft.com/azure/ai-services/document-intelligence/) | prebuilt-layout, cloud OCR, strong on Korean · bring your own endpoint and key | ✅ Runnable (remote) |
 | LightOnOCR, Docling, PaddleOCR, … | See the [parser landscape](docs/PARSER_LANDSCAPE.md) | Planned |
 
-### Bring your own provider connection
+### Remote provider configuration
 
-Open `/settings/connections` while the local runner is running, then enter the
-endpoint and key from your own provider account. UI-entered credentials are
-sent only to the loopback runner, kept in runner memory for that session, and
-injected only into a component that declares the matching connection type.
-During a run they are container environment variables and are visible to a
-local user who already has permission to inspect the Docker daemon.
-The runner does not put them in browser storage, run options, retained
-artifacts, or component logs: credentialed output is scanned before retention
-and component events are reduced to runner-owned progress fields.
+Remote provider credentials are developer configuration, not a product UI.
+Set the ignored local environment values documented in `.env.example` before
+starting the runner. The runner injects them only into a component that declares
+the matching connection type and never records them in browser storage, run
+options, retained artifacts, or component logs.
 
 On a fresh clone, build the Azure adapter image before starting the runner:
 

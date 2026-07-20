@@ -1,4 +1,7 @@
-import { getDemoPdf } from "@/app/lib/demo-pdf";
+import {
+  getSamplePdf,
+  SAMPLE_PDF_FILE_NAME,
+} from "@/app/lib/sample-document";
 import {
   respondWithDocumentContent,
   type DocumentContentSource,
@@ -7,11 +10,11 @@ import {
 export const dynamic = "force-dynamic";
 
 function demoSource(): DocumentContentSource {
-  const bytes = getDemoPdf();
+  const bytes = getSamplePdf();
   return {
     size: bytes.byteLength,
-    etag: '"document-arena-demo-pdf-v1"',
-    fileName: "attention-is-all-you-need.pdf",
+    etag: '"document-arena-sample-llama-v1"',
+    fileName: SAMPLE_PDF_FILE_NAME,
     mediaType: "application/pdf",
     cacheControl: "public, max-age=3600, immutable, no-transform",
     async read({ offset, length }) {

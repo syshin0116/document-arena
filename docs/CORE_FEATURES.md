@@ -195,8 +195,8 @@ Source -> MinerU -> LLM cleanup -> Qdrant
 ```
 
 Changing a downstream stage should reuse the immutable upstream artifact rather
-than rerunning the parser. Vector database credentials and other provider
-connections belong in a separate Connections screen, not in the document flow.
+than rerunning the parser. Vector database and other provider credentials remain
+deployment configuration until a trusted secret store exists.
 
 Every stage output remains separately addressable:
 

@@ -8,7 +8,10 @@ import {
   type BlindVoteOutcome,
   saveVote,
 } from "../vote-store";
-import { Brand } from "./Brand";
+import { ModeToggle } from "@/components/mode-toggle";
+import { AppHeader } from "./AppHeader";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const PdfSourceViewer = dynamic(() => import("./PdfSourceViewer"), {
   ssr: false,
@@ -111,26 +114,18 @@ export function ArenaBattle() {
       data-phase={phase}
       data-mobile-pane={mobilePane}
     >
-      <header className="workspace-header">
-        <div className="workspace-identity">
-          <Link className="back-button" href="/" aria-label="Back to upload">
-            ←
-          </Link>
-          <Link className="workspace-brand" href="/" aria-label="Document Arena home">
-            <Brand compact />
-          </Link>
-          <span className="header-separator" aria-hidden="true" />
-          <div className="document-identity">
-            <strong>Arena</strong>
-            <span>Blind battle · sample document</span>
-          </div>
-        </div>
-        <div className="workspace-actions">
-          <Link className="secondary-button" href="/leaderboard">
+      <AppHeader
+        title="Arena"
+        meta="Blind battle · sample document"
+        actions={
+          <>
+          <ModeToggle />
+          <Link className={buttonVariants({ variant: "outline", size: "sm" })} href="/leaderboard">
             Leaderboard
           </Link>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {phase === "intro" && (
         <section className="arena-intro" aria-labelledby="arena-title">
@@ -144,10 +139,10 @@ export function ArenaBattle() {
             timing stay hidden until you vote. Votes stay on this device.
           </p>
           <div className="empty-result-actions">
-            <button className="primary-button" type="button" onClick={startBattle}>
+            <button className={buttonVariants({ size: "lg" })} type="button" onClick={startBattle}>
               Start a sample battle
             </button>
-            <Link className="secondary-button" href="/">
+            <Link className={buttonVariants({ variant: "outline", size: "lg" })} href="/">
               Use my own document
             </Link>
           </div>
@@ -309,28 +304,28 @@ export function ArenaBattle() {
                 </span>
                 <div className="arena-vote-actions">
                   <button
-                    className="primary-button"
+                    className={cn(buttonVariants({ size: "sm" }), "arena-candidate-vote")}
                     type="button"
                     onClick={() => castVote(permutation[0])}
                   >
                     Candidate A
                   </button>
                   <button
-                    className="primary-button"
+                    className={cn(buttonVariants({ size: "sm" }), "arena-candidate-vote")}
                     type="button"
                     onClick={() => castVote(permutation[1])}
                   >
                     Candidate B
                   </button>
                   <button
-                    className="secondary-button"
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
                     type="button"
                     onClick={() => castVote("tie")}
                   >
                     Tie
                   </button>
                   <button
-                    className="secondary-button"
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
                     type="button"
                     onClick={() => castVote("both-poor")}
                   >
@@ -348,10 +343,10 @@ export function ArenaBattle() {
                       : `You picked ${outcome ? parserMeta[outcome].name : ""}.`}
                 </span>
                 <div className="arena-vote-actions">
-                  <button className="primary-button" type="button" onClick={startBattle}>
+                  <button className={buttonVariants({ size: "sm" })} type="button" onClick={startBattle}>
                     Battle again
                   </button>
-                  <Link className="secondary-button" href="/leaderboard">
+                  <Link className={buttonVariants({ variant: "outline", size: "sm" })} href="/leaderboard">
                     View leaderboard
                   </Link>
                 </div>
