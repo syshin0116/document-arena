@@ -42,6 +42,19 @@ three bounding boxes typed in by hand, each labelled `provenance: "native"`.
 Nothing had been parsed. That contradicted the product's own claim that derived
 artifacts never masquerade as native evidence, so it was replaced with this.
 
+## Why only one parser here
+
+Committing a parsed-document fixture per candidate is a stopgap, not the plan.
+Once artifact storage is connected, each parser runs for real and its output is
+stored rather than checked in, and the demo can show a genuine multi-candidate
+comparison. Until then the demo deliberately shows one result: a second column
+would have to be written by hand, which is exactly what this directory exists to
+undo.
+
+So do not add a hand-authored second candidate to make the compare view look
+populated. Either run the parser and store its real output, or leave the column
+out.
+
 ## Regenerating
 
 Rebuild the image first, since a stale one speaks an older job-event
