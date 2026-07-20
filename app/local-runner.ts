@@ -336,13 +336,32 @@ export type CanonicalParsedDocument = {
   pages: readonly CanonicalPage[];
 };
 
+export type LocalRawArtifactMetadata = {
+  path: string;
+  mediaType: string;
+  sizeBytes: number;
+  sha256: string;
+  /**
+   * The local runner validated these bytes, but the browser only received this
+   * descriptor. A future explicit import flow can change the location without
+   * pretending IndexedDB already contains the raw artifact.
+   */
+  bytesLocation: "local-runner";
+};
+
 export type LocalParseResult = {
+  status: "completed";
+  runId: string;
+  stageRunId: string;
+  startedAt: string;
+  completedAt: string;
   component: { id: string; version: string; image: string; imageId?: string };
   source?: { artifactId?: string; sha256?: string; sizeBytes?: number };
   options?: Record<string, unknown>;
   durationMs: number;
   blockCount: number;
   nativeRegionCount: number;
+  rawArtifacts: readonly LocalRawArtifactMetadata[];
   outputDirectory: string;
   parsedDocument: CanonicalParsedDocument;
 };

@@ -1,10 +1,18 @@
 "use client";
 
+import type {
+  LocalParseResult,
+  LocalRawArtifactMetadata,
+} from "./local-runner";
+
 // Persistent browser data keeps its original stable key across the product rename.
 const DATABASE_NAME = "parser-arena-local-documents";
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 const STORE_NAME = "documents";
-const RESULTS_STORE = "parse-results";
+const LEGACY_RESULTS_STORE = "parse-results";
+const RUNS_STORE = "parse-runs";
+const RUNS_BY_DOCUMENT = "by-document";
+const RUNS_BY_DOCUMENT_PARSER_TIME = "by-document-parser-time";
 
 type StoredLocalDocument = {
   id: string;
@@ -30,20 +38,50 @@ function openDatabase(): Promise<IDBDatabase> {
 
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+    let settled = false;
 
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(STORE_NAME)) {
         database.createObjectStore(STORE_NAME, { keyPath: "id" });
       }
-      if (!database.objectStoreNames.contains(RESULTS_STORE)) {
-        database.createObjectStore(RESULTS_STORE, { keyPath: "key" });
+      if (!database.objectStoreNames.contains(LEGACY_RESULTS_STORE)) {
+        database.createObjectStore(LEGACY_RESULTS_STORE, { keyPath: "key" });
+      }
+      if (!database.objectStoreNames.contains(RUNS_STORE)) {
+        const runs = database.createObjectStore(RUNS_STORE, {
+          keyPath: "recordId",
+        });
+        runs.createIndex(RUNS_BY_DOCUMENT, "documentId", { unique: false });
+        runs.createIndex(
+          RUNS_BY_DOCUMENT_PARSER_TIME,
+          ["documentId", "parser", "savedAt", "runId"],
+          { unique: false },
+        );
       }
     };
-    request.onerror = () => reject(request.error);
+    request.onblocked = () => {
+      if (settled) return;
+      settled = true;
+      reject(
+        new Error(
+          "Another Document Arena tab blocked the browser history upgrade. Close it and try again.",
+        ),
+      );
+    };
+    request.onerror = () => {
+      if (settled) return;
+      settled = true;
+      reject(request.error);
+    };
     request.onsuccess = () => {
       const database = request.result;
       database.onversionchange = () => database.close();
+      if (settled) {
+        database.close();
+        return;
+      }
+      settled = true;
       resolve(database);
     };
   });
@@ -182,7 +220,7 @@ export async function listLocalDocuments(
   }
 }
 
-type StoredParseResult = {
+type LegacyStoredParseResult = {
   key: string;
   documentId: string;
   parser: string;
@@ -190,64 +228,213 @@ type StoredParseResult = {
   result: unknown;
 };
 
+export type LocalParseRunReceipt = {
+  apiVersion: "document-arena.dev/browser-run-receipt/v1alpha1";
+  recordId: string;
+  runId: string;
+  documentId: string;
+  parser: string;
+  savedAt: string;
+  completedAt: string;
+  status: "completed";
+  component: LocalParseResult["component"];
+  options: Record<string, unknown>;
+  rawArtifacts: readonly LocalRawArtifactMetadata[];
+  /** Raw bytes remain in the runner output until an explicit import exists. */
+  rawArtifactBytes: "not-imported";
+  result: LocalParseResult;
+};
+
+export type LocalParseRunSummary = Omit<LocalParseRunReceipt, "result">;
+
+export function createLocalParseRunReceipt(
+  documentId: string,
+  parser: string,
+  result: LocalParseResult,
+  savedAt = new Date().toISOString(),
+): LocalParseRunReceipt {
+  if (!documentId.startsWith("local_")) {
+    throw new Error("A local run receipt requires a local document id.");
+  }
+  if (parser.trim().length === 0) {
+    throw new Error("A local run receipt requires a parser name.");
+  }
+  if (typeof result.runId !== "string" || result.runId.trim().length === 0) {
+    throw new Error("The runner result is missing its immutable run id.");
+  }
+
+  return {
+    apiVersion: "document-arena.dev/browser-run-receipt/v1alpha1",
+    recordId: `${documentId}:${parser}:${result.runId}`,
+    runId: result.runId,
+    documentId,
+    parser,
+    savedAt,
+    completedAt: result.completedAt,
+    status: result.status,
+    component: result.component,
+    options: result.options ?? {},
+    rawArtifacts: result.rawArtifacts,
+    rawArtifactBytes: "not-imported",
+    result,
+  };
+}
+
 /**
- * Persists a completed parse result so a refresh does not lose it. Results
- * live beside the document blob in the same device-local database.
+ * Appends a completed parse run so reruns, component upgrades, and option
+ * changes retain their own immutable receipts. `add` deliberately rejects a
+ * duplicate run id instead of replacing an earlier record.
  */
 export async function saveLocalParseResult(
   documentId: string,
   parser: string,
-  result: unknown,
-): Promise<void> {
+  result: LocalParseResult,
+): Promise<LocalParseRunReceipt> {
   const database = await openDatabase();
-  if (!database.objectStoreNames.contains(RESULTS_STORE)) {
-    // An older connection blocked the schema upgrade; skip persistence for
-    // this session rather than throwing into the parse flow.
+  if (!database.objectStoreNames.contains(RUNS_STORE)) {
     database.close();
-    return;
+    throw new Error("The browser run-history store is unavailable.");
   }
-  const record: StoredParseResult = {
-    key: `${documentId}:${parser}`,
-    documentId,
-    parser,
-    savedAt: new Date().toISOString(),
-    result,
-  };
+  const receipt = createLocalParseRunReceipt(documentId, parser, result);
   try {
     await runRequest(
       database,
       "readwrite",
-      (store) => store.put(record),
-      RESULTS_STORE,
+      (store) => store.add(receipt),
+      RUNS_STORE,
     );
   } finally {
     database.close();
   }
+  return receipt;
+}
+
+function loadLatestParseRun(
+  database: IDBDatabase,
+  documentId: string,
+  parser: string,
+): Promise<LocalParseRunReceipt | undefined> {
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(RUNS_STORE, "readonly");
+    const index = transaction
+      .objectStore(RUNS_STORE)
+      .index(RUNS_BY_DOCUMENT_PARSER_TIME);
+    const range = IDBKeyRange.bound(
+      [documentId, parser, "", ""],
+      [documentId, parser, "\uffff", "\uffff"],
+    );
+    const request = index.openCursor(range, "prev");
+    let receipt: LocalParseRunReceipt | undefined;
+
+    request.onsuccess = () => {
+      receipt = request.result?.value as LocalParseRunReceipt | undefined;
+    };
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => resolve(receipt);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
 }
 
 export async function loadLocalParseResults(
   documentId: string,
   parsers: readonly string[],
-): Promise<Record<string, unknown>> {
+): Promise<Record<string, LocalParseResult>> {
   if (!documentId.startsWith("local_")) return {};
   const database = await openDatabase();
-  if (!database.objectStoreNames.contains(RESULTS_STORE)) {
+  if (!database.objectStoreNames.contains(RUNS_STORE)) {
     database.close();
-    return {};
+    throw new Error("The browser run-history store is unavailable.");
   }
-  const results: Record<string, unknown> = {};
+  const results: Record<string, LocalParseResult> = {};
   try {
     for (const parser of parsers) {
-      const record = (await runRequest(
-        database,
-        "readonly",
-        (store) => store.get(`${documentId}:${parser}`),
-        RESULTS_STORE,
-      )) as StoredParseResult | undefined;
-      if (record?.result) results[parser] = record.result;
+      const receipt = await loadLatestParseRun(database, documentId, parser);
+      if (receipt?.result) {
+        results[parser] = receipt.result;
+        continue;
+      }
+
+      // Read the former one-result-per-parser store only as a compatibility
+      // fallback. New writes never use this overwrite-prone key.
+      if (database.objectStoreNames.contains(LEGACY_RESULTS_STORE)) {
+        const legacy = (await runRequest(
+          database,
+          "readonly",
+          (store) => store.get(`${documentId}:${parser}`),
+          LEGACY_RESULTS_STORE,
+        )) as LegacyStoredParseResult | undefined;
+        if (legacy?.result) {
+          results[parser] = legacy.result as LocalParseResult;
+        }
+      }
     }
   } finally {
     database.close();
   }
   return results;
+}
+
+/**
+ * Returns receipt metadata newest first without claiming raw artifact bytes
+ * were imported into the browser. Canonical result payloads stay internal to
+ * the object store and are omitted from the returned history summaries.
+ */
+export async function listLocalParseRunHistory(
+  documentId: string,
+  parser?: string,
+): Promise<LocalParseRunSummary[]> {
+  if (!documentId.startsWith("local_")) return [];
+  const database = await openDatabase();
+  if (!database.objectStoreNames.contains(RUNS_STORE)) {
+    database.close();
+    throw new Error("The browser run-history store is unavailable.");
+  }
+
+  try {
+    return await new Promise<LocalParseRunSummary[]>((resolve, reject) => {
+      const summaries: LocalParseRunSummary[] = [];
+      const transaction = database.transaction(RUNS_STORE, "readonly");
+      const index = transaction
+        .objectStore(RUNS_STORE)
+        .index(RUNS_BY_DOCUMENT);
+      const request = index.openCursor(IDBKeyRange.only(documentId));
+
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        const receipt = cursor.value as LocalParseRunReceipt;
+        if (!parser || receipt.parser === parser) {
+          summaries.push({
+            apiVersion: receipt.apiVersion,
+            recordId: receipt.recordId,
+            runId: receipt.runId,
+            documentId: receipt.documentId,
+            parser: receipt.parser,
+            savedAt: receipt.savedAt,
+            completedAt: receipt.completedAt,
+            status: receipt.status,
+            component: receipt.component,
+            options: receipt.options,
+            rawArtifacts: receipt.rawArtifacts,
+            rawArtifactBytes: receipt.rawArtifactBytes,
+          });
+        }
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error);
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+      transaction.oncomplete = () => {
+        summaries.sort((a, b) =>
+          b.savedAt === a.savedAt
+            ? b.runId.localeCompare(a.runId)
+            : b.savedAt.localeCompare(a.savedAt),
+        );
+        resolve(summaries);
+      };
+    });
+  } finally {
+    database.close();
+  }
 }
