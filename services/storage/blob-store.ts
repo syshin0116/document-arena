@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
+
 export const DEFAULT_BLOB_RETENTION_SECONDS = 24 * 60 * 60;
 
 export const DEFAULT_SIGNED_REQUEST_TTL_SECONDS = 15 * 60;
 
-export const MAX_SIGNED_REQUEST_TTL_SECONDS = 7 * 24 * 60 * 60;
+export const MAX_SIGNED_REQUEST_TTL_SECONDS = 60 * 60;
 
 export type BlobRef = Readonly<{
   bucket: string;
@@ -23,7 +25,6 @@ export type BlobByteRange = Readonly<{
 export type BlobWriteMetadata = Readonly<{
   mediaType: string;
   expiresAt: string;
-  sha256?: string;
 }>;
 
 export type BlobWriteDescriptor = Readonly<{
@@ -48,7 +49,6 @@ export type BlobHead = Readonly<{
   mediaType?: string;
   lastModified?: string;
   expiresAt?: string;
-  sha256?: string;
 }>;
 
 export type BlobRead = Readonly<{
@@ -70,10 +70,17 @@ export type SignedRequestOptions = Readonly<{
  * never be persisted, logged, or returned from a long-lived domain record.
  */
 export type SignedBlobRequest = Readonly<{
-  method: "PUT" | "GET" | "DELETE";
+  method: "PUT" | "GET";
   url: string;
   headers: Readonly<Record<string, string>>;
   urlExpiresAt: string;
+}>;
+
+export type BlobIntegrityReceipt = Readonly<{
+  ref: BlobRef;
+  algorithm: "sha256";
+  sha256: string;
+  sizeBytes: number;
 }>;
 
 export interface BlobStore {
@@ -91,10 +98,6 @@ export interface BlobStore {
     options?: SignedRequestOptions,
   ): Promise<SignedBlobRequest>;
   signGet(
-    ref: BlobRef,
-    options?: SignedRequestOptions,
-  ): Promise<SignedBlobRequest>;
-  signDelete(
     ref: BlobRef,
     options?: SignedRequestOptions,
   ): Promise<SignedBlobRequest>;
@@ -120,6 +123,70 @@ export class BlobAlreadyExistsError extends Error {
     this.name = "BlobAlreadyExistsError";
     this.ref = ref;
   }
+}
+
+export class BlobIntegrityError extends Error {
+  readonly ref: BlobRef;
+  readonly expectedSha256: string;
+  readonly actualSha256: string;
+
+  constructor(ref: BlobRef, expectedSha256: string, actualSha256: string) {
+    super("Blob SHA-256 verification failed.");
+    this.name = "BlobIntegrityError";
+    this.ref = ref;
+    this.expectedSha256 = expectedSha256;
+    this.actualSha256 = actualSha256;
+  }
+}
+
+/**
+ * Verifies stored bytes rather than trusting caller-controlled object metadata.
+ * Hosted execution must complete this check before dispatching a job that uses
+ * the object.
+ */
+export async function verifyBlobSha256(
+  store: Pick<BlobStore, "open">,
+  ref: BlobRef,
+  expectedSha256: string,
+): Promise<BlobIntegrityReceipt> {
+  validateBlobRef(ref);
+  if (!/^[a-f0-9]{64}$/.test(expectedSha256)) {
+    throw new TypeError(
+      "Expected Blob SHA-256 must be 64 lowercase hexadecimal characters.",
+    );
+  }
+
+  const read = await store.open(ref);
+  const reader = read.body.getReader();
+  const hash = createHash("sha256");
+  let sizeBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      if (!Number.isSafeInteger(sizeBytes + value.byteLength)) {
+        throw new RangeError("Blob size exceeds the safe integer range.");
+      }
+      sizeBytes += value.byteLength;
+      hash.update(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const actualSha256 = hash.digest("hex");
+  if (actualSha256 !== expectedSha256) {
+    throw new BlobIntegrityError(ref, expectedSha256, actualSha256);
+  }
+
+  return {
+    ref,
+    algorithm: "sha256",
+    sha256: actualSha256,
+    sizeBytes,
+  };
 }
 
 export function defaultBlobExpiresAt(now = new Date()): string {
@@ -163,9 +230,6 @@ export function validateBlobWriteMetadata(metadata: BlobWriteMetadata): void {
   }
   if (!Number.isFinite(Date.parse(metadata.expiresAt))) {
     throw new TypeError("Blob expiresAt must be an ISO-8601 timestamp.");
-  }
-  if (metadata.sha256 && !/^[a-f0-9]{64}$/.test(metadata.sha256)) {
-    throw new TypeError("Blob sha256 must be 64 lowercase hexadecimal characters.");
   }
 }
 

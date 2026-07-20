@@ -20,7 +20,6 @@ const SIGNING_ALGORITHM = "AWS4-HMAC-SHA256";
 const SIGNING_SERVICE = "s3";
 const UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
 const EXPIRES_AT_METADATA_HEADER = "x-amz-meta-document-arena-expires-at";
-const SHA256_METADATA_HEADER = "x-amz-meta-document-arena-sha256";
 
 type Fetch = typeof globalThis.fetch;
 
@@ -40,6 +39,11 @@ type PresignInput = Readonly<{
   headers?: Readonly<Record<string, string>>;
   ttlSeconds: number;
 }>;
+
+type PublicPresignInput = PresignInput &
+  Readonly<{
+    method: "PUT" | "GET";
+  }>;
 
 function utf8(value: string): ArrayBuffer {
   return new TextEncoder().encode(value).buffer as ArrayBuffer;
@@ -246,10 +250,7 @@ export class S3CompatibleBlobStore implements BlobStore {
     };
   }
 
-  async #presign(input: PresignInput): Promise<SignedBlobRequest> {
-    if (input.method === "HEAD") {
-      throw new TypeError("HEAD requests are internal and cannot be exported.");
-    }
+  async #presign(input: PublicPresignInput): Promise<SignedBlobRequest> {
     const signed = await this.#presignInternal(input);
     return {
       method: input.method,
@@ -300,7 +301,6 @@ export class S3CompatibleBlobStore implements BlobStore {
       lastModified: response.headers.get("last-modified") ?? undefined,
       expiresAt:
         response.headers.get(EXPIRES_AT_METADATA_HEADER) ?? undefined,
-      sha256: response.headers.get(SHA256_METADATA_HEADER) ?? undefined,
     };
   }
 
@@ -353,9 +353,6 @@ export class S3CompatibleBlobStore implements BlobStore {
       "if-none-match": "*",
       [EXPIRES_AT_METADATA_HEADER]: descriptor.metadata.expiresAt,
     };
-    if (descriptor.metadata.sha256) {
-      headers[SHA256_METADATA_HEADER] = descriptor.metadata.sha256;
-    }
     return this.#presign({
       method: "PUT",
       ref: descriptor.ref,
@@ -375,20 +372,13 @@ export class S3CompatibleBlobStore implements BlobStore {
     });
   }
 
-  signDelete(
-    ref: BlobRef,
-    options?: SignedRequestOptions,
-  ): Promise<SignedBlobRequest> {
-    return this.#presign({
+  async delete(ref: BlobRef): Promise<void> {
+    const signed = await this.#presignInternal({
       method: "DELETE",
       ref,
-      ttlSeconds: signedRequestTtlSeconds(options),
+      ttlSeconds: 60,
     });
-  }
-
-  async delete(ref: BlobRef): Promise<void> {
-    const signed = await this.signDelete(ref, { ttlSeconds: 60 });
-    const response = await this.#fetch(signed.url, { method: signed.method });
+    const response = await this.#fetch(signed.url, { method: "DELETE" });
     if (!response.ok) throw responseError("delete", response);
   }
 
