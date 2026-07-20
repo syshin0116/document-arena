@@ -1,0 +1,39 @@
+{
+  "component": {
+    "id": "opendataloader-pdf",
+    "adapterVersion": "0.1.0",
+    "upstreamVersion": "2.5.0",
+    "image": "document-arena/opendataloader-pdf:2.5.0",
+    "imageDigest": "sha256:0988ec7fd3c4eb4775d401c036402328f84a053267290dd8e2354516af021237"
+  },
+  "source": {
+    "artifactId": "sha256:2e663675ae36ad12adb2f5a05281bac2747ecf8d23d92bedd9f937a89fee7136",
+    "sha256": "2e663675ae36ad12adb2f5a05281bac2747ecf8d23d92bedd9f937a89fee7136"
+  },
+  "timing": {
+    "startedAt": "2026-07-20T06:16:26.232Z",
+    "completedAt": "2026-07-20T06:16:28.904Z",
+    "durationMs": 2672
+  },
+  "options": {
+    "outputDir": "raw",
+    "format": [
+      "json",
+      "markdown"
+    ],
+    "imageOutput": "off",
+    "quiet": true,
+    "threads": "1",
+    "hybrid": "off",
+    "tableMethod": "default",
+    "readingOrder": "xycut",
+    "includeHeaderFooter": false,
+    "useStructTree": false,
+    "detectStrikethrough": false,
+    "sanitize": false,
+    "keepLineBreaks": false,
+    "replaceInvalidChars": " ",
+    "markdownPageSeparator": "",
+    "markdownWithHtml": false
+  }
+}

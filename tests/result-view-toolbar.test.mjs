@@ -31,8 +31,8 @@ function renderToolbar(overrides = {}) {
 test("result view controls expose two labelled pressed-button groups", () => {
   const html = renderToolbar();
 
-  assert.match(html, /role="group" aria-label="Content view"/);
-  assert.match(html, /role="group" aria-label="Render mode"/);
+  assert.match(html, /role="group"[^>]*aria-label="Content view"/);
+  assert.match(html, /role="group"[^>]*aria-label="Render mode"/);
   assert.match(html, />Content</);
   assert.match(html, />Mode</);
   assert.equal((html.match(/<button/g) ?? []).length, 4);
@@ -105,7 +105,7 @@ test("toolbar CSS keeps pressed styling, stable status space, and mobile targets
   );
   assert.match(
     mobileCss,
-    /\.result-view-group \.view-toggle button\s*\{[^}]*min-height:\s*40px/s,
+    /\.result-view-group \.result-toggle-group \[data-slot="toggle-group-item"\]\s*\{[^}]*min-height:\s*40px/s,
   );
   assert.doesNotMatch(mobileCss, /flex-wrap|overflow-x/);
 });

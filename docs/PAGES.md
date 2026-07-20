@@ -47,6 +47,9 @@ decisions.
 ### Primary content
 
 - one sentence explaining the product;
+- navigation to Arena and Leaderboard, which are product surfaces rather than
+  infrastructure decisions and were previously reachable only from inside a
+  workspace;
 - one large PDF drop zone and file-picker action;
 - concise file-size/page limits;
 - a short retention/privacy statement and delete promise;
@@ -264,10 +267,10 @@ See which parsers tend to win blind votes for documents like mine.
   manifest-declared option schema, versions, license, and runtime data.
   Resolved normalized options join the candidate fingerprint; they are never
   free-form text.
-- A profile that calls a remote provider selects a named connection from
-  `/settings/connections` by reference; secrets never appear in slot options,
-  fingerprints, or exports, and the first remote submission of document bytes
-  goes through the confirm modal.
+- A profile that calls a remote provider reads developer environment
+  configuration; secrets never appear in slot options, fingerprints, or
+  exports, and the first remote submission of document bytes goes through the
+  confirm modal.
 - Duplicating an existing candidate and changing one slot is the primary way to
   create a controlled comparison; unchanged stage results are reused rather
   than rerun.
@@ -302,29 +305,6 @@ selection.
 - Creates a new immutable derived artifact and compact lineage breadcrumb.
 - Does not expose a node canvas or arbitrary YAML editor.
 
-## Page 5 — Connections
-
-Route: `/settings/connections`
-
-This page ships with the first real remote provider integration. Connections
-are reusable across documents, so they do not belong inside one workspace
-drawer. The local prototype keeps UI-entered secrets only in runner memory and
-uses ignored `.env` values as an optional persistent developer fallback.
-
-It contains:
-
-- provider connection type and runner-local status;
-- endpoint, region, and secret entry/update;
-- configured-but-not-yet-verified status and card-scoped feedback;
-- data-transfer and retention disclosure;
-- delete/disconnect action;
-- a validated return path to the document run that opened Connections.
-
-Secret values are never returned to the browser or stored in recipe/export
-artifacts. Named persistent connections and provider-side validation can be
-added when a real secret store exists. Vector collection browsing, retrieval,
-chat, and database administration remain out of scope.
-
 ## Supporting static page
 
 Before a public upload beta, add `/privacy` with retention, deletion, remote
@@ -357,4 +337,4 @@ Create only these five workspace frames before implementation:
 5. two-result compare view.
 
 Reserve a button and drawer boundary for Judge, but do not design the advanced
-pipeline or Connections UI before those integrations are scheduled.
+pipeline UI before those integrations are scheduled.

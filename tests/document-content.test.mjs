@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getDemoPdf } from "../app/lib/demo-pdf.ts";
+import {
+  getSamplePdf,
+  SAMPLE_PAGE_COUNT,
+} from "../app/lib/sample-document.ts";
 import {
   parseSingleByteRange,
   respondWithDocumentContent,
 } from "../services/http/document-content.ts";
 
 function createSource() {
-  const bytes = getDemoPdf();
+  const bytes = getSamplePdf();
   const reads = [];
   return {
     bytes,
@@ -25,16 +28,17 @@ function createSource() {
   };
 }
 
-test("the generated demo is a deterministic twelve-page PDF", () => {
-  const bytes = getDemoPdf();
-  const decoded = new TextDecoder().decode(bytes);
+// The sample is a real licensed PDF read from disk rather than one drawn at
+// runtime from text operators, so this asserts we shipped the document and
+// that reads are cached, not that a generator emitted a known string.
+test("the sample document is the real licensed PDF on disk", () => {
+  const bytes = getSamplePdf();
+  const header = new TextDecoder().decode(bytes.slice(0, 8));
 
-  assert.match(decoded, /^%PDF-1\.4/);
-  assert.match(decoded, /\/Count 12\b/);
-  assert.match(decoded, /DOCUMENT ARENA \/ SOURCE-LINKED DEMO/);
-  assert.doesNotMatch(decoded, /PARSER ARENA/);
-  assert.match(decoded, /Attention Is All You Need/);
-  assert.deepEqual(getDemoPdf(), bytes);
+  assert.match(header, /^%PDF-1\.\d/);
+  assert.ok(bytes.byteLength > 500_000, "sample PDF looks truncated");
+  assert.equal(SAMPLE_PAGE_COUNT, 27);
+  assert.deepEqual(getSamplePdf(), bytes);
 });
 
 test("single byte ranges support bounded, open-ended, and suffix forms", () => {
@@ -112,9 +116,9 @@ test("GET serves a single satisfiable range and rejects invalid ranges", async (
   );
   assert.equal(response.headers.get("content-length"), "8");
   assert.deepEqual(ranged.reads, [{ offset: 0, length: 8 }]);
-  assert.equal(
+  assert.match(
     new TextDecoder().decode(await response.arrayBuffer()),
-    "%PDF-1.4",
+    /^%PDF-1\.\d$/,
   );
 
   const invalid = createSource();

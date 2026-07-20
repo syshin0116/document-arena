@@ -14,11 +14,11 @@ import {
   useState,
 } from "react";
 import ReactMarkdown from "react-markdown";
+import { ModeToggle } from "@/components/mode-toggle";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import {
-  canCompare,
   createWorkspaceState,
   displayedEvidence,
   type ParserId,
@@ -57,7 +57,10 @@ import {
   runOptionsInvalidReason,
   type RunAvailability,
 } from "../run-options";
-import { Brand } from "./Brand";
+import { AppHeader } from "./AppHeader";
+import { buttonVariants } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
 import { RunOptionFields, RunOptionsDialog } from "./RunOptionsDialog";
 
 // pdfjs must never load during SSR; the crop renderer is client-only.
@@ -134,37 +137,40 @@ export function ResultViewToolbar({
           <span className="result-view-label" aria-hidden="true">
             Content
           </span>
-          <div
-            className="view-toggle"
+          <ToggleGroup
+            className="result-toggle-group"
+            variant="outline"
+            size="sm"
+            spacing={0}
             role="group"
             aria-label="Content view"
           >
-            <button
-              type="button"
+            <ToggleGroupItem
+              pressed={localView === "blocks"}
               aria-pressed={localView === "blocks"}
               aria-controls={controlsId}
-              onClick={() => onLocalViewChange("blocks")}
+              onPressedChange={() => onLocalViewChange("blocks")}
             >
               Blocks
-            </button>
-            <button
-              type="button"
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              pressed={localView === "markdown"}
               aria-pressed={localView === "markdown"}
               aria-controls={controlsId}
-              onClick={() => onLocalViewChange("markdown")}
+              onPressedChange={() => onLocalViewChange("markdown")}
             >
               Markdown
-            </button>
-          </div>
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
         <span className="result-view-divider" aria-hidden="true" />
         <div className="result-view-group">
           <span className="result-view-label" aria-hidden="true">
             Mode
           </span>
-          <div className="view-toggle" role="group" aria-label="Render mode">
-            <button
-              type="button"
+          <ToggleGroup className="result-toggle-group" variant="outline" size="sm" spacing={0} role="group" aria-label="Render mode">
+            <ToggleGroupItem
+              pressed={viewMode === "rendered"}
               aria-pressed={viewMode === "rendered"}
               aria-controls={controlsId}
               title={
@@ -172,12 +178,12 @@ export function ResultViewToolbar({
                   ? "Rendered blocks"
                   : "Rendered Markdown"
               }
-              onClick={() => onViewModeChange("rendered")}
+              onPressedChange={() => onViewModeChange("rendered")}
             >
               Rendered
-            </button>
-            <button
-              type="button"
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              pressed={viewMode === "raw"}
               aria-pressed={viewMode === "raw"}
               aria-controls={controlsId}
               title={
@@ -185,11 +191,11 @@ export function ResultViewToolbar({
                   ? "Raw block JSON"
                   : "Raw Markdown output"
               }
-              onClick={() => onViewModeChange("raw")}
+              onPressedChange={() => onViewModeChange("raw")}
             >
               Raw
-            </button>
-          </div>
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
       </div>
     </div>
@@ -226,44 +232,57 @@ const PARSER_DISPLAY: Record<ParserId, string> = {
   azuredi: "Azure DI",
 };
 
-type EvidenceId = "title" | "abstract" | "table";
+type EvidenceId = "title" | "abstract" | "introduction";
 
 const evidenceLabels: Record<EvidenceId, string> = {
   title: "Document title",
   abstract: "Abstract paragraph",
-  table: "Evaluation table",
+  introduction: "Introduction paragraph",
 };
 
+/**
+ * Page-1 regions from a real OpenDataLoader run over the sample PDF, copied out
+ * of fixtures/sample/llama-opendataloader-parsed-document.json.
+ *
+ * These were previously three round numbers typed in by hand and labelled
+ * `provenance: "native"`, which claimed parser-reported geometry for a
+ * synthetic page nothing had parsed. The bboxes below are the parser's own
+ * output, and the block ids and pointers resolve in that fixture. Regenerating
+ * the fixture can shift page-1 block indices; see fixtures/sample/README.md.
+ */
 const demoEvidenceRegions: readonly SourceEvidenceRegion[] = [
   {
+    // odl-p1-id-33, page 1 block 1, kind "heading"
     id: "title",
     parserId: "opendataloader",
     label: evidenceLabels.title,
     pageNumber: 1,
-    bbox: [0.15, 0.075, 0.85, 0.16],
+    bbox: [0.197004, 0.085313, 0.803001, 0.107482],
     provenance: "native",
-    artifactId: "demo-opendataloader-parsed-document",
-    jsonPointer: "/pages/0/blocks/0/sourceRegions/0",
+    artifactId: "sample-opendataloader-parsed-document",
+    jsonPointer: "/pages/0/blocks/1/sourceRegions/0",
   },
   {
+    // odl-p1-id-37, page 1 block 5, kind "paragraph"
     id: "abstract",
     parserId: "opendataloader",
     label: evidenceLabels.abstract,
     pageNumber: 1,
-    bbox: [0.14, 0.215, 0.86, 0.315],
+    bbox: [0.147066, 0.280092, 0.459914, 0.450554],
     provenance: "native",
-    artifactId: "demo-opendataloader-parsed-document",
-    jsonPointer: "/pages/0/blocks/1/sourceRegions/0",
+    artifactId: "sample-opendataloader-parsed-document",
+    jsonPointer: "/pages/0/blocks/5/sourceRegions/0",
   },
   {
-    id: "table",
+    // odl-p1-id-39, page 1 block 7, kind "paragraph"
+    id: "introduction",
     parserId: "opendataloader",
-    label: evidenceLabels.table,
+    label: evidenceLabels.introduction,
     pageNumber: 1,
-    bbox: [0.1, 0.49, 0.9, 0.675],
+    bbox: [0.118479, 0.487849, 0.488926, 0.712681],
     provenance: "native",
-    artifactId: "demo-opendataloader-parsed-document",
-    jsonPointer: "/pages/0/blocks/2/sourceRegions/0",
+    artifactId: "sample-opendataloader-parsed-document",
+    jsonPointer: "/pages/0/blocks/7/sourceRegions/0",
   },
 ];
 
@@ -400,8 +419,14 @@ export function Workspace({
         ? [effectiveTab]
         : [];
 
+  // The demo never compares. It used to render a second "MinerU" column whose
+  // text, version, and 11.8s timing were all written by hand, next to a real
+  // OpenDataLoader run: a fabricated result presented beside a genuine one.
+  // Only OpenDataLoader has actually been run over the sample PDF, so the demo
+  // shows that one result and comparison stays on the real path, where the user
+  // runs the second parser themselves.
   const comparing = demo
-    ? canCompare(state)
+    ? false
     : effectiveTab === "compare" && completedParsers.length >= 2;
 
   const localRegions = useMemo(() => {
@@ -961,10 +986,6 @@ export function Workspace({
     );
   }
 
-  const connectionsHref = `/settings/connections?returnTo=${encodeURIComponent(
-    `/documents/${documentId}`,
-  )}`;
-
   return (
     <main
       className="workspace-shell"
@@ -972,25 +993,15 @@ export function Workspace({
       data-comparing={comparing || undefined}
       data-no-dock={!demo || undefined}
     >
-      <header className="workspace-header">
-        <div className="workspace-identity">
-          <Link className="back-button" href="/" aria-label="Back to upload">
-            ←
-          </Link>
-          <Link className="workspace-brand" href="/" aria-label="Document Arena home">
-            <Brand compact />
-          </Link>
-          <span className="header-separator" aria-hidden="true" />
-          <div className="document-identity">
-            <strong title={displayFileName}>{displayFileName}</strong>
-            <span>{state.pageCount ? `${state.pageCount} pages` : "Reading pages"} · PDF</span>
-          </div>
-        </div>
-
-        <div className="workspace-actions">
+      <AppHeader
+        title={<span title={displayFileName}>{displayFileName}</span>}
+        meta={`${state.pageCount ? `${state.pageCount} pages` : "Reading pages"} · PDF`}
+        actions={
+          <>
+          <ModeToggle />
           {demo && state.runs.opendataloader === "complete" && (
             <button
-              className="secondary-button add-parser-button"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "add-parser-button")}
               type="button"
               onClick={() => setPickerOpen(true)}
               disabled={state.runs.mineru !== "idle"}
@@ -999,28 +1010,20 @@ export function Workspace({
               Run another parser
             </button>
           )}
-          <Link className="judge-button" href="/arena">
+          <Link className={buttonVariants({ variant: "secondary", size: "sm" })} href="/arena">
             Arena
           </Link>
-          <Link
-            className="secondary-button connections-button"
-            href={connectionsHref}
-            aria-label="Configure provider connections"
-            title="Configure provider connections"
-          >
-            <span className="connections-label">Connections</span>
-            <span className="connections-icon" aria-hidden="true">⚙</span>
-          </Link>
           <button
-            className="icon-button"
+            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
             type="button"
             aria-label="Open run details"
             onClick={() => setDetailsOpen(true)}
           >
             •••
           </button>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="mobile-pane-switcher" role="tablist" aria-label="Workspace pane">
         <button
@@ -1322,20 +1325,6 @@ export function Workspace({
                     onPin={pinEvidence}
                     mappingAvailable={hasNativeMapping}
                   />
-                  {comparing && (
-                    <ParserResult
-                      parser="MinerU"
-                      version="2.6.1"
-                      timing="11.8s"
-                      accent="amber"
-                      evidence={evidence as EvidenceId | null}
-                      pinned={state.pinnedEvidence}
-                      onActivate={activateEvidence}
-                      onPin={pinEvidence}
-                      mappingAvailable={false}
-                      alternate
-                    />
-                  )}
                 </div>
               </div>
             </div>
@@ -1488,7 +1477,6 @@ export function Workspace({
             <LocalParserSheet
               info={localRunner.info}
               runs={state.runs}
-              connectionsHref={connectionsHref}
               onClose={() => setPickerOpen(false)}
               onRun={(parser, options) => {
                 void requestLocalParse(parser, options);
@@ -1515,7 +1503,6 @@ export function Workspace({
           componentName={pendingRunOptions.componentName}
           schema={pendingRunOptions.schema}
           availability={pendingRunOptions.availability}
-          connectionsHref={connectionsHref}
           submitting={runOptionsSubmitting}
           onCancel={cancelRunOptions}
           onConfirm={confirmRunOptions}
@@ -1642,7 +1629,7 @@ export function RemoteRunConsentDialog({
         <div className="remote-consent-actions">
           <button
             ref={cancelRef}
-            className="secondary-button"
+            className={buttonVariants({ variant: "outline" })}
             type="button"
             disabled={confirming}
             onClick={onCancel}
@@ -1650,7 +1637,7 @@ export function RemoteRunConsentDialog({
             Cancel
           </button>
           <button
-            className="primary-button"
+            className={buttonVariants()}
             type="button"
             disabled={confirming}
             onClick={onConfirm}
@@ -1784,7 +1771,7 @@ function RunnerStrip({
           Local runner offline · start it with{" "}
           <code>make runner-serve</code>
         </span>
-        <button className="secondary-button strip-action" type="button" onClick={onRecheck}>
+        <button className={cn(buttonVariants({ variant: "outline", size: "sm" }), "strip-action")} type="button" onClick={onRecheck}>
           Check again
         </button>
       </div>
@@ -1900,7 +1887,7 @@ function RunnerStrip({
               {availability.available ? entry.meta.runtime : "Unavailable"}
             </small>
             <button
-              className="primary-button strip-run"
+              className={cn(buttonVariants({ size: "xs" }), "strip-run")}
               type="button"
               aria-haspopup={opensDialog ? "dialog" : undefined}
               title={availability.disabledReason ?? "Run this parser"}
@@ -1931,7 +1918,7 @@ function RunnerStrip({
         </button>
       )}
       <button
-        className="secondary-button strip-action"
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "strip-action")}
         type="button"
         onClick={onOptions}
         title="Browse every parser and its run details"
@@ -1966,7 +1953,7 @@ function LocalIdleHint({
         </p>
         <pre className="local-runner-command">make runner-serve</pre>
         <div className="empty-result-actions">
-          <button className="primary-button" type="button" onClick={onRecheck}>
+          <button className={buttonVariants()} type="button" onClick={onRecheck}>
             Check again
           </button>
         </div>
@@ -2081,12 +2068,12 @@ function LocalFailedResult({
       )}
       <div className="empty-result-actions">
         {mineruAvailable && onRunMineru && (
-          <button className="primary-button" type="button" onClick={onRunMineru}>
+          <button className={buttonVariants()} type="button" onClick={onRunMineru}>
             Run MinerU (OCR)
           </button>
         )}
         <button
-          className={mineruAvailable ? "secondary-button" : "primary-button"}
+          className={buttonVariants({ variant: mineruAvailable ? "outline" : "default" })}
           type="button"
           onClick={onRetry}
         >
@@ -2156,7 +2143,7 @@ const MarkdownView = memo(function MarkdownView({
       ) : mode === "raw" ? (
         <pre className="markdown-raw">{markdown}</pre>
       ) : (
-        <div className="markdown-view">
+        <div className="markdown-view typeset-result">
           {pageChunks.map((chunk, index) =>
             !chunk ? null : (
               <section key={index} className="md-page" data-page={index + 1}>
@@ -2443,7 +2430,7 @@ function BlockReadingView({
           <StatusDot status="complete" /> {(result.durationMs / 1000).toFixed(1)}s
         </span>
       </header>
-      <div className="markdown-view">
+      <div className="markdown-view typeset-result">
         {!hasAnyNodes && (
           <p className="local-empty-page">
             The parser emitted no blocks for this document.
@@ -2489,10 +2476,10 @@ function EmptyResult({ onRun, onChoose }: { onRun: () => void; onChoose: () => v
         parser.
       </p>
       <div className="empty-result-actions">
-        <button className="primary-button" type="button" onClick={onRun}>
+        <button className={buttonVariants()} type="button" onClick={onRun}>
           Run OpenDataLoader
         </button>
-        <button className="secondary-button" type="button" onClick={onChoose}>
+        <button className={buttonVariants({ variant: "outline" })} type="button" onClick={onChoose}>
           Choose parser
         </button>
       </div>
@@ -2527,7 +2514,6 @@ function ParserResult({
   onActivate,
   onPin,
   mappingAvailable,
-  alternate = false,
 }: {
   parser: string;
   version: string;
@@ -2538,7 +2524,6 @@ function ParserResult({
   onActivate: (id: EvidenceId | null) => void;
   onPin: (id: EvidenceId) => void;
   mappingAvailable: boolean;
-  alternate?: boolean;
 }) {
   const blockProps = (id: EvidenceId, label: string) =>
     mappingAvailable
@@ -2570,39 +2555,44 @@ function ParserResult({
         <span className="complete-badge"><StatusDot status="complete" /> {timing}</span>
       </header>
       <div className="parsed-document">
+        {/* Text, kinds, and word counts below are what OpenDataLoader actually
+            returned for page 1 of the sample PDF. The "ﬁ" in "Efﬁcient" is the
+            ligature the parser emitted; it is left as-is because normalising it
+            here would hide a real characteristic of the output. */}
         <button
           className="parsed-block parsed-title"
           {...blockProps("title", "the title")}
         >
-          <span className="block-type">Title</span>
-          <strong>{alternate ? "Attention Is All You Need" : "Attention Is All You Need"}</strong>
-          <small>{alternate ? "Heading · level 1" : "Title · confidence 0.99"}</small>
+          <span className="block-type">Heading</span>
+          <strong>LLaMA: Open and Efﬁcient Foundation Language Models</strong>
+          <small>Heading · level 2</small>
         </button>
         <button
           className="parsed-block"
           {...blockProps("abstract", "the abstract")}
         >
-          <span className="block-type">{alternate ? "Section" : "Paragraph"}</span>
+          <span className="block-type">Paragraph</span>
           <strong>Abstract</strong>
           <p>
-            {alternate
-              ? "We compare structured document parsers through source-linked evidence, layout preservation and reading order quality."
-              : "We compare structured document parsers using source-linked evidence, layout preservation, and reading-order quality."}
+            We introduce LLaMA, a collection of foundation language models
+            ranging from 7B to 65B parameters. We train our models on trillions
+            of tokens, and show that it is possible to train state-of-the-art
+            models using publicly available datasets exclusively.
           </p>
-          <small>{alternate ? "Text block · page 1" : "Paragraph · 31 words"}</small>
+          <small>Paragraph · 74 words</small>
         </button>
         <button
-          className="parsed-block parsed-table"
-          {...blockProps("table", "the table")}
+          className="parsed-block"
+          {...blockProps("introduction", "the introduction")}
         >
-          <span className="block-type">Table</span>
-          <strong>Parser output comparison</strong>
-          <div className="mini-table" aria-hidden="true">
-            <span>Parser</span><span>Text</span><span>Layout</span>
-            <span>OpenDataLoader</span><span>0.96</span><span>0.91</span>
-            <span>MinerU</span><span>0.94</span><span>0.95</span>
-          </div>
-          <small>{alternate ? "Table · 3 columns · 3 rows" : "Table · native cells"}</small>
+          <span className="block-type">Paragraph</span>
+          <strong>1 Introduction</strong>
+          <p>
+            Large Languages Models (LLMs) trained on massive corpora of texts
+            have shown their ability to perform new tasks from textual
+            instructions or from a few examples (Brown et al., 2020).
+          </p>
+          <small>Paragraph · 115 words</small>
         </button>
       </div>
     </article>
@@ -2653,7 +2643,7 @@ function ParserSheet({
       </details>
       <footer className="sheet-footer">
         <span>Parser-specific options remain optional.</span>
-        <button className="primary-button" type="button" onClick={() => onRun(available)}>Run {available === "mineru" ? "MinerU" : "OpenDataLoader"}</button>
+        <button className={buttonVariants()} type="button" onClick={() => onRun(available)}>Run {available === "mineru" ? "MinerU" : "OpenDataLoader"}</button>
       </footer>
     </aside>
   );
@@ -2710,13 +2700,11 @@ const LOCAL_PARSER_META: Record<
 function LocalParserSheet({
   info,
   runs,
-  connectionsHref,
   onClose,
   onRun,
 }: {
   info: LocalRunnerInfo;
   runs: Record<ParserId, string>;
-  connectionsHref: string;
   onClose: () => void;
   onRun: (parser: ParserId, options: Record<string, unknown>) => void;
 }) {
@@ -2908,16 +2896,6 @@ function LocalParserSheet({
             <div className="parser-selection-availability" role="status">
               <strong>Unavailable in this environment</strong>
               <span>{selectedAvailability.disabledReason}</span>
-              {selectedAvailability.reasons?.some(
-                (reason) => reason.code === "connection-unavailable",
-              ) && (
-                <Link
-                  className="secondary-button connection-settings-link"
-                  href={connectionsHref}
-                >
-                  Configure connection
-                </Link>
-              )}
             </div>
           )}
           <RunOptionFields
@@ -2948,7 +2926,7 @@ function LocalParserSheet({
       <footer className="sheet-footer">
         <span>Runs are append-only; nothing is overwritten.</span>
         <button
-          className="primary-button"
+          className={buttonVariants()}
           type="button"
           disabled={!runnable}
           onClick={submit}

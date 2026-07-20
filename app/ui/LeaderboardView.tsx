@@ -8,7 +8,9 @@ import {
   getServerVotesSnapshot,
   subscribeToVotes,
 } from "../vote-store";
-import { Brand } from "./Brand";
+import { ModeToggle } from "@/components/mode-toggle";
+import { AppHeader } from "./AppHeader";
+import { buttonVariants } from "@/components/ui/button";
 
 const parserNames: Record<string, { name: string; profile: string }> = {
   opendataloader: {
@@ -29,26 +31,18 @@ export function LeaderboardView() {
 
   return (
     <main className="leaderboard-shell">
-      <header className="workspace-header">
-        <div className="workspace-identity">
-          <Link className="back-button" href="/" aria-label="Back to upload">
-            ←
-          </Link>
-          <Link className="workspace-brand" href="/" aria-label="Document Arena home">
-            <Brand compact />
-          </Link>
-          <span className="header-separator" aria-hidden="true" />
-          <div className="document-identity">
-            <strong>Leaderboard</strong>
-            <span>Blind votes only · this device</span>
-          </div>
-        </div>
-        <div className="workspace-actions">
-          <Link className="primary-button" href="/arena">
+      <AppHeader
+        title="Leaderboard"
+        meta="Blind votes only · this device"
+        actions={
+          <>
+          <ModeToggle />
+          <Link className={buttonVariants({ size: "sm" })} href="/arena">
             Go to Arena
           </Link>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <section className="leaderboard-main" aria-labelledby="leaderboard-title">
         <div className="landing-copy">
@@ -68,7 +62,7 @@ export function LeaderboardView() {
           <div className="leaderboard-empty">
             <h2>No blind votes yet.</h2>
             <p>Run a battle in the Arena to seed this device&apos;s rankings.</p>
-            <Link className="primary-button" href="/arena">
+            <Link className={buttonVariants({ size: "lg" })} href="/arena">
               Start a sample battle
             </Link>
           </div>

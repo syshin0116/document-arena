@@ -92,17 +92,23 @@ export function UploadLanding() {
     >
       <header className="landing-header">
         <Brand />
-        {/* No links to /arena or /leaderboard here. tests/rendered-html.test.mjs
-            asserts their absence and docs/PAGES.md scopes this page to upload
-            with "minimal explanation and no infrastructure decisions", so the
-            other surfaces stay discoverable from the workspace instead. */}
-        <nav className="landing-nav landing-nav-v2" aria-label="Workspace shortcuts">
+        {/* Arena and standings used to be reachable only from inside a
+            document workspace, so a first visit gave no sign that blind
+            comparison exists at all. They are navigation, not a decision the
+            upload flow asks the visitor to make, so the page can name them
+            without taking on the parser choice this page still keeps out. */}
+        <nav className="landing-nav landing-nav-v2" aria-label="Product surfaces">
           <Link
-            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "landing-demo-link-v2")}
-            href="/documents/demo"
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+            href="/arena"
           >
-            View demo
-            <ArrowRight data-icon="inline-end" />
+            Arena
+          </Link>
+          <Link
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+            href="/leaderboard"
+          >
+            Leaderboard
           </Link>
           <ModeToggle />
         </nav>
