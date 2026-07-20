@@ -3072,9 +3072,36 @@ body {
   backdrop-filter: blur(18px);
 }
 
+/* Framing left, standings right. The single centred column left a two-row
+   table sitting in 450px of a 1440px viewport with two thirds of the screen
+   empty, and pushed the caveats that make these numbers honest below the
+   table where they read as a footnote. */
 .leaderboard-main {
-  width: min(980px, calc(100% - 48px));
-  padding-top: 88px;
+  display: grid;
+  width: min(1180px, calc(100% - 48px));
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 48px;
+  align-items: start;
+  padding-top: 56px;
+}
+
+.leaderboard-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  position: sticky;
+  top: 56px;
+}
+
+@media (max-width: 900px) {
+  .leaderboard-main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .leaderboard-aside {
+    position: static;
+  }
 }
 
 .leaderboard-table,
@@ -3283,15 +3310,11 @@ body {
 .leaderboard-shell {
   display: grid;
   min-height: 100dvh;
-  grid-template-rows: 64px minmax(0, 1fr);
+  grid-template-rows: var(--shell-head) minmax(0, 1fr);
   background: var(--canvas);
 }
 
 .leaderboard-main {
-  display: flex;
-  width: min(760px, calc(100% - 48px));
-  flex-direction: column;
-  gap: 26px;
   margin: 0 auto;
   padding: 42px 0 64px;
   overflow-y: auto;
