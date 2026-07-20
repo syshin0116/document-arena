@@ -14,7 +14,12 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString();
 
-const DEMO_PDF_URL = "/v1/documents/demo/content";
+/* Sample documents are served by the app, not stored in this browser, so they
+   are fetched by id. This is separate from the `demo` fork, which additionally
+   renders page-1 blocks hardcoded for one specific document: every sample is
+   server-served, only one of them is the demo. */
+const sampleContentUrl = (documentId: string) =>
+  `/v1/documents/${encodeURIComponent(documentId)}/content`;
 
 function ViewerMessage({
   tone = "loading",
@@ -36,7 +41,7 @@ function ViewerMessage({
 
 export default function PdfSourceViewer({
   documentId,
-  demo,
+  sample,
   pageNumber,
   zoom,
   thumbnailsOpen,
@@ -52,7 +57,8 @@ export default function PdfSourceViewer({
   onPinEvidence,
 }: {
   documentId: string;
-  demo: boolean;
+  /** Served by the app under /v1/documents/<id>/content rather than IndexedDB. */
+  sample: boolean;
   pageNumber: number;
   zoom: number;
   thumbnailsOpen: boolean;
@@ -104,7 +110,7 @@ export default function PdfSourceViewer({
   };
 
   useEffect(() => {
-    if (demo) return;
+    if (sample) return;
 
     let cancelled = false;
 
@@ -127,7 +133,7 @@ export default function PdfSourceViewer({
     return () => {
       cancelled = true;
     };
-  }, [demo, documentId, onFileNameChange]);
+  }, [sample, documentId, onFileNameChange]);
 
   // Hand react-pdf a stable object URL rather than the File itself. pdfjs
   // transfers the document's ArrayBuffer to its worker, which detaches the
@@ -172,8 +178,8 @@ export default function PdfSourceViewer({
   }, []);
 
   const file = useMemo(
-    () => (demo ? DEMO_PDF_URL : localUrl),
-    [demo, localUrl],
+    () => (sample ? sampleContentUrl(documentId) : localUrl),
+    [sample, documentId, localUrl],
   );
   // Fit the page to the viewport in BOTH dimensions at 100% zoom, so a normal
   // page fills the pane without producing a vertical scrollbar. Zooming past

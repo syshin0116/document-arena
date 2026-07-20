@@ -1,0 +1,4550 @@
+{
+  "apiVersion": "document-arena.dev/parsed-document/v1alpha1",
+  "sourceArtifactRef": "sha256:dfbac4e7035344b305c947481f2e7e8a02f7a24a563917eb6e47f6591d14c5ae",
+  "parser": {
+    "id": "opendataloader-pdf",
+    "upstreamVersion": "2.5.0"
+  },
+  "metadata": {
+    "fileName": "mistral-7b.pdf",
+    "numberOfPages": 9,
+    "title": "",
+    "author": ""
+  },
+  "markdown": "# arXiv:2310.06825v1 [cs.CL] 10 Oct 2023\n\n## Mistral 7B\n\nAlbert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, Florian Bressand, Gianna Lengyel, Guillaume Lample, Lucile Saulnier, Lélio Renard Lavaud, Marie-Anne Lachaux, Pierre Stock, Teven Le Scao, Thibaut Lavril, Thomas Wang, Timothée Lacroix, William El Sayed\n\n### Abstract\n\nWe introduce Mistral 7B, a 7–billion-parameter language model engineered for superior performance and efficiency. Mistral 7B outperforms the best open 13B model (Llama 2) across all evaluated benchmarks, and the best released 34B model (Llama 1) in reasoning, mathematics, and code generation. Our model leverages grouped-query attention (GQA) for faster inference, coupled with sliding window attention (SWA) to effectively handle sequences of arbitrary length with a reduced inference cost. We also provide a model fine-tuned to follow instructions, Mistral 7B – Instruct, that surpasses Llama 2 13B – chat model both on human and automated benchmarks. Our models are released under the Apache 2.0 license.\n\nCode: https://github.com/mistralai/mistral-src Webpage: https://mistral.ai/news/announcing-mistral-7b/\n\n### 1 Introduction\n\nIn the rapidly evolving domain of Natural Language Processing (NLP), the race towards higher model performance often necessitates an escalation in model size. However, this scaling tends to increase computational costs and inference latency, thereby raising barriers to deployment in practical, real-world scenarios. In this context, the search for balanced models delivering both high-level performance and efficiency becomes critically essential. Our model, Mistral 7B, demonstrates that a carefully designed language model can deliver high performance while maintaining an efficient inference. Mistral 7B outperforms the previous best 13B model (Llama 2, [26]) across all tested benchmarks, and surpasses the best 34B model (LLaMa 34B, [25]) in mathematics and code generation. Furthermore, Mistral 7B approaches the coding performance of Code-Llama 7B [20], without sacrificing performance on non-code related benchmarks.\n\nMistral 7B leverages grouped-query attention (GQA) [1], and sliding window attention (SWA) [6, 3]. GQA significantly accelerates the inference speed, and also reduces the memory requirement during decoding, allowing for higher batch sizes hence higher throughput, a crucial factor for real-time applications. In addition, SWA is designed to handle longer sequences more effectively at a reduced computational cost, thereby alleviating a common limitation in LLMs. These attention mechanisms collectively contribute to the enhanced performance and efficiency of Mistral 7B.\n\nMistral 7B is released under the Apache 2.0 license. This release is accompanied by a reference implementation1 facilitating easy deployment either locally or on cloud platforms such as AWS, GCP, or Azure using the vLLM [17] inference server and SkyPilot 2. Integration with Hugging Face 3 is also streamlined for easier integration. Moreover, Mistral 7B is crafted for ease of fine-tuning across a myriad of tasks. As a demonstration of its adaptability and superior performance, we present a chat model fine-tuned from Mistral 7B that significantly outperforms the Llama 2 13B – Chat model.\n\nMistral 7B takes a significant step in balancing the goals of getting high performance while keeping large language models efficient. Through our work, our aim is to help the community create more affordable, efficient, and high-performing language models that can be used in a wide range of real-world applications.\n\n### 2 Architectural details\n\n- Figure 1: Sliding Window Attention. The number of operations in vanilla attention is quadratic in the sequence length, and the memory increases linearly with the number of tokens. At inference time, this incurs higher latency and smaller throughput due to reduced cache availability. To alleviate this issue, we use sliding window attention: each token can attend to at most W tokens from the previous layer (here, W = 3). Note that tokens outside the sliding window still influence next word prediction. At each attention layer, information can move forward by W tokens. Hence, after k attention layers, information can move forward by up to k × W tokens.\n\n\nMistral 7B is based on a transformer architecture [27]. The main parameters of the architecture are summarized in Table 1. Compared to Llama, it introduces a few changes that we summarize below.\n\nParameter Value dim 4096 n_layers 32 head_dim 128 hidden_dim 14336 n_heads 32 n_kv_heads 8 window_size 4096 context_len 8192 vocab_size 32000 Table 1: Model architecture.\n\nSliding Window Attention. SWA exploits the stacked layers of a transformer to attend information beyond the window size W. The hidden state in position i of the layer k, hi, attends to all hidden states from the previous layer with positions between i − W and i. Recursively, hi can access tokens from the input layer at a distance of up to W × k tokens, as illustrated in Figure 1. At the last layer, using a window size of W = 4096, we have a theoretical attention span of approximately 131K tokens. In practice, for a sequence length of 16K and W = 4096, changes made to FlashAttention [11] and xFormers [18] yield a 2x speed improvement over a vanilla attention baseline.\n\nRolling Buffer Cache. A fixed attention span means that we can limit our cache size using a rolling buffer cache. The cache has a fixed size of W, and the keys and values for the timestep i are stored in position i mod W of the cache. As a result, when the position i is larger than W, past values in the cache are overwritten, and the size of the cache stops increasing. We provide an illustration in Figure 2 for W = 3. On a sequence length of 32k tokens, this reduces the cache memory usage by 8x, without impacting the model quality.\n\n- 1https://github.com/mistralai/mistral-src\n- 2https://github.com/skypilot-org/skypilot\n- 3https://huggingface.co/mistralai\n\n\n- Figure 2: Rolling buffer cache. The cache has a fixed size of W = 4. Keys and values for position i are stored in position i mod W of the cache. When the position i is larger than W, past values in the cache are overwritten. The hidden state corresponding to the latest generated tokens are colored in orange.\n\nPre-fill and Chunking. When generating a sequence, we need to predict tokens one-by-one, as each token is conditioned on the previous ones. However, the prompt is known in advance, and we can pre-fill the (k, v) cache with the prompt. If the prompt is very large, we can chunk it into smaller pieces, and pre-fill the cache with each chunk. For this purpose, we can select the window size as our chunk size. For each chunk, we thus need to compute the attention over the cache and over the chunk. Figure 3 shows how the attention mask works over both the cache and the chunk.\n\ngo\n\ndog\n\n0\n\n0 0\n\n1 0\n\n0\n\n0\n\nthe 0 0 0\n\nto\n\nThe cat sat on the\n\n1\n\nmat and\n\n1 1 1\n\nsaw the\n\n1 0 0 0\n\ndog go to\n\n0 0 0 0 0 0 0 0 1 1 1\n\n0 0 0 0 0 0 0 1 1 1\n\n0 0 0 0 0 1 1 1 1\n\nPast Cache Current\n\n- Figure 3: Pre-fill and chunking. During pre-fill of the cache, long sequences are chunked to limit memory usage. We process a sequence in three chunks, “The cat sat on”, “the mat and saw”, “the dog go to”. The figure shows what happens for the third chunk (“the dog go to”): it attends itself using a causal mask (rightmost block), attends the cache using a sliding window (center block), and does not attend to past tokens as they are outside of the sliding window (left block).\n\n\n### 3 Results\n\nWe compare Mistral 7B to Llama, and re-run all benchmarks with our own evaluation pipeline for fair comparison. We measure performance on a wide variety of tasks categorized as follow:\n\n- • Commonsense Reasoning (0-shot): Hellaswag [28], Winogrande [21], PIQA [4], SIQA [22], OpenbookQA [19], ARC-Easy, ARC-Challenge [9], CommonsenseQA [24]\n- • World Knowledge (5-shot): NaturalQuestions [16], TriviaQA [15]\n- • Reading Comprehension (0-shot): BoolQ [8], QuAC [7]\n- • Math: GSM8K [10] (8-shot) with maj@8 and MATH [13] (4-shot) with maj@4\n- • Code: Humaneval [5] (0-shot) and MBPP [2] (3-shot)\n- • Popular aggregated results: MMLU [12] (5-shot), BBH [23] (3-shot), and AGI Eval [29] (3-5-shot, English multiple-choice questions only)\n\n\nDetailed results for Mistral 7B, Llama 2 7B/13B, and Code-Llama 7B are reported in Table 2. Figure 4 compares the performance of Mistral 7B with Llama 2 7B/13B, and Llama 1 34B4 in different categories. Mistral 7B surpasses Llama 2 13B across all metrics, and outperforms Llama 1 34B on most benchmarks. In particular, Mistral 7B displays a superior performance in code, mathematics, and reasoning benchmarks.\n\n4Since Llama 2 34B was not open-sourced, we report results for Llama 1 34B.\n\n- Figure 4: Performance of Mistral 7B and different Llama models on a wide range of benchmarks. All models were re-evaluated on all metrics with our evaluation pipeline for accurate comparison. Mistral 7B significantly outperforms Llama 2 7B and Llama 2 13B on all benchmarks. It is also vastly superior to Llama 1 34B in mathematics, code generation, and reasoning benchmarks.\n\n\nModel Modality MMLU HellaSwag WinoG PIQA Arc-e Arc-c NQ TriviaQA HumanEval MBPP MATH GSM8K\n\nLLaMA 2 7B Pretrained 44.4% 77.1% 69.5% 77.9% 68.7% 43.2% 24.7% 63.8% 11.6% 26.1% 3.9% 16.0% LLaMA 2 13B Pretrained 55.6% 80.7% 72.9% 80.8% 75.2% 48.8% 29.0% 69.6% 18.9% 35.4% 6.0% 34.3%\n\nCode-Llama 7B Finetuned 36.9% 62.9% 62.3% 72.8% 59.4% 34.5% 11.0% 34.9% 31.1% 52.5% 5.2% 20.8% Mistral 7B Pretrained 60.1% 81.3% 75.3% 83.0% 80.0% 55.5% 28.8% 69.9% 30.5% 47.5% 13.1% 52.2%\n\nTable 2: Comparison of Mistral 7B with Llama. Mistral 7B outperforms Llama 2 13B on all metrics, and approaches the code performance of Code-Llama 7B without sacrificing performance on non-code benchmarks.\n\nSize and Efficiency. We computed “equivalent model sizes” of the Llama 2 family, aiming to understand Mistral 7B models’ efficiency in the cost-performance spectrum (see Figure 5). When evaluated on reasoning, comprehension, and STEM reasoning (specifically MMLU), Mistral 7B mirrored performance that one might expect from a Llama 2 model with more than 3x its size. On the Knowledge benchmarks, Mistral 7B’s performance achieves a lower compression rate of 1.9x, which is likely due to its limited parameter count that restricts the amount of knowledge it can store.\n\nEvaluation Differences. On some benchmarks, there are some differences between our evaluation protocol and the one reported in the Llama 2 paper: 1) on MBPP, we use the hand-verified subset 2) on TriviaQA, we do not provide Wikipedia contexts.\n\n### 4 Instruction Finetuning\n\nTo evaluate the generalization capabilities of Mistral 7B, we fine-tuned it on instruction datasets publicly available on the Hugging Face repository. No proprietary data or training tricks were utilized: Mistral 7B – Instruct model is a simple and preliminary demonstration that the base model can easily be fine-tuned to achieve good performance. In Table 3, we observe that the resulting model, Mistral 7B – Instruct, exhibits superior performance compared to all 7B models on MT-Bench, and is comparable to 13B – Chat models. An independent human evaluation was conducted on https://llmboxing.com/leaderboard.\n\nChatbot Arena ELO Rating\n\nModel\n\nMT Bench\n\nWizardLM 13B v1.2 1047 7.2 Mistral 7B Instruct 1031 6.84 +/- 0.07\n\nLlama 2 13B Chat 1012 6.65 Vicuna 13B 1041 6.57 Llama 2 7B Chat 985 6.27 Vicuna 7B 997 6.17 Alpaca 13B 914 4.53\n\nTable 3: Comparison of Chat models. Mistral 7B – Instruct outperforms all 7B models on MT-Bench, and is comparable to 13B – Chat models.\n\nIn this evaluation, participants were provided with a set of questions along with anonymous responses from two models and were asked to select their preferred response, as illustrated in Figure 6. As of October 6, 2023, the outputs generated by Mistral 7B were preferred 5020 times, compared to 4143 times for Llama 2 13B.\n\n- Figure 5: Results on MMLU, commonsense reasoning, world knowledge and reading comprehension for Mistral 7B and Llama 2 (7B/13B/70B). Mistral 7B largely outperforms Llama 2 13B on all evaluations, except on knowledge benchmarks, where it is on par (this is likely due to its limited parameter count, which limits the amount of knowledge it can compress).\n\n\n### 5 Adding guardrails for front-facing applications\n\nThe ability to enforce guardrails when it comes to AI generation is important for front-facing applications. In this section, we highlight how to leverage system prompting to optionally enforce output constraints on top of our models. Additionally, we showcase the ability of Mistral 7B to perform fine-grained content moderation, which can be useful to enforce quality content in applications.\n\n#### 5.1 System prompt to enforce guardrails\n\nWe introduce a system prompt (see below) to guide the model to generate answers within specified guardrails, similar to the work done with Llama 2. Using this prompt allows the user to move on the Pareto front of model utility / guardrails enforcement, as indicated in Table 4.\n\n|Always assist with care, respect, and truth. Respond with utmost utility yet securely. Avoid harmful, unethical, prejudiced, or negative content. Ensure replies promote fairness and positivity.|\n|---|\n\n\nWe use a set of 175 unsafe prompts for evaluating safety. With the recommended system prompt, the model properly declines to answer 100% of the harmful questions.\n\nGuardrails MT Bench No system prompt 6.84 ± 0.07 Llama 2 system prompt 6.38 ± 0.07 Mistral system prompt 6.58 ± 0.05\n\nAs an illustration, we provide in Table 5 the answers of both Mistral 7B – Instruct and Llama 2 Chat 13B to the question How to kill a linux process with system prompts activated. We observe that Mistral 7B provides a correct response while Llama 2 declines to answer. Note that on this specific question, both models answer correctly when system prompts are deactivated.\n\nTable 4: System prompts. Mean official MT Bench score over 10 iterations with standard deviation for Mistral 7B – Instruct. For reference, Llama 2 13B – Chat reports official results of 6.65.\n\n#### 5.2 Content moderation with self-reflection\n\nMistral 7B – Instruct can be used as a content moderator: the model itself is able to accurately classify a user prompt or its generated answer as being either acceptable or falling into one of the following categories: Illegal activities such as terrorism, child abuse or fraud; Hateful, harassing or violent content such as discrimination, self-harm or bullying; Unqualified advice for instance in legal, medical or financial domains.\n\n###### Model Answer\n\nTo kill a Linux process, you can use the `kill`command followed by the process ID (PID) of the process you want to terminate. For example, to kill process with PID 1234, you would run the command `kill 1234`. It’s important to note that killing a process can have unintended consequences, so it’s generally a good idea to only kill processes that you are certain you want to terminate. Additionally, it’s generally a good idea to use the `kill`command with caution, as it can be used to terminate critical system processes that are necessary for the operation of the system.\n\nMistral 7B – Instruct with Mistral system prompt\n\nAs a helpful and respectful assistant, I cannot provide information on how to kill a Linux process. It is not appropriate or ethical to intentionally harm or terminate processes, as it can cause damage to the system and potentially result in data loss. Additionally, it is important to respect the autonomy and security of other users’ processes, as they may be critical to their work or personal activities. Instead, I suggest that you explore other options to address any issues or concerns you may have.\n\nLlama 2 13B – Chat with Llama 2 system prompt\n\nTable 5: Comparison between Mistral and Llama system prompts. Mistral provides the right answer whereas Llama 2 declines to answer to the question How to kill a linux process.\n\nTo do so, we designed a self-reflection prompt that makes Mistral 7B classify a prompt or a generated answer. We evaluated self-reflection on our manually curated and balanced dataset of adversarial and standard prompts and got a precision of 99.4% for a recall of 95.6% (considering acceptable prompts as positives).\n\nThe use cases are vast, from moderating comments on social media or forums to brand monitoring on the internet. In particular, the end user is able to select afterwards which categories to effectively filter based on their particular use-case.\n\n### 6 Conclusion\n\nOur work on Mistral 7B demonstrates that language models may compress knowledge more than what was previously thought. This opens up interesting perspectives: the field has so far put the emphasis on scaling laws in 2 dimensions (directly associating model capabilities to training cost, as in [14]); the problem is rather 3 dimensional (model capabilities, training cost, inference cost), and much remains to be explored to obtain the best performance with the smallest possible model.\n\n### Acknowledgements\n\nWe are grateful to CoreWeave for their 24/7 help in marshalling our cluster. We thank the CINECA/EuroHPC team, and in particular the operators of Leonardo, for their resources and help. We thank the maintainers of FlashAttention, vLLM, xFormers, Skypilot for their precious assistance in implementing new features and integrating their solutions into ours. A huge thanks to Tri Dao and Daniel Haziza for helping include Mistral related changes to FlashAttention and xFormers on a tight schedule. We thank the teams of Hugging Face, AWS, GCP, Azure ML for their intense help in making our model compatible everywhere.\n\n- Figure 6: Human evaluation of Mistral 7B – Instruct vs Llama 2 13B – Chat Example. An example of human evaluation from llmboxing.com. The question asks for recommendations of books in quantum physics. Llama 2 13B – Chat recommends a general physics book, while Mistral 7B – Instruct recommends a more relevant book on quantum physics and describes in the contents in more detail.\n\n\n### References\n\n- [1] Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón, and Sumit Sanghai. Gqa: Training generalized multi-query transformer models from multi-head checkpoints. arXiv preprint arXiv:2305.13245, 2023.\n- [2] Jacob Austin, Augustus Odena, Maxwell Nye, Maarten Bosma, Henryk Michalewski, David Dohan, Ellen Jiang, Carrie Cai, Michael Terry, Quoc Le, et al. Program synthesis with large language models. arXiv preprint arXiv:2108.07732, 2021.\n- [3] Iz Beltagy, Matthew E Peters, and Arman Cohan. Longformer: The long-document transformer. arXiv preprint arXiv:2004.05150, 2020.\n- [4] Yonatan Bisk, Rowan Zellers, Jianfeng Gao, Yejin Choi, et al. Piqa: Reasoning about physical commonsense in natural language. In Proceedings of the AAAI conference on artificial intelligence, 2020.\n- [5] Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde de Oliveira Pinto, Jared Kaplan, Harri Edwards, Yuri Burda, Nicholas Joseph, Greg Brockman, et al. Evaluating large language models trained on code. arXiv preprint arXiv:2107.03374, 2021.\n- [6] Rewon Child, Scott Gray, Alec Radford, and Ilya Sutskever. Generating long sequences with sparse transformers. arXiv preprint arXiv:1904.10509, 2019.\n- [7] Eunsol Choi, He He, Mohit Iyyer, Mark Yatskar, Wen-tau Yih, Yejin Choi, Percy Liang, and Luke Zettlemoyer. Quac: Question answering in context. arXiv preprint arXiv:1808.07036, 2018.\n- [8] Christopher Clark, Kenton Lee, Ming-Wei Chang, Tom Kwiatkowski, Michael Collins, and Kristina Toutanova. Boolq: Exploring the surprising difficulty of natural yes/no questions. arXiv preprint arXiv:1905.10044, 2019.\n- [9] Peter Clark, Isaac Cowhey, Oren Etzioni, Tushar Khot, Ashish Sabharwal, Carissa Schoenick, and Oyvind Tafjord. Think you have solved question answering? try arc, the ai2 reasoning challenge. arXiv preprint arXiv:1803.05457, 2018.\n- [10] Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton, Reiichiro Nakano, et al. Training verifiers to solve math word problems. arXiv preprint arXiv:2110.14168, 2021.\n- [11] Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, and Christopher Ré. FlashAttention: Fast and memory-efficient exact attention with IO-awareness. In Advances in Neural Information Processing Systems, 2022.\n- [12] Dan Hendrycks, Collin Burns, Steven Basart, Andy Zou, Mantas Mazeika, Dawn Song, and Jacob Steinhardt. Measuring massive multitask language understanding. arXiv preprint arXiv:2009.03300, 2020.\n- [13] Dan Hendrycks, Collin Burns, Saurav Kadavath, Akul Arora, Steven Basart, Eric Tang, Dawn Song, and Jacob Steinhardt. Measuring mathematical problem solving with the math dataset. arXiv preprint arXiv:2103.03874, 2021.\n- [14] Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford, Diego de Las Casas, Lisa Anne Hendricks, Johannes Welbl, Aidan Clark, Thomas Hennigan, Eric Noland, Katherine Millican, George van den Driessche, Bogdan Damoc, Aurelia Guy, Simon Osindero, Karén Simonyan, Erich Elsen, Oriol Vinyals, Jack Rae, and Laurent Sifre. An empirical analysis of compute-optimal large language model training. In Advances in Neural Information Processing Systems, volume 35, 2022.\n- [15] Mandar Joshi, Eunsol Choi, Daniel S Weld, and Luke Zettlemoyer. Triviaqa: A large scale distantly supervised challenge dataset for reading comprehension. arXiv preprint arXiv:1705.03551, 2017.\n- [16] Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Jacob Devlin, Kenton Lee, et al. Natural questions: a benchmark for question answering research. Transactions of the Association for Computational Linguistics, 7:453–466, 2019.\n\n\n- [17] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, and Ion Stoica. Efficient memory management for large language model serving with pagedattention. In Proceedings of the ACM SIGOPS 29th Symposium on Operating Systems Principles, 2023.\n- [18] Benjamin Lefaudeux, Francisco Massa, Diana Liskovich, Wenhan Xiong, Vittorio Caggiano, Sean Naren, Min Xu, Jieru Hu, Marta Tintore, Susan Zhang, Patrick Labatut, and Daniel Haziza. xformers: A modular and hackable transformer modelling library. https://github.com/ facebookresearch/xformers, 2022.\n- [19] Todor Mihaylov, Peter Clark, Tushar Khot, and Ashish Sabharwal. Can a suit of armor conduct electricity? a new dataset for open book question answering. arXiv preprint arXiv:1809.02789, 2018.\n- [20] Baptiste Rozière, Jonas Gehring, Fabian Gloeckle, Sten Sootla, Itai Gat, Xiaoqing Ellen Tan, Yossi Adi, Jingyu Liu, Tal Remez, Jérémy Rapin, et al. Code llama: Open foundation models for code. arXiv preprint arXiv:2308.12950, 2023.\n- [21] Keisuke Sakaguchi, Ronan Le Bras, Chandra Bhagavatula, and Yejin Choi. Winogrande: An adversarial winograd schema challenge at scale. Communications of the ACM, 64(9):99–106, 2021.\n- [22] Maarten Sap, Hannah Rashkin, Derek Chen, Ronan LeBras, and Yejin Choi. Socialiqa: Commonsense reasoning about social interactions. arXiv preprint arXiv:1904.09728, 2019.\n- [23] Mirac Suzgun, Nathan Scales, Nathanael Schärli, Sebastian Gehrmann, Yi Tay, Hyung Won Chung, Aakanksha Chowdhery, Quoc V Le, Ed H Chi, Denny Zhou, , and Jason Wei. Challenging big-bench tasks and whether chain-of-thought can solve them. arXiv preprint arXiv:2210.09261, 2022.\n- [24] Alon Talmor, Jonathan Herzig, Nicholas Lourie, and Jonathan Berant. Commonsenseqa: A question answering challenge targeting commonsense knowledge. arXiv preprint arXiv:1811.00937, 2018.\n- [25] Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-Anne Lachaux, Timothée Lacroix, Baptiste Rozière, Naman Goyal, Eric Hambro, Faisal Azhar, et al. Llama: Open and efficient foundation language models. arXiv preprint arXiv:2302.13971, 2023.\n- [26] Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, et al. Llama 2: Open foundation and fine-tuned chat models. arXiv preprint arXiv:2307.09288, 2023.\n- [27] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in neural information processing systems, 30, 2017.\n- [28] Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali Farhadi, and Yejin Choi. Hellaswag: Can a machine really finish your sentence? arXiv preprint arXiv:1905.07830, 2019.\n- [29] Wanjun Zhong, Ruixiang Cui, Yiduo Guo, Yaobo Liang, Shuai Lu, Yanlin Wang, Amin Saied, Weizhu Chen, and Nan Duan. Agieval: A human-centric benchmark for evaluating foundation models. arXiv preprint arXiv:2304.06364, 2023.\n\n\n",
+  "pages": [
+    {
+      "pageNumber": 1,
+      "width": 612,
+      "height": 792,
+      "rotation": 0,
+      "cropBox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "blocks": [
+        {
+          "id": "odl-p1-id-60",
+          "kind": "heading",
+          "readingOrder": 0,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/0",
+          "text": "arXiv:2310.06825v1 [cs.CL] 10 Oct 2023",
+          "headingLevel": 1,
+          "sourceRegions": [
+            {
+              "pageNumber": 1,
+              "bbox": [
+                0.022941176470588232,
+                0.27080808080808083,
+                0.05941176470588235,
+                0.7070707070707071
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  14.04,
+                  232,
+                  36.36,
+                  577.52
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p1-id-50",
+          "kind": "heading",
+          "readingOrder": 1,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/1",
+          "text": "Mistral 7B",
+          "headingLevel": 2,
+          "sourceRegions": [
+            {
+              "pageNumber": 1,
+              "bbox": [
+                0.4355408496732026,
+                0.12186868686868685,
+                0.5644591503267974,
+                0.15014772727272732
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  266.551,
+                  673.083,
+                  345.449,
+                  695.48
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/1"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p1-id-52",
+          "kind": "caption",
+          "readingOrder": 2,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/2",
+          "text": "Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, Florian Bressand, Gianna Lengyel, Guillaume Lample, Lucile Saulnier, Lélio Renard Lavaud, Marie-Anne Lachaux, Pierre Stock, Teven Le Scao, Thibaut Lavril, Thomas Wang, Timothée Lacroix, William El Sayed",
+          "sourceRegions": [
+            {
+              "pageNumber": 1,
+              "bbox": [
+                0.21884313725490195,
+                0.19691287878787883,
+                0.7811601307189542,
+                0.2683737373737374
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  133.932,
+                  579.448,
+                  478.07,
+                  636.045
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/2"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p1-id-53",
+          "kind": "image",
+          "readingOrder": 3,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/3",
+          "sourceRegions": [
+            {
+              "pageNumber": 1,
+              "bbox": [
+                0.24117483660130717,
+                0.2753093434343434,
+                0.7588218954248366,
+                0.40864267676767674
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  147.599,
+                  468.355,
+                  464.399,
+                  573.955
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/3"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p1-id-54",
+          "kind": "heading",
+          "readingOrder": 4,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/4",
+          "text": "Abstract",
+          "headingLevel": 3,
+          "sourceRegions": [
+            {
+              "pageNumber": 1,
+              "bbox": [
+                0.463656862745098,
+                0.42412626262626263,
+                0.5363447712418301,
+                0.4437651515151515
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  283.758,
+                  440.538,
+                  328.243,
+                  456.092
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/4"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p1-id-55",
+          "kind": "paragraph",
+          "readingOrder": 5,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/5",
+          "text": "We introduce Mistral 7B, a 7–billion-parameter language model engineered for superior performance and efficiency. Mistral 7B outperforms the best open 13B model (Llama 2) across all evaluated benchmarks, and the best released 34B model (Llama 1) in reasoning, mathematics, and code generation. Our model leverages grouped-query attention (GQA) for faster inference, coupled with sliding window attention (SWA) to effectively handle sequences of arbitrary length with a reduced inference cost. We also provide a model fine-tuned to follow instructions, Mistral 7B – Instruct, that surpasses Llama 2 13B – chat model both on human and automated benchmarks. Our models are released under the Apache 2.0 license.",
+          "sourceRegions": [
+            {
+              "pageNumber": 1,
+              "bbox": [
+                0.23430882352941176,
+                0.4599002525252525,
+                0.7669640522875817,
+                0.5852499999999999
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  143.397,
+                  328.482,
+                  469.382,
+                  427.759
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/5"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p1-id-56",
+          "kind": "paragraph",
+          "readingOrder": 6,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/6",
+          "text": "Code: https://github.com/mistralai/mistral-src Webpage: https://mistral.ai/news/announcing-mistral-7b/",
+          "sourceRegions": [
+            {
+              "pageNumber": 1,
+              "bbox": [
+                0.23425980392156862,
+                0.5834141414141415,
+                0.7034526143790849,
+                0.6137929292929293
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  143.367,
+                  305.876,
+                  430.513,
+                  329.936
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/6"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p1-id-57",
+          "kind": "heading",
+          "readingOrder": 7,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/7",
+          "text": "1 Introduction",
+          "headingLevel": 3,
+          "sourceRegions": [
+            {
+              "pageNumber": 1,
+              "bbox": [
+                0.17647058823529413,
+                0.644645202020202,
+                0.3117875816993464,
+                0.664284090909091
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  265.887,
+                  190.814,
+                  281.441
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/7"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p1-id-58",
+          "kind": "paragraph",
+          "readingOrder": 8,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/8",
+          "text": "In the rapidly evolving domain of Natural Language Processing (NLP), the race towards higher model performance often necessitates an escalation in model size. However, this scaling tends to increase computational costs and inference latency, thereby raising barriers to deployment in practical, real-world scenarios. In this context, the search for balanced models delivering both high-level performance and efficiency becomes critically essential. Our model, Mistral 7B, demonstrates that a carefully designed language model can deliver high performance while maintaining an efficient inference. Mistral 7B outperforms the previous best 13B model (Llama 2, [26]) across all tested benchmarks, and surpasses the best 34B model (LLaMa 34B, [25]) in mathematics and code generation. Furthermore, Mistral 7B approaches the coding performance of Code-Llama 7B [20], without sacrificing performance on non-code related benchmarks.",
+          "sourceRegions": [
+            {
+              "pageNumber": 1,
+              "bbox": [
+                0.17588398692810459,
+                0.6794810606060606,
+                0.8255669934640523,
+                0.818604797979798
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.641,
+                  143.665,
+                  505.247,
+                  253.851
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/8"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p1-id-59",
+          "kind": "paragraph",
+          "readingOrder": 9,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/9",
+          "text": "Mistral 7B leverages grouped-query attention (GQA) [1], and sliding window attention (SWA) [6, 3]. GQA significantly accelerates the inference speed, and also reduces the memory requirement during decoding, allowing for higher batch sizes hence higher throughput, a crucial factor for real-time applications. In addition, SWA is designed to handle longer sequences more effectively at a reduced computational cost, thereby alleviating a common limitation in LLMs. These attention mechanisms collectively contribute to the enhanced performance and efficiency of Mistral 7B.",
+          "sourceRegions": [
+            {
+              "pageNumber": 1,
+              "bbox": [
+                0.17647058823529413,
+                0.8241401515151516,
+                0.8263774509803922,
+                0.9081679292929293
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  72.731,
+                  505.743,
+                  139.281
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/9"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pageNumber": 2,
+      "width": 612,
+      "height": 792,
+      "rotation": 0,
+      "cropBox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "blocks": [
+        {
+          "id": "odl-p2-id-61",
+          "kind": "paragraph",
+          "readingOrder": 0,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/10",
+          "text": "Mistral 7B is released under the Apache 2.0 license. This release is accompanied by a reference implementation1 facilitating easy deployment either locally or on cloud platforms such as AWS, GCP, or Azure using the vLLM [17] inference server and SkyPilot 2. Integration with Hugging Face 3 is also streamlined for easier integration. Moreover, Mistral 7B is crafted for ease of fine-tuning across a myriad of tasks. As a demonstration of its adaptability and superior performance, we present a chat model fine-tuned from Mistral 7B that significantly outperforms the Llama 2 13B – Chat model.",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.17647058823529413,
+                0.09186616161616167,
+                0.825562091503268,
+                0.17589267676767678
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  652.693,
+                  505.244,
+                  719.242
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/10"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-id-62",
+          "kind": "paragraph",
+          "readingOrder": 1,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/11",
+          "text": "Mistral 7B takes a significant step in balancing the goals of getting high performance while keeping large language models efficient. Through our work, our aim is to help the community create more affordable, efficient, and high-performing language models that can be used in a wide range of real-world applications.",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.17647058823529413,
+                0.18142929292929294,
+                0.8235245098039216,
+                0.23790782828282828
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  603.577,
+                  503.997,
+                  648.308
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/11"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-id-63",
+          "kind": "heading",
+          "readingOrder": 2,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/12",
+          "text": "2 Architectural details",
+          "headingLevel": 3,
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.17647058823529413,
+                0.2566300505050505,
+                0.37740359477124186,
+                0.2762689393939393
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  573.195,
+                  230.971,
+                  588.749
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/12"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-id-64",
+          "kind": "image",
+          "readingOrder": 3,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/13",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.17969934640522875,
+                0.2962234848484849,
+                0.8203088235294118,
+                0.4805871212121212
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  109.976,
+                  411.375,
+                  502.029,
+                  557.391
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/13"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-id-65",
+          "kind": "list",
+          "readingOrder": 4,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/14",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.17647058823529413,
+                0.48732828282828283,
+                0.8240522875816993,
+                0.5719381313131313
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  339.025,
+                  504.32,
+                  406.036
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/14"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-path-kids-14-list-items-0",
+          "kind": "list-item",
+          "readingOrder": 5,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/14/list items/0",
+          "parentId": "odl-p2-id-65",
+          "text": "Figure 1: Sliding Window Attention. The number of operations in vanilla attention is quadratic in the sequence length, and the memory increases linearly with the number of tokens. At inference time, this incurs higher latency and smaller throughput due to reduced cache availability. To alleviate this issue, we use sliding window attention: each token can attend to at most W tokens from the previous layer (here, W = 3). Note that tokens outside the sliding window still influence next word prediction. At each attention layer, information can move forward by W tokens. Hence, after k attention layers, information can move forward by up to k × W tokens.",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.17647058823529413,
+                0.48732828282828283,
+                0.8240522875816993,
+                0.5719381313131313
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  339.025,
+                  504.32,
+                  406.036
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/14/list items/0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-id-70",
+          "kind": "paragraph",
+          "readingOrder": 6,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/15",
+          "text": "Mistral 7B is based on a transformer architecture [27]. The main parameters of the architecture are summarized in Table 1. Compared to Llama, it introduces a few changes that we summarize below.",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.17647058823529413,
+                0.582729797979798,
+                0.629313725490196,
+                0.6254343434343435
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  296.656,
+                  385.14,
+                  330.478
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/15"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-id-67",
+          "kind": "paragraph",
+          "readingOrder": 7,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/16",
+          "text": "Parameter Value dim 4096 n_layers 32 head_dim 128 hidden_dim 14336 n_heads 32 n_kv_heads 8 window_size 4096 context_len 8192 vocab_size 32000 Table 1: Model architecture.",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.645109477124183,
+                0.5915656565656565,
+                0.8231486928104575,
+                0.7507348484848485
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  394.807,
+                  197.418,
+                  503.767,
+                  323.48
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/16"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-id-71",
+          "kind": "paragraph",
+          "readingOrder": 8,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/17",
+          "text": "Sliding Window Attention. SWA exploits the stacked layers of a transformer to attend information beyond the window size W. The hidden state in position i of the layer k, hi, attends to all hidden states from the previous layer with positions between i − W and i. Recursively, hi can access tokens from the input layer at a distance of up to W × k tokens, as illustrated in Figure 1. At the last layer, using a window size of W = 4096, we have a theoretical attention span of approximately 131K tokens. In practice, for a sequence length of 16K and W = 4096, changes made to FlashAttention [11] and xFormers [18] yield a 2x speed improvement over a vanilla attention baseline.",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.17565686274509804,
+                0.6305176767676768,
+                0.6320130718954248,
+                0.7700946969696969
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.502,
+                  182.085,
+                  386.792,
+                  292.63
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/17"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-id-72",
+          "kind": "paragraph",
+          "readingOrder": 9,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/18",
+          "text": "Rolling Buffer Cache. A fixed attention span means that we can limit our cache size using a rolling buffer cache. The cache has a fixed size of W, and the keys and values for the timestep i are stored in position i mod W of the cache. As a result, when the position i is larger than W, past values in the cache are overwritten, and the size of the cache stops increasing. We provide an illustration in Figure 2 for W = 3. On a sequence length of 32k tokens, this reduces the cache memory usage by 8x, without impacting the model quality.",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.17647058823529413,
+                0.7751767676767678,
+                0.8235343137254901,
+                0.8596578282828283
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  111.151,
+                  504.003,
+                  178.06
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/18"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-id-74",
+          "kind": "list",
+          "readingOrder": 10,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/19",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.19714542483660133,
+                0.8699078282828283,
+                0.5112467320261438,
+                0.9131553030303031
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  120.653,
+                  68.781,
+                  312.883,
+                  103.033
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/19"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-path-kids-19-list-items-0",
+          "kind": "list-item",
+          "readingOrder": 11,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/19/list items/0",
+          "parentId": "odl-p2-id-74",
+          "text": "1https://github.com/mistralai/mistral-src",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.19714542483660133,
+                0.8699078282828283,
+                0.5112467320261438,
+                0.8857550505050505
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  120.653,
+                  90.482,
+                  312.883,
+                  103.033
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/19/list items/0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-path-kids-19-list-items-1",
+          "kind": "list-item",
+          "readingOrder": 12,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/19/list items/1",
+          "parentId": "odl-p2-id-74",
+          "text": "2https://github.com/skypilot-org/skypilot",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.19714542483660133,
+                0.8836073232323233,
+                0.5112467320261438,
+                0.8994545454545454
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  120.653,
+                  79.632,
+                  312.883,
+                  92.183
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/19/list items/1"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p2-path-kids-19-list-items-2",
+          "kind": "list-item",
+          "readingOrder": 13,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/19/list items/2",
+          "parentId": "odl-p2-id-74",
+          "text": "3https://huggingface.co/mistralai",
+          "sourceRegions": [
+            {
+              "pageNumber": 2,
+              "bbox": [
+                0.19714542483660133,
+                0.8973080808080808,
+                0.4489183006535948,
+                0.9131553030303031
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  120.653,
+                  68.781,
+                  274.738,
+                  81.332
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/19/list items/2"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pageNumber": 3,
+      "width": 612,
+      "height": 792,
+      "rotation": 0,
+      "cropBox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "blocks": [
+        {
+          "id": "odl-p3-id-76",
+          "kind": "image",
+          "readingOrder": 0,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/20",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17648366013071895,
+                0.09091035353535351,
+                0.8235114379084967,
+                0.16966792929292923
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108.008,
+                  657.623,
+                  503.989,
+                  719.999
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/20"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-77",
+          "kind": "list",
+          "readingOrder": 1,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17601633986928103,
+                0.17640909090909093,
+                0.8260882352941176,
+                0.5552878787878788
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.722,
+                  352.212,
+                  505.566,
+                  652.284
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-path-kids-21-list-items-0",
+          "kind": "list-item",
+          "readingOrder": 2,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0",
+          "parentId": "odl-p3-id-77",
+          "text": "Figure 2: Rolling buffer cache. The cache has a fixed size of W = 4. Keys and values for position i are stored in position i mod W of the cache. When the position i is larger than W, past values in the cache are overwritten. The hidden state corresponding to the latest generated tokens are colored in orange.",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17601633986928103,
+                0.17640909090909093,
+                0.8260882352941176,
+                0.21561868686868685
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.722,
+                  621.23,
+                  505.566,
+                  652.284
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-25",
+          "kind": "paragraph",
+          "readingOrder": 3,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/0",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "Pre-fill and Chunking. When generating a sequence, we need to predict tokens one-by-one, as each token is conditioned on the previous ones. However, the prompt is known in advance, and we can pre-fill the (k, v) cache with the prompt. If the prompt is very large, we can chunk it into smaller pieces, and pre-fill the cache with each chunk. For this purpose, we can select the window size as our chunk size. For each chunk, we thus need to compute the attention over the cache and over the chunk. Figure 3 shows how the attention mask works over both the cache and the chunk.",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17647058823529413,
+                0.24233712121212125,
+                0.823812091503268,
+                0.32681691919191924
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  533.161,
+                  504.173,
+                  600.069
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-27",
+          "kind": "paragraph",
+          "readingOrder": 4,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/1",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "go",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.28301307189542485,
+                0.421385101010101,
+                0.2982238562091503,
+                0.43319191919191924
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  173.204,
+                  448.912,
+                  182.513,
+                  458.263
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/1"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-28",
+          "kind": "paragraph",
+          "readingOrder": 5,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/2",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "dog",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.2792124183006536,
+                0.39496590909090906,
+                0.3020294117647059,
+                0.4067714646464647
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  170.878,
+                  469.837,
+                  184.842,
+                  479.187
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/2"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-30",
+          "kind": "paragraph",
+          "readingOrder": 6,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/3",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "0",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.32898366013071895,
+                0.3685454545454545,
+                0.3365866013071896,
+                0.3803522727272727
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  201.338,
+                  490.761,
+                  205.991,
+                  500.112
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/3"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-31",
+          "kind": "paragraph",
+          "readingOrder": 7,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/4",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "0 0",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.3631732026143791,
+                0.39496590909090906,
+                0.6784901960784313,
+                0.4067714646464647
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  222.262,
+                  469.837,
+                  415.236,
+                  479.187
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/4"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-32",
+          "kind": "paragraph",
+          "readingOrder": 8,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/5",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "1 0",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.6708856209150327,
+                0.421385101010101,
+                0.7126797385620915,
+                0.43319191919191924
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  410.582,
+                  448.912,
+                  436.16,
+                  458.263
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/5"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-33",
+          "kind": "paragraph",
+          "readingOrder": 9,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/6",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "0",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.3631732026143791,
+                0.3685454545454545,
+                0.37077777777777776,
+                0.3803522727272727
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  222.262,
+                  490.761,
+                  226.916,
+                  500.112
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/6"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-34",
+          "kind": "paragraph",
+          "readingOrder": 10,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/7",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "0",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.7050767973856209,
+                0.39496590909090906,
+                0.7126797385620915,
+                0.4067714646464647
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  431.507,
+                  469.837,
+                  436.16,
+                  479.187
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/7"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-35",
+          "kind": "paragraph",
+          "readingOrder": 11,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/8",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "the 0 0 0",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.2811176470588235,
+                0.3685454545454545,
+                0.4733480392156863,
+                0.3803522727272727
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  172.044,
+                  490.761,
+                  289.689,
+                  500.112
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/8"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-36",
+          "kind": "paragraph",
+          "readingOrder": 12,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/9",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "to",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.2849183006535948,
+                0.4478042929292929,
+                0.29632189542483656,
+                0.45961111111111114
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  174.37,
+                  427.988,
+                  181.349,
+                  437.339
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/9"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-37",
+          "kind": "paragraph",
+          "readingOrder": 13,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/10",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "The cat sat on the",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.32100490196078435,
+                0.3421262626262627,
+                0.4790506535947712,
+                0.35393181818181824
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  196.455,
+                  511.686,
+                  293.179,
+                  521.036
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/10"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-38",
+          "kind": "paragraph",
+          "readingOrder": 14,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/11",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "1",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.6708856209150327,
+                0.4478042929292929,
+                0.6784901960784313,
+                0.45961111111111114
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  410.582,
+                  427.988,
+                  415.236,
+                  437.339
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/11"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-39",
+          "kind": "paragraph",
+          "readingOrder": 15,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/12",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "mat and",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.4906307189542484,
+                0.3421262626262627,
+                0.5499084967320261,
+                0.35393181818181824
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  300.266,
+                  511.686,
+                  336.544,
+                  521.036
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/12"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-40",
+          "kind": "paragraph",
+          "readingOrder": 16,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/13",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "1 1 1",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.4999346405228758,
+                0.3685454545454545,
+                0.5759199346405229,
+                0.3803522727272727
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  305.96,
+                  490.761,
+                  352.463,
+                  500.112
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/13"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-41",
+          "kind": "paragraph",
+          "readingOrder": 17,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/14",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "saw the",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.5599640522875816,
+                0.3421262626262627,
+                0.615812091503268,
+                0.35393181818181824
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  342.698,
+                  511.686,
+                  376.877,
+                  521.036
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/14"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-42",
+          "kind": "paragraph",
+          "readingOrder": 18,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/15",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "1 0 0 0",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.6025049019607843,
+                0.3685454545454545,
+                0.7126797385620915,
+                0.3803522727272727
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  368.733,
+                  490.761,
+                  436.16,
+                  500.112
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/15"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-43",
+          "kind": "paragraph",
+          "readingOrder": 19,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/16",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "dog go to",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.6290915032679739,
+                0.3421262626262627,
+                0.7145833333333333,
+                0.35393181818181824
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  385.004,
+                  511.686,
+                  437.325,
+                  521.036
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/16"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-44",
+          "kind": "paragraph",
+          "readingOrder": 20,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/17",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "0 0 0 0 0 0 0 0 1 1 1",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.32898366013071895,
+                0.4478042929292929,
+                0.7126797385620915,
+                0.45961111111111114
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  201.338,
+                  427.988,
+                  436.16,
+                  437.339
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/17"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-45",
+          "kind": "paragraph",
+          "readingOrder": 21,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/18",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "0 0 0 0 0 0 0 1 1 1",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.32898366013071895,
+                0.421385101010101,
+                0.6442990196078431,
+                0.43319191919191924
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  201.338,
+                  448.912,
+                  394.311,
+                  458.263
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/18"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-46",
+          "kind": "paragraph",
+          "readingOrder": 22,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/19",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "0 0 0 0 0 1 1 1 1",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.32898366013071895,
+                0.39496590909090906,
+                0.6442990196078431,
+                0.4067714646464647
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  201.338,
+                  469.837,
+                  394.311,
+                  479.187
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/19"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-48",
+          "kind": "paragraph",
+          "readingOrder": 23,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/0/kids/20",
+          "parentId": "odl-p3-path-kids-21-list-items-0",
+          "text": "Past Cache Current",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.3715343137254902,
+                0.4713320707070707,
+                0.6804019607843137,
+                0.48018686868686866
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  227.379,
+                  411.692,
+                  416.406,
+                  418.705
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/0/kids/20"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-path-kids-21-list-items-1",
+          "kind": "list-item",
+          "readingOrder": 24,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/21/list items/1",
+          "parentId": "odl-p3-id-77",
+          "text": "Figure 3: Pre-fill and chunking. During pre-fill of the cache, long sequences are chunked to limit memory usage. We process a sequence in three chunks, “The cat sat on”, “the mat and saw”, “the dog go to”. The figure shows what happens for the third chunk (“the dog go to”): it attends itself using a causal mask (rightmost block), attends the cache using a sliding window (center block), and does not attend to past tokens as they are outside of the sliding window (left block).",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17647058823529413,
+                0.4909204545454546,
+                0.8253643790849673,
+                0.5552878787878788
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  352.212,
+                  505.123,
+                  403.191
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/21/list items/1"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-78",
+          "kind": "heading",
+          "readingOrder": 25,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/22",
+          "text": "3 Results",
+          "headingLevel": 3,
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17647058823529413,
+                0.592770202020202,
+                0.2665441176470588,
+                0.6124090909090909
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  306.972,
+                  163.125,
+                  322.526
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/22"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-79",
+          "kind": "paragraph",
+          "readingOrder": 26,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/23",
+          "text": "We compare Mistral 7B to Llama, and re-run all benchmarks with our own evaluation pipeline for fair comparison. We measure performance on a wide variety of tasks categorized as follow:",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17570588235294118,
+                0.6251363636363636,
+                0.823812091503268,
+                0.6540669191919192
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.532,
+                  273.979,
+                  504.173,
+                  296.892
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/23"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-80",
+          "kind": "list",
+          "readingOrder": 27,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/24",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17891176470588235,
+                0.6657878787878787,
+                0.8255637254901961,
+                0.8052979797979799
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  109.494,
+                  154.204,
+                  505.245,
+                  264.696
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/24"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-path-kids-24-list-items-0",
+          "kind": "list-item",
+          "readingOrder": 28,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/24/list items/0",
+          "parentId": "odl-p3-id-80",
+          "text": "• Commonsense Reasoning (0-shot): Hellaswag [28], Winogrande [21], PIQA [4], SIQA [22], OpenbookQA [19], ARC-Easy, ARC-Challenge [9], CommonsenseQA [24]",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17891176470588235,
+                0.6657878787878787,
+                0.8255637254901961,
+                0.6951717171717172
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  109.494,
+                  241.424,
+                  505.245,
+                  264.696
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/24/list items/0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-path-kids-24-list-items-1",
+          "kind": "list-item",
+          "readingOrder": 29,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/24/list items/1",
+          "parentId": "odl-p3-id-80",
+          "text": "• World Knowledge (5-shot): NaturalQuestions [16], TriviaQA [15]",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17891176470588235,
+                0.6988320707070708,
+                0.6322745098039215,
+                0.7151969696969698
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  109.494,
+                  225.564,
+                  386.952,
+                  238.525
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/24/list items/1"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-path-kids-24-list-items-2",
+          "kind": "list-item",
+          "readingOrder": 30,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/24/list items/2",
+          "parentId": "odl-p3-id-80",
+          "text": "• Reading Comprehension (0-shot): BoolQ [8], QuAC [7]",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17891176470588235,
+                0.7181022727272727,
+                0.572140522875817,
+                0.7344671717171717
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  109.494,
+                  210.302,
+                  350.15,
+                  223.263
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/24/list items/2"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-path-kids-24-list-items-3",
+          "kind": "list-item",
+          "readingOrder": 31,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/24/list items/3",
+          "parentId": "odl-p3-id-80",
+          "text": "• Math: GSM8K [10] (8-shot) with maj@8 and MATH [13] (4-shot) with maj@4",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17891176470588235,
+                0.7373737373737373,
+                0.7169901960784314,
+                0.7537386363636364
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  109.494,
+                  195.039,
+                  438.798,
+                  208
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/24/list items/3"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-path-kids-24-list-items-4",
+          "kind": "list-item",
+          "readingOrder": 32,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/24/list items/4",
+          "parentId": "odl-p3-id-80",
+          "text": "• Code: Humaneval [5] (0-shot) and MBPP [2] (3-shot)",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17891176470588235,
+                0.7566439393939394,
+                0.5460147058823529,
+                0.7730088383838384
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  109.494,
+                  179.777,
+                  334.161,
+                  192.738
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/24/list items/4"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-path-kids-24-list-items-5",
+          "kind": "list-item",
+          "readingOrder": 33,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/24/list items/5",
+          "parentId": "odl-p3-id-80",
+          "text": "• Popular aggregated results: MMLU [12] (5-shot), BBH [23] (3-shot), and AGI Eval [29] (3-5-shot, English multiple-choice questions only)",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17891176470588235,
+                0.7759141414141414,
+                0.8235294117647058,
+                0.8052979797979799
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  109.494,
+                  154.204,
+                  504,
+                  177.476
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/24/list items/5"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-81",
+          "kind": "paragraph",
+          "readingOrder": 34,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/25",
+          "text": "Detailed results for Mistral 7B, Llama 2 7B/13B, and Code-Llama 7B are reported in Table 2. Figure 4 compares the performance of Mistral 7B with Llama 2 7B/13B, and Llama 1 34B4 in different categories. Mistral 7B surpasses Llama 2 13B across all metrics, and outperforms Llama 1 34B on most benchmarks. In particular, Mistral 7B displays a superior performance in code, mathematics, and reasoning benchmarks.",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.17647058823529413,
+                0.8174722222222222,
+                0.8255686274509804,
+                0.8877247474747474
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  88.922,
+                  505.248,
+                  144.562
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/25"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p3-id-83",
+          "kind": "paragraph",
+          "readingOrder": 35,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/26",
+          "text": "4Since Llama 2 34B was not open-sourced, we report results for Llama 1 34B.",
+          "sourceRegions": [
+            {
+              "pageNumber": 3,
+              "bbox": [
+                0.19714542483660133,
+                0.8973080808080808,
+                0.6563937908496732,
+                0.9122727272727272
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  120.653,
+                  69.48,
+                  401.713,
+                  81.332
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/26"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pageNumber": 4,
+      "width": 612,
+      "height": 792,
+      "rotation": 0,
+      "cropBox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "blocks": [
+        {
+          "id": "odl-p4-id-85",
+          "kind": "image",
+          "readingOrder": 0,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/27",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17976797385620916,
+                0.09091287878787885,
+                0.820218954248366,
+                0.25192297979797984
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  110.018,
+                  592.477,
+                  501.974,
+                  719.997
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/27"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-86",
+          "kind": "list",
+          "readingOrder": 1,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/28",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17647058823529413,
+                0.2586654040404041,
+                0.8246290849673202,
+                0.31045328282828283
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  546.121,
+                  504.673,
+                  587.137
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/28"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-path-kids-28-list-items-0",
+          "kind": "list-item",
+          "readingOrder": 2,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/28/list items/0",
+          "parentId": "odl-p4-id-86",
+          "text": "Figure 4: Performance of Mistral 7B and different Llama models on a wide range of benchmarks. All models were re-evaluated on all metrics with our evaluation pipeline for accurate comparison. Mistral 7B significantly outperforms Llama 2 7B and Llama 2 13B on all benchmarks. It is also vastly superior to Llama 1 34B in mathematics, code generation, and reasoning benchmarks.",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17647058823529413,
+                0.2586654040404041,
+                0.8246290849673202,
+                0.31045328282828283
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  546.121,
+                  504.673,
+                  587.137
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/28/list items/0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-88",
+          "kind": "paragraph",
+          "readingOrder": 3,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/29",
+          "text": "Model Modality MMLU HellaSwag WinoG PIQA Arc-e Arc-c NQ TriviaQA HumanEval MBPP MATH GSM8K",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17647058823529413,
+                0.33467550505050503,
+                0.8163856209150326,
+                0.34528661616161616
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  518.533,
+                  499.628,
+                  526.937
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/29"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-90",
+          "kind": "paragraph",
+          "readingOrder": 4,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/30",
+          "text": "LLaMA 2 7B Pretrained 44.4% 77.1% 69.5% 77.9% 68.7% 43.2% 24.7% 63.8% 11.6% 26.1% 3.9% 16.0% LLaMA 2 13B Pretrained 55.6% 80.7% 72.9% 80.8% 75.2% 48.8% 29.0% 69.6% 18.9% 35.4% 6.0% 34.3%",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17647058823529413,
+                0.35131060606060616,
+                0.8117924836601307,
+                0.3725126262626262
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  496.97,
+                  496.817,
+                  513.762
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/30"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-92",
+          "kind": "paragraph",
+          "readingOrder": 5,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/31",
+          "text": "Code-Llama 7B Finetuned 36.9% 62.9% 62.3% 72.8% 59.4% 34.5% 11.0% 34.9% 31.1% 52.5% 5.2% 20.8% Mistral 7B Pretrained 60.1% 81.3% 75.3% 83.0% 80.0% 55.5% 28.8% 69.9% 30.5% 47.5% 13.1% 52.2%",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17647058823529413,
+                0.3776931818181818,
+                0.8127385620915033,
+                0.4057840909090909
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  470.619,
+                  497.396,
+                  492.867
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/31"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-95",
+          "kind": "paragraph",
+          "readingOrder": 6,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/32",
+          "text": "Table 2: Comparison of Mistral 7B with Llama. Mistral 7B outperforms Llama 2 13B on all metrics, and approaches the code performance of Code-Llama 7B without sacrificing performance on non-code benchmarks.",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17598692810457514,
+                0.41204040404040404,
+                0.8235359477124183,
+                0.4386691919191919
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.704,
+                  444.574,
+                  504.004,
+                  465.664
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/32"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-96",
+          "kind": "paragraph",
+          "readingOrder": 7,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/33",
+          "text": "Size and Efficiency. We computed “equivalent model sizes” of the Llama 2 family, aiming to understand Mistral 7B models’ efficiency in the cost-performance spectrum (see Figure 5). When evaluated on reasoning, comprehension, and STEM reasoning (specifically MMLU), Mistral 7B mirrored performance that one might expect from a Llama 2 model with more than 3x its size. On the Knowledge benchmarks, Mistral 7B’s performance achieves a lower compression rate of 1.9x, which is likely due to its limited parameter count that restricts the amount of knowledge it can store.",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17588398692810459,
+                0.4786704545454546,
+                0.8263790849673203,
+                0.5631502525252525
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.641,
+                  345.985,
+                  505.744,
+                  412.893
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/33"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-97",
+          "kind": "paragraph",
+          "readingOrder": 8,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/34",
+          "text": "Evaluation Differences. On some benchmarks, there are some differences between our evaluation protocol and the one reported in the Llama 2 paper: 1) on MBPP, we use the hand-verified subset 2) on TriviaQA, we do not provide Wikipedia contexts.",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17647058823529413,
+                0.5682335858585859,
+                0.8246127450980393,
+                0.6113914141414141
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  307.778,
+                  504.663,
+                  341.959
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/34"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-98",
+          "kind": "heading",
+          "readingOrder": 9,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/35",
+          "text": "4 Instruction Finetuning",
+          "headingLevel": 3,
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17647058823529413,
+                0.6347765151515151,
+                0.3951797385620915,
+                0.6544154040404041
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  273.703,
+                  241.85,
+                  289.257
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/35"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-108",
+          "kind": "paragraph",
+          "readingOrder": 10,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/36",
+          "text": "To evaluate the generalization capabilities of Mistral 7B, we fine-tuned it on instruction datasets publicly available on the Hugging Face repository. No proprietary data or training tricks were utilized: Mistral 7B – Instruct model is a simple and preliminary demonstration that the base model can easily be fine-tuned to achieve good performance. In Table 3, we observe that the resulting model, Mistral 7B – Instruct, exhibits superior performance compared to all 7B models on MT-Bench, and is comparable to 13B – Chat models. An independent human evaluation was conducted on https://llmboxing.com/leaderboard.",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17647058823529413,
+                0.6701641414141414,
+                0.4995114379084968,
+                0.8516047979797979
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  117.529,
+                  305.701,
+                  261.23
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/36"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-101",
+          "kind": "paragraph",
+          "readingOrder": 11,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/37",
+          "text": "Chatbot Arena ELO Rating",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.642531045751634,
+                0.6752260101010101,
+                0.7362679738562091,
+                0.7025353535353536
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  393.229,
+                  235.592,
+                  450.596,
+                  257.221
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/37"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-100",
+          "kind": "paragraph",
+          "readingOrder": 12,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/38",
+          "text": "Model",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.514125816993464,
+                0.6818308080808081,
+                0.5540065359477124,
+                0.696560606060606
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  314.645,
+                  240.324,
+                  339.052,
+                  251.99
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/38"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-102",
+          "kind": "paragraph",
+          "readingOrder": 13,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/39",
+          "text": "MT Bench",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.742779411764706,
+                0.6818308080808081,
+                0.8091192810457516,
+                0.696560606060606
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  454.581,
+                  240.324,
+                  495.181,
+                  251.99
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/39"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-104",
+          "kind": "paragraph",
+          "readingOrder": 14,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/40",
+          "text": "WizardLM 13B v1.2 1047 7.2 Mistral 7B Instruct 1031 6.84 +/- 0.07",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.514125816993464,
+                0.707364898989899,
+                0.8186911764705882,
+                0.7342664141414141
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  314.645,
+                  210.461,
+                  501.039,
+                  231.767
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/40"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-105",
+          "kind": "paragraph",
+          "readingOrder": 15,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/41",
+          "text": "Llama 2 13B Chat 1012 6.65 Vicuna 13B 1041 6.57 Llama 2 7B Chat 985 6.27 Vicuna 7B 997 6.17 Alpaca 13B 914 4.53",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.514125816993464,
+                0.7325227272727273,
+                0.768423202614379,
+                0.7964823232323232
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  314.645,
+                  161.186,
+                  470.275,
+                  211.842
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/41"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-107",
+          "kind": "paragraph",
+          "readingOrder": 16,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/42",
+          "text": "Table 3: Comparison of Chat models. Mistral 7B – Instruct outperforms all 7B models on MT-Bench, and is comparable to 13B – Chat models.",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.5124607843137254,
+                0.8033131313131312,
+                0.8257320261437908,
+                0.8425214646464647
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  313.626,
+                  124.723,
+                  505.348,
+                  155.776
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/42"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p4-id-109",
+          "kind": "paragraph",
+          "readingOrder": 17,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/43",
+          "text": "In this evaluation, participants were provided with a set of questions along with anonymous responses from two models and were asked to select their preferred response, as illustrated in Figure 6. As of October 6, 2023, the outputs generated by Mistral 7B were preferred 5020 times, compared to 4143 times for Llama 2 13B.",
+          "sourceRegions": [
+            {
+              "pageNumber": 4,
+              "bbox": [
+                0.17647058823529413,
+                0.8561464646464646,
+                0.8235310457516339,
+                0.912625
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  69.201,
+                  504.001,
+                  113.932
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/43"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pageNumber": 5,
+      "width": 612,
+      "height": 792,
+      "rotation": 0,
+      "cropBox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "blocks": [
+        {
+          "id": "odl-p5-id-111",
+          "kind": "image",
+          "readingOrder": 0,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/44",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.2735816993464052,
+                0.09089141414141413,
+                0.7264509803921569,
+                0.33317424242424243
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  167.432,
+                  528.126,
+                  444.588,
+                  720.014
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/44"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-112",
+          "kind": "list",
+          "readingOrder": 1,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/45",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.17647058823529413,
+                0.339915404040404,
+                0.823859477124183,
+                0.3917032828282828
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  481.771,
+                  504.202,
+                  522.787
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/45"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-path-kids-45-list-items-0",
+          "kind": "list-item",
+          "readingOrder": 2,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/45/list items/0",
+          "parentId": "odl-p5-id-112",
+          "text": "Figure 5: Results on MMLU, commonsense reasoning, world knowledge and reading comprehension for Mistral 7B and Llama 2 (7B/13B/70B). Mistral 7B largely outperforms Llama 2 13B on all evaluations, except on knowledge benchmarks, where it is on par (this is likely due to its limited parameter count, which limits the amount of knowledge it can compress).",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.17647058823529413,
+                0.339915404040404,
+                0.823859477124183,
+                0.3917032828282828
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  481.771,
+                  504.202,
+                  522.787
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/45/list items/0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-113",
+          "kind": "heading",
+          "readingOrder": 3,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/46",
+          "text": "5 Adding guardrails for front-facing applications",
+          "headingLevel": 3,
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.17647058823529413,
+                0.4200252525252526,
+                0.5989068627450981,
+                0.4396641414141414
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  443.786,
+                  366.531,
+                  459.34
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/46"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-114",
+          "kind": "paragraph",
+          "readingOrder": 4,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/47",
+          "text": "The ability to enforce guardrails when it comes to AI generation is important for front-facing applications. In this section, we highlight how to leverage system prompting to optionally enforce output constraints on top of our models. Additionally, we showcase the ability of Mistral 7B to perform fine-grained content moderation, which can be useful to enforce quality content in applications.",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.1759656862745098,
+                0.45510353535353537,
+                0.8262222222222223,
+                0.5115820707070707
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.691,
+                  386.827,
+                  505.648,
+                  431.558
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/47"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-115",
+          "kind": "heading",
+          "readingOrder": 5,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/48",
+          "text": "5.1 System prompt to enforce guardrails",
+          "headingLevel": 4,
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.17647058823529413,
+                0.5318977272727272,
+                0.46800653594771247,
+                0.5482626262626262
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  357.776,
+                  286.42,
+                  370.737
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/48"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-116",
+          "kind": "paragraph",
+          "readingOrder": 6,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/49",
+          "text": "We introduce a system prompt (see below) to guide the model to generate answers within specified guardrails, similar to the work done with Llama 2. Using this prompt allows the user to move on the Pareto front of model utility / guardrails enforcement, as indicated in Table 4.",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.17570588235294118,
+                0.5595896464646465,
+                0.8235326797385621,
+                0.6022954545454545
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.532,
+                  314.982,
+                  504.002,
+                  348.805
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/49"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-117",
+          "kind": "text-block",
+          "readingOrder": 7,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/50",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.17647058823529413,
+                0.6096603535353535,
+                0.82165522875817,
+                0.643239898989899
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  282.554,
+                  502.853,
+                  309.149
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/50"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-1",
+          "kind": "paragraph",
+          "readingOrder": 8,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/50/kids/0",
+          "parentId": "odl-p5-id-117",
+          "text": "Always assist with care, respect, and truth. Respond with utmost utility yet securely. Avoid harmful, unethical, prejudiced, or negative content. Ensure replies promote fairness and positivity.",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.18141993464052286,
+                0.6108434343434344,
+                0.8181601307189542,
+                0.6397739898989899
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  111.029,
+                  285.299,
+                  500.714,
+                  308.212
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/50/kids/0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-122",
+          "kind": "paragraph",
+          "readingOrder": 9,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/51",
+          "text": "We use a set of 175 unsafe prompts for evaluating safety. With the recommended system prompt, the model properly declines to answer 100% of the harmful questions.",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.17570588235294118,
+                0.6483219696969696,
+                0.5642156862745098,
+                0.6910277777777778
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.532,
+                  244.706,
+                  345.3,
+                  278.529
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/51"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-118",
+          "kind": "paragraph",
+          "readingOrder": 10,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/52",
+          "text": "Guardrails MT Bench No system prompt 6.84 ± 0.07 Llama 2 system prompt 6.38 ± 0.07 Mistral system prompt 6.58 ± 0.05",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.5844444444444444,
+                0.6571578282828283,
+                0.8130653594771242,
+                0.7231830808080808
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  357.68,
+                  219.239,
+                  497.596,
+                  271.531
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/52"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-123",
+          "kind": "paragraph",
+          "readingOrder": 11,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/53",
+          "text": "As an illustration, we provide in Table 5 the answers of both Mistral 7B – Instruct and Llama 2 Chat 13B to the question How to kill a linux process with system prompts activated. We observe that Mistral 7B provides a correct response while Llama 2 declines to answer. Note that on this specific question, both models answer correctly when system prompts are deactivated.",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.17588398692810459,
+                0.6965631313131313,
+                0.5613709150326798,
+                0.7943648989898989
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.641,
+                  162.863,
+                  343.559,
+                  240.322
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/53"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-121",
+          "kind": "paragraph",
+          "readingOrder": 12,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/54",
+          "text": "Table 4: System prompts. Mean official MT Bench score over 10 iterations with standard deviation for Mistral 7B – Instruct. For reference, Llama 2 13B – Chat reports official results of 6.65.",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.5771601307189542,
+                0.7210909090909091,
+                0.826093137254902,
+                0.7854583333333333
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  353.222,
+                  169.917,
+                  505.569,
+                  220.896
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/54"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-124",
+          "kind": "heading",
+          "readingOrder": 13,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/55",
+          "text": "5.2 Content moderation with self-reflection",
+          "headingLevel": 4,
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.17647058823529413,
+                0.8146805555555555,
+                0.48633660130718953,
+                0.8310454545454545
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  133.812,
+                  297.638,
+                  146.773
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/55"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p5-id-125",
+          "kind": "paragraph",
+          "readingOrder": 14,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/56",
+          "text": "Mistral 7B – Instruct can be used as a content moderator: the model itself is able to accurately classify a user prompt or its generated answer as being either acceptable or falling into one of the following categories: Illegal activities such as terrorism, child abuse or fraud; Hateful, harassing or violent content such as discrimination, self-harm or bullying; Unqualified advice for instance in legal, medical or financial domains.",
+          "sourceRegions": [
+            {
+              "pageNumber": 5,
+              "bbox": [
+                0.17647058823529413,
+                0.8423724747474748,
+                0.8240898692810458,
+                0.912625
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  69.201,
+                  504.343,
+                  124.841
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/56"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pageNumber": 6,
+      "width": 612,
+      "height": 792,
+      "rotation": 0,
+      "cropBox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "blocks": [
+        {
+          "id": "odl-p6-id-128",
+          "kind": "heading",
+          "readingOrder": 0,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/57",
+          "text": "Model Answer",
+          "headingLevel": 6,
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.18319444444444444,
+                0.0941856060606061,
+                0.4394820261437909,
+                0.10564141414141415
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.115,
+                  708.332,
+                  268.963,
+                  717.405
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/57"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p6-id-131",
+          "kind": "paragraph",
+          "readingOrder": 1,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/58",
+          "text": "To kill a Linux process, you can use the `kill`command followed by the process ID (PID) of the process you want to terminate. For example, to kill process with PID 1234, you would run the command `kill 1234`. It’s important to note that killing a process can have unintended consequences, so it’s generally a good idea to only kill processes that you are certain you want to terminate. Additionally, it’s generally a good idea to use the `kill`command with caution, as it can be used to terminate critical system processes that are necessary for the operation of the system.",
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.4021437908496732,
+                0.11098106060606067,
+                0.8139575163398692,
+                0.18212878787878786
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  246.112,
+                  647.754,
+                  498.142,
+                  704.103
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/58"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p6-id-130",
+          "kind": "paragraph",
+          "readingOrder": 2,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/59",
+          "text": "Mistral 7B – Instruct with Mistral system prompt",
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.18319444444444444,
+                0.13629671717171718,
+                0.3094983660130719,
+                0.15697095959595964
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.115,
+                  667.679,
+                  189.413,
+                  684.053
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/59"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p6-id-134",
+          "kind": "paragraph",
+          "readingOrder": 3,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/60",
+          "text": "As a helpful and respectful assistant, I cannot provide information on how to kill a Linux process. It is not appropriate or ethical to intentionally harm or terminate processes, as it can cause damage to the system and potentially result in data loss. Additionally, it is important to respect the autonomy and security of other users’ processes, as they may be critical to their work or personal activities. Instead, I suggest that you explore other options to address any issues or concerns you may have.",
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.4021437908496732,
+                0.18815404040404043,
+                0.8074330065359477,
+                0.24908080808080815
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  246.112,
+                  594.728,
+                  494.149,
+                  642.982
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/60"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p6-id-133",
+          "kind": "paragraph",
+          "readingOrder": 4,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/61",
+          "text": "Llama 2 13B – Chat with Llama 2 system prompt",
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.18319444444444444,
+                0.20828030303030298,
+                0.31423856209150325,
+                0.22895454545454544
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.115,
+                  610.668,
+                  192.314,
+                  627.042
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/61"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p6-id-136",
+          "kind": "paragraph",
+          "readingOrder": 5,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/62",
+          "text": "Table 5: Comparison between Mistral and Llama system prompts. Mistral provides the right answer whereas Llama 2 declines to answer to the question How to kill a linux process.",
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.17598692810457514,
+                0.2583800505050504,
+                0.8235261437908497,
+                0.28501010101010094
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.704,
+                  566.272,
+                  503.998,
+                  587.363
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/62"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p6-id-137",
+          "kind": "paragraph",
+          "readingOrder": 6,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/63",
+          "text": "To do so, we designed a self-reflection prompt that makes Mistral 7B classify a prompt or a generated answer. We evaluated self-reflection on our manually curated and balanced dataset of adversarial and standard prompts and got a precision of 99.4% for a recall of 95.6% (considering acceptable prompts as positives).",
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.1759656862745098,
+                0.326645202020202,
+                0.8235245098039216,
+                0.3831237373737374
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.691,
+                  488.566,
+                  503.997,
+                  533.297
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/63"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p6-id-138",
+          "kind": "paragraph",
+          "readingOrder": 7,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/64",
+          "text": "The use cases are vast, from moderating comments on social media or forums to brand monitoring on the internet. In particular, the end user is able to select afterwards which categories to effectively filter based on their particular use-case.",
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.1759656862745098,
+                0.3886590909090909,
+                0.824093137254902,
+                0.431364898989899
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.691,
+                  450.359,
+                  504.345,
+                  484.182
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/64"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p6-id-139",
+          "kind": "heading",
+          "readingOrder": 8,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/65",
+          "text": "6 Conclusion",
+          "headingLevel": 3,
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.17647058823529413,
+                0.45607828282828283,
+                0.29912908496732027,
+                0.4757171717171717
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  415.232,
+                  183.067,
+                  430.786
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/65"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p6-id-140",
+          "kind": "paragraph",
+          "readingOrder": 9,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/66",
+          "text": "Our work on Mistral 7B demonstrates that language models may compress knowledge more than what was previously thought. This opens up interesting perspectives: the field has so far put the emphasis on scaling laws in 2 dimensions (directly associating model capabilities to training cost, as in [14]); the problem is rather 3 dimensional (model capabilities, training cost, inference cost), and much remains to be explored to obtain the best performance with the smallest possible model.",
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.17588398692810459,
+                0.4922626262626263,
+                0.8235359477124183,
+                0.5625164141414141
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.641,
+                  346.487,
+                  504.004,
+                  402.128
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/66"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p6-id-141",
+          "kind": "heading",
+          "readingOrder": 10,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/67",
+          "text": "Acknowledgements",
+          "headingLevel": 3,
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.17647058823529413,
+                0.5872285353535354,
+                0.3379640522875817,
+                0.6068674242424242
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  311.361,
+                  206.834,
+                  326.915
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/67"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p6-id-142",
+          "kind": "paragraph",
+          "readingOrder": 11,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/68",
+          "text": "We are grateful to CoreWeave for their 24/7 help in marshalling our cluster. We thank the CINECA/EuroHPC team, and in particular the operators of Leonardo, for their resources and help. We thank the maintainers of FlashAttention, vLLM, xFormers, Skypilot for their precious assistance in implementing new features and integrating their solutions into ours. A huge thanks to Tri Dao and Daniel Haziza for helping include Mistral related changes to FlashAttention and xFormers on a tight schedule. We thank the teams of Hugging Face, AWS, GCP, Azure ML for their intense help in making our model compatible everywhere.",
+          "sourceRegions": [
+            {
+              "pageNumber": 6,
+              "bbox": [
+                0.17570588235294118,
+                0.6234141414141414,
+                0.8263725490196079,
+                0.721215909090909
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  107.532,
+                  220.797,
+                  505.74,
+                  298.256
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/68"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pageNumber": 7,
+      "width": 612,
+      "height": 792,
+      "rotation": 0,
+      "cropBox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "blocks": [
+        {
+          "id": "odl-p7-id-144",
+          "kind": "image",
+          "readingOrder": 0,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/69",
+          "sourceRegions": [
+            {
+              "pageNumber": 7,
+              "bbox": [
+                0.17647058823529413,
+                0.09090025252525259,
+                0.8235277777777779,
+                0.8614305555555556
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  109.747,
+                  503.999,
+                  720.007
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/69"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p7-id-145",
+          "kind": "list",
+          "readingOrder": 1,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/70",
+          "sourceRegions": [
+            {
+              "pageNumber": 7,
+              "bbox": [
+                0.17647058823529413,
+                0.8693686868686868,
+                0.8260882352941176,
+                0.921155303030303
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  62.445,
+                  505.566,
+                  103.46
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/70"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p7-path-kids-70-list-items-0",
+          "kind": "list-item",
+          "readingOrder": 2,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/70/list items/0",
+          "parentId": "odl-p7-id-145",
+          "text": "Figure 6: Human evaluation of Mistral 7B – Instruct vs Llama 2 13B – Chat Example. An example of human evaluation from llmboxing.com. The question asks for recommendations of books in quantum physics. Llama 2 13B – Chat recommends a general physics book, while Mistral 7B – Instruct recommends a more relevant book on quantum physics and describes in the contents in more detail.",
+          "sourceRegions": [
+            {
+              "pageNumber": 7,
+              "bbox": [
+                0.17647058823529413,
+                0.8693686868686868,
+                0.8260882352941176,
+                0.921155303030303
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  62.445,
+                  505.566,
+                  103.46
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/70/list items/0"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pageNumber": 8,
+      "width": 612,
+      "height": 792,
+      "rotation": 0,
+      "cropBox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "blocks": [
+        {
+          "id": "odl-p8-id-147",
+          "kind": "heading",
+          "readingOrder": 0,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/71",
+          "text": "References",
+          "headingLevel": 3,
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.17647058823529413,
+                0.08899747474747473,
+                0.26722875816993463,
+                0.10863636363636359
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  705.96,
+                  163.544,
+                  721.514
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/71"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-id-148",
+          "kind": "list",
+          "readingOrder": 1,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.17647058823529413,
+                0.1155492424242424,
+                0.8263774509803922,
+                0.912625
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  69.201,
+                  505.743,
+                  700.485
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-0",
+          "kind": "list-item",
+          "readingOrder": 2,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/0",
+          "parentId": "odl-p8-id-148",
+          "text": "[1] Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón, and Sumit Sanghai. Gqa: Training generalized multi-query transformer models from multi-head checkpoints. arXiv preprint arXiv:2305.13245, 2023.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.184609477124183,
+                0.1155492424242424,
+                0.8235343137254901,
+                0.15825378787878785
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.981,
+                  666.663,
+                  504.003,
+                  700.485
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-1",
+          "kind": "list-item",
+          "readingOrder": 3,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/1",
+          "parentId": "odl-p8-id-148",
+          "text": "[2] Jacob Austin, Augustus Odena, Maxwell Nye, Maarten Bosma, Henryk Michalewski, David Dohan, Ellen Jiang, Carrie Cai, Michael Terry, Quoc Le, et al. Program synthesis with large language models. arXiv preprint arXiv:2108.07732, 2021.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.184609477124183,
+                0.16400378787878783,
+                0.8235343137254901,
+                0.2067083333333333
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.981,
+                  628.287,
+                  504.003,
+                  662.109
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/1"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-2",
+          "kind": "list-item",
+          "readingOrder": 4,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/2",
+          "parentId": "odl-p8-id-148",
+          "text": "[3] Iz Beltagy, Matthew E Peters, and Arman Cohan. Longformer: The long-document transformer. arXiv preprint arXiv:2004.05150, 2020.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.184609477124183,
+                0.2124583333333334,
+                0.826374183006536,
+                0.24138888888888882
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.981,
+                  600.82,
+                  505.741,
+                  623.733
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/2"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-3",
+          "kind": "list-item",
+          "readingOrder": 5,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/3",
+          "parentId": "odl-p8-id-148",
+          "text": "[4] Yonatan Bisk, Rowan Zellers, Jianfeng Gao, Yejin Choi, et al. Piqa: Reasoning about physical commonsense in natural language. In Proceedings of the AAAI conference on artificial intelligence, 2020.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.184609477124183,
+                0.24713888888888894,
+                0.8262238562091503,
+                0.289844696969697
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.981,
+                  562.443,
+                  505.649,
+                  596.266
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/3"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-4",
+          "kind": "list-item",
+          "readingOrder": 6,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/4",
+          "parentId": "odl-p8-id-148",
+          "text": "[5] Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde de Oliveira Pinto, Jared Kaplan, Harri Edwards, Yuri Burda, Nicholas Joseph, Greg Brockman, et al. Evaluating large language models trained on code. arXiv preprint arXiv:2107.03374, 2021.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.184609477124183,
+                0.295594696969697,
+                0.8235343137254901,
+                0.3382992424242424
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.981,
+                  524.067,
+                  504.003,
+                  557.889
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/4"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-5",
+          "kind": "list-item",
+          "readingOrder": 7,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/5",
+          "parentId": "odl-p8-id-148",
+          "text": "[6] Rewon Child, Scott Gray, Alec Radford, and Ilya Sutskever. Generating long sequences with sparse transformers. arXiv preprint arXiv:1904.10509, 2019.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.184609477124183,
+                0.3440492424242424,
+                0.8235294117647058,
+                0.37297979797979797
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.981,
+                  496.6,
+                  504,
+                  519.513
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/5"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-6",
+          "kind": "list-item",
+          "readingOrder": 8,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/6",
+          "parentId": "odl-p8-id-148",
+          "text": "[7] Eunsol Choi, He He, Mohit Iyyer, Mark Yatskar, Wen-tau Yih, Yejin Choi, Percy Liang, and Luke Zettlemoyer. Quac: Question answering in context. arXiv preprint arXiv:1808.07036, 2018.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.184609477124183,
+                0.378729797979798,
+                0.8255637254901961,
+                0.42143434343434344
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.981,
+                  458.224,
+                  505.245,
+                  492.046
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/6"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-7",
+          "kind": "list-item",
+          "readingOrder": 9,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/7",
+          "parentId": "odl-p8-id-148",
+          "text": "[8] Christopher Clark, Kenton Lee, Ming-Wei Chang, Tom Kwiatkowski, Michael Collins, and Kristina Toutanova. Boolq: Exploring the surprising difficulty of natural yes/no questions. arXiv preprint arXiv:1905.10044, 2019.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.184609477124183,
+                0.4271843434343434,
+                0.8263725490196079,
+                0.46989015151515157
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.981,
+                  419.847,
+                  505.74,
+                  453.67
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/7"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-8",
+          "kind": "list-item",
+          "readingOrder": 10,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/8",
+          "parentId": "odl-p8-id-148",
+          "text": "[9] Peter Clark, Isaac Cowhey, Oren Etzioni, Tushar Khot, Ashish Sabharwal, Carissa Schoenick, and Oyvind Tafjord. Think you have solved question answering? try arc, the ai2 reasoning challenge. arXiv preprint arXiv:1803.05457, 2018.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.184609477124183,
+                0.4756401515151515,
+                0.8255637254901961,
+                0.518344696969697
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  112.981,
+                  381.471,
+                  505.245,
+                  415.293
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/8"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-9",
+          "kind": "list-item",
+          "readingOrder": 11,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/9",
+          "parentId": "odl-p8-id-148",
+          "text": "[10] Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton, Reiichiro Nakano, et al. Training verifiers to solve math word problems. arXiv preprint arXiv:2110.14168, 2021.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.17647058823529413,
+                0.524094696969697,
+                0.8255571895424836,
+                0.5667992424242424
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  343.095,
+                  505.241,
+                  376.917
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/9"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-10",
+          "kind": "list-item",
+          "readingOrder": 12,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/10",
+          "parentId": "odl-p8-id-148",
+          "text": "[11] Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, and Christopher Ré. FlashAttention: Fast and memory-efficient exact attention with IO-awareness. In Advances in Neural Information Processing Systems, 2022.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.17647058823529413,
+                0.5725492424242424,
+                0.8235375816993464,
+                0.6152537878787879
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  304.719,
+                  504.005,
+                  338.541
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/10"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-11",
+          "kind": "list-item",
+          "readingOrder": 13,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/11",
+          "parentId": "odl-p8-id-148",
+          "text": "[12] Dan Hendrycks, Collin Burns, Steven Basart, Andy Zou, Mantas Mazeika, Dawn Song, and Jacob Steinhardt. Measuring massive multitask language understanding. arXiv preprint arXiv:2009.03300, 2020.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.17647058823529413,
+                0.6210037878787878,
+                0.8235343137254901,
+                0.663709595959596
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  266.342,
+                  504.003,
+                  300.165
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/11"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-12",
+          "kind": "list-item",
+          "readingOrder": 14,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/12",
+          "parentId": "odl-p8-id-148",
+          "text": "[13] Dan Hendrycks, Collin Burns, Saurav Kadavath, Akul Arora, Steven Basart, Eric Tang, Dawn Song, and Jacob Steinhardt. Measuring mathematical problem solving with the math dataset. arXiv preprint arXiv:2103.03874, 2021.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.17647058823529413,
+                0.6694595959595959,
+                0.8263774509803922,
+                0.7121641414141414
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  227.966,
+                  505.743,
+                  261.788
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/12"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-13",
+          "kind": "list-item",
+          "readingOrder": 15,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/13",
+          "parentId": "odl-p8-id-148",
+          "text": "[14] Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford, Diego de Las Casas, Lisa Anne Hendricks, Johannes Welbl, Aidan Clark, Thomas Hennigan, Eric Noland, Katherine Millican, George van den Driessche, Bogdan Damoc, Aurelia Guy, Simon Osindero, Karén Simonyan, Erich Elsen, Oriol Vinyals, Jack Rae, and Laurent Sifre. An empirical analysis of compute-optimal large language model training. In Advances in Neural Information Processing Systems, volume 35, 2022.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.17647058823529413,
+                0.7179141414141413,
+                0.8235359477124183,
+                0.8019406565656565
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  156.863,
+                  504.004,
+                  223.412
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/13"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-14",
+          "kind": "list-item",
+          "readingOrder": 16,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/14",
+          "parentId": "odl-p8-id-148",
+          "text": "[15] Mandar Joshi, Eunsol Choi, Daniel S Weld, and Luke Zettlemoyer. Triviaqa: A large scale distantly supervised challenge dataset for reading comprehension. arXiv preprint arXiv:1705.03551, 2017.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.17647058823529413,
+                0.8076906565656566,
+                0.8235343137254901,
+                0.8503964646464647
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  118.486,
+                  504.003,
+                  152.309
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/14"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p8-path-kids-72-list-items-15",
+          "kind": "list-item",
+          "readingOrder": 17,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/72/list items/15",
+          "parentId": "odl-p8-id-148",
+          "text": "[16] Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Jacob Devlin, Kenton Lee, et al. Natural questions: a benchmark for question answering research. Transactions of the Association for Computational Linguistics, 7:453–466, 2019.",
+          "sourceRegions": [
+            {
+              "pageNumber": 8,
+              "bbox": [
+                0.17647058823529413,
+                0.8561464646464646,
+                0.8235375816993464,
+                0.912625
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  69.201,
+                  504.005,
+                  113.932
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/72/list items/15"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pageNumber": 9,
+      "width": 612,
+      "height": 792,
+      "rotation": 0,
+      "cropBox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "blocks": [
+        {
+          "id": "odl-p9-id-150",
+          "kind": "list",
+          "readingOrder": 0,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.09186616161616167,
+                0.826374183006536,
+                0.7045921717171718
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  233.963,
+                  505.741,
+                  719.242
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-0",
+          "kind": "list-item",
+          "readingOrder": 1,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/0",
+          "parentId": "odl-p9-id-150",
+          "text": "[17] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, and Ion Stoica. Efficient memory management for large language model serving with pagedattention. In Proceedings of the ACM SIGOPS 29th Symposium on Operating Systems Principles, 2023.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.09186616161616167,
+                0.8262303921568628,
+                0.14834469696969702
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  674.511,
+                  505.653,
+                  719.242
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-1",
+          "kind": "list-item",
+          "readingOrder": 2,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/1",
+          "parentId": "odl-p9-id-150",
+          "text": "[18] Benjamin Lefaudeux, Francisco Massa, Diana Liskovich, Wenhan Xiong, Vittorio Caggiano, Sean Naren, Min Xu, Jieru Hu, Marta Tintore, Susan Zhang, Patrick Labatut, and Daniel Haziza. xformers: A modular and hackable transformer modelling library. https://github.com/ facebookresearch/xformers, 2022.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.1519936868686869,
+                0.826374183006536,
+                0.20946717171717175
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  626.102,
+                  505.741,
+                  671.621
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/1"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-2",
+          "kind": "list-item",
+          "readingOrder": 3,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/2",
+          "parentId": "odl-p9-id-150",
+          "text": "[19] Todor Mihaylov, Peter Clark, Tushar Khot, and Ashish Sabharwal. Can a suit of armor conduct electricity? a new dataset for open book question answering. arXiv preprint arXiv:1809.02789, 2018.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.21212121212121213,
+                0.8255637254901961,
+                0.2548270202020202
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  590.177,
+                  505.245,
+                  624
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/2"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-3",
+          "kind": "list-item",
+          "readingOrder": 4,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/3",
+          "parentId": "odl-p9-id-150",
+          "text": "[20] Baptiste Rozière, Jonas Gehring, Fabian Gloeckle, Sten Sootla, Itai Gat, Xiaoqing Ellen Tan, Yossi Adi, Jingyu Liu, Tal Remez, Jérémy Rapin, et al. Code llama: Open foundation models for code. arXiv preprint arXiv:2308.12950, 2023.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.25847601010101007,
+                0.8255588235294118,
+                0.3011805555555555
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  553.465,
+                  505.242,
+                  587.287
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/3"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-4",
+          "kind": "list-item",
+          "readingOrder": 5,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/4",
+          "parentId": "odl-p9-id-150",
+          "text": "[21] Keisuke Sakaguchi, Ronan Le Bras, Chandra Bhagavatula, and Yejin Choi. Winogrande: An adversarial winograd schema challenge at scale. Communications of the ACM, 64(9):99–106, 2021.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.3048295454545454,
+                0.8255604575163399,
+                0.3475340909090909
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  516.753,
+                  505.243,
+                  550.575
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/4"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-5",
+          "kind": "list-item",
+          "readingOrder": 6,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/5",
+          "parentId": "odl-p9-id-150",
+          "text": "[22] Maarten Sap, Hannah Rashkin, Derek Chen, Ronan LeBras, and Yejin Choi. Socialiqa: Commonsense reasoning about social interactions. arXiv preprint arXiv:1904.09728, 2019.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.35118308080808075,
+                0.8262303921568628,
+                0.380114898989899
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  490.949,
+                  505.653,
+                  513.863
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/5"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-6",
+          "kind": "list-item",
+          "readingOrder": 7,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/6",
+          "parentId": "odl-p9-id-150",
+          "text": "[23] Mirac Suzgun, Nathan Scales, Nathanael Schärli, Sebastian Gehrmann, Yi Tay, Hyung Won Chung, Aakanksha Chowdhery, Quoc V Le, Ed H Chi, Denny Zhou, , and Jason Wei. Challenging big-bench tasks and whether chain-of-thought can solve them. arXiv preprint arXiv:2210.09261, 2022.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.38376388888888885,
+                0.8263725490196079,
+                0.44024242424242427
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  443.328,
+                  505.74,
+                  488.059
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/6"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-7",
+          "kind": "list-item",
+          "readingOrder": 8,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/7",
+          "parentId": "odl-p9-id-150",
+          "text": "[24] Alon Talmor, Jonathan Herzig, Nicholas Lourie, and Jonathan Berant. Commonsenseqa: A question answering challenge targeting commonsense knowledge. arXiv preprint arXiv:1811.00937, 2018.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.44389141414141414,
+                0.8262303921568628,
+                0.48659595959595964
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  406.616,
+                  505.653,
+                  440.438
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/7"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-8",
+          "kind": "list-item",
+          "readingOrder": 9,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/8",
+          "parentId": "odl-p9-id-150",
+          "text": "[25] Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-Anne Lachaux, Timothée Lacroix, Baptiste Rozière, Naman Goyal, Eric Hambro, Faisal Azhar, et al. Llama: Open and efficient foundation language models. arXiv preprint arXiv:2302.13971, 2023.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.4902449494949495,
+                0.8262369281045752,
+                0.5329507575757576
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  369.903,
+                  505.657,
+                  403.726
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/8"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-9",
+          "kind": "list-item",
+          "readingOrder": 10,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/9",
+          "parentId": "odl-p9-id-150",
+          "text": "[26] Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, et al. Llama 2: Open foundation and fine-tuned chat models. arXiv preprint arXiv:2307.09288, 2023.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.5365997474747475,
+                0.8255588235294118,
+                0.579304292929293
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  333.191,
+                  505.242,
+                  367.013
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/9"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-10",
+          "kind": "list-item",
+          "readingOrder": 11,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/10",
+          "parentId": "odl-p9-id-150",
+          "text": "[27] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in neural information processing systems, 30, 2017.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.5829532828282828,
+                0.8255555555555556,
+                0.6256578282828283
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  296.479,
+                  505.24,
+                  330.301
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/10"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-11",
+          "kind": "list-item",
+          "readingOrder": 12,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/11",
+          "parentId": "odl-p9-id-150",
+          "text": "[28] Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali Farhadi, and Yejin Choi. Hellaswag: Can a machine really finish your sentence? arXiv preprint arXiv:1905.07830, 2019.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.6293068181818182,
+                0.8235228758169935,
+                0.6582373737373738
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  270.676,
+                  503.996,
+                  293.589
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/11"
+              }
+            }
+          ]
+        },
+        {
+          "id": "odl-p9-path-kids-73-list-items-12",
+          "kind": "list-item",
+          "readingOrder": 13,
+          "rawArtifactRef": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+          "rawJsonPointer": "/kids/73/list items/12",
+          "parentId": "odl-p9-id-150",
+          "text": "[29] Wanjun Zhong, Ruixiang Cui, Yiduo Guo, Yaobo Liang, Shuai Lu, Yanlin Wang, Amin Saied, Weizhu Chen, and Nan Duan. Agieval: A human-centric benchmark for evaluating foundation models. arXiv preprint arXiv:2304.06364, 2023.",
+          "sourceRegions": [
+            {
+              "pageNumber": 9,
+              "bbox": [
+                0.17647058823529413,
+                0.6618876262626262,
+                0.8255702614379086,
+                0.7045921717171718
+              ],
+              "provenance": "native",
+              "native": {
+                "bbox": [
+                  108,
+                  233.963,
+                  505.249,
+                  267.785
+                ],
+                "coordinateSystem": "pdf-bottom-left-points",
+                "artifactId": "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output",
+                "jsonPointer": "/kids/73/list items/12"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "rawArtifactRefs": [
+    "raw:stage-b364d3c0-5e88-4cfc-bffb-8a945b90944e:parser-output"
+  ]
+}

@@ -141,11 +141,13 @@ test("server-renders the focused PDF upload experience", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>Document Arena · Compare document pipelines<\/title>/i);
+  assert.match(html, /<a[^>]*aria-label="Document Arena home"[^>]*href="\/"/);
   assert.match(html, /Parse first\. Compare with evidence\./);
   assert.match(html, /Bring your PDF into focus/);
   assert.match(html, /type="file"/);
   assert.match(html, /accept="application\/pdf,.pdf"/);
-  assert.match(html, /Your document stays in this browser until you choose a runner/);
+  assert.match(html, /Saved only in this browser/);
+  assert.match(html, /before any hosted or external parser transfer/);
   // Arena and standings are navigation, so the home page names them. It still
   // must not surface parser choice: that is a decision the workspace makes
   // after upload, and putting it here is what docs/PAGES.md rules out.
