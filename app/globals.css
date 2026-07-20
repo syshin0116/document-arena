@@ -723,8 +723,11 @@ button:disabled {
 /* Box, hover, focus ring and disabled state come from buttonVariants ghost /
    icon-sm, which is 28px — the same size this rule hand-rolled. Only the glyph
    size is ours: these are text arrows and signs, not icons, so they need to be
-   larger than the button default. Disabled opacity was 0.28 and is now
-   shadcn's 0.5, which is legible rather than nearly invisible. */
+   larger than the button default. Disabled opacity was 0.28; it is now 0.48,
+   which is legible rather than nearly invisible. That value comes from the
+   unlayered `button:disabled` catch-all further up this file, not from shadcn's
+   disabled:opacity-50 — unlayered CSS outranks @layer utilities, so the
+   catch-all wins for every button in the app. */
 .source-controls button {
   font-size: var(--text-lg);
 }
@@ -2493,8 +2496,12 @@ button:disabled {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .back-button:hover,
-  .details-button:hover { background: oklch(0 0 0 / 0.055); color: var(--ink); }
+  /* .details-button is migrated, so its hover comes from the ghost variant,
+     which is theme-aware. This black wash is not: at 5.5% it lifts a light
+     surface but darkens a dark one, so the migrated control was getting the
+     wrong direction in dark mode. .back-button is not migrated yet and still
+     needs it. */
+  .back-button:hover { background: oklch(0 0 0 / 0.055); color: var(--ink); }
   .source-box:hover { opacity: 1; }
   .parser-option:hover:not(:disabled) { border-color: rgb(var(--evidence-rgb) / 0.3); }
 }
