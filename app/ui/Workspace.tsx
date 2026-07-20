@@ -18,6 +18,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
+import { toast } from "sonner";
 import {
   createWorkspaceState,
   displayedEvidence,
@@ -518,7 +519,17 @@ export function Workspace({
     if (demo) return;
     let cancelled = false;
     loadLocalParseResults(documentId, Object.keys(LOCAL_COMPONENT_IDS))
-      .catch(() => ({}) as Record<string, unknown>)
+      .catch((error) => {
+        if (!cancelled) {
+          toast.error("Saved run history could not be loaded.", {
+            description:
+              error instanceof Error
+                ? error.message
+                : "The browser store returned an unknown error.",
+          });
+        }
+        return {} as Record<string, LocalParseResult>;
+      })
       .then((stored) => {
         if (cancelled) return;
         for (const parser of Object.keys(
@@ -615,9 +626,16 @@ export function Workspace({
           ...current,
           [parser]: { status: "complete", result },
         }));
-        void saveLocalParseResult(documentId, parser, result).catch(() => {
-          // Persistence is best-effort; the in-memory result still renders.
-        });
+        try {
+          await saveLocalParseResult(documentId, parser, result);
+        } catch (error) {
+          toast.error("Run finished, but browser history was not saved.", {
+            description:
+              error instanceof Error
+                ? error.message
+                : "The browser store returned an unknown error.",
+          });
+        }
         dispatch({ type: "complete-run", parser });
         dispatch({ type: "set-mobile-pane", pane: "results" });
       } catch (error) {
@@ -2975,7 +2993,7 @@ function DetailsSheet({
           <section><span>Source</span><strong>SHA-256 verified</strong><small>Immutable original PDF</small></section>
           <section><span>Parser image</span><strong>OpenDataLoader 2.5.0</strong><small>OCI digest recorded</small></section>
           <section><span>Resolved options</span><strong>Digital PDF · XYCut</strong><small>Reviewed defaults</small></section>
-          <section><span>Artifacts</span><strong>4 available</strong><small>Raw JSON, Markdown, canonical result, manifest</small></section>
+          <section><span>Artifacts</span><strong>Canonical preview + raw descriptors</strong><small>Demo metadata; raw bytes are not browser-imported</small></section>
         </div>
       ) : (
         <div className="detail-list">
@@ -3017,13 +3035,27 @@ function DetailsSheet({
                   {(result.durationMs / 1000).toFixed(1)}s · {result.blockCount}{" "}
                   blocks · {result.nativeRegionCount} native regions
                 </strong>
+                {result.runId && (
+                  <small className="mono">Run {result.runId}</small>
+                )}
                 <small className="mono">{result.outputDirectory}</small>
+              </section>
+              <section>
+                <span>Raw artifacts</span>
+                <strong>
+                  {result.rawArtifacts?.length ?? 0} verified descriptor
+                  {(result.rawArtifacts?.length ?? 0) === 1 ? "" : "s"}
+                </strong>
+                <small>
+                  Metadata is saved in browser history; bytes remain in the
+                  local runner output until explicitly imported.
+                </small>
               </section>
             </div>
           ))}
         </div>
       )}
-      <footer className="sheet-footer"><span>Raw and canonical artifacts live in the output directory above.</span></footer>
+      <footer className="sheet-footer"><span>The canonical result is saved in this browser. Raw bytes are runner-local.</span></footer>
     </aside>
   );
 }

@@ -196,6 +196,7 @@ async function handleParse(request, componentId, corsHeaders) {
   // (or error) line. Progress stays phase-only and truthful: the lines are
   // the adapter's own events, not invented percentages.
   const startedAt = Date.now();
+  const startedAtIso = new Date(startedAt).toISOString();
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -214,12 +215,24 @@ async function handleParse(request, componentId, corsHeaders) {
         send({
           type: "result",
           ok: true,
+          status: "completed",
+          runId: result.runnerManifest.jobId,
+          stageRunId: result.runnerManifest.stageRunId,
+          startedAt: startedAtIso,
+          completedAt: new Date().toISOString(),
           component: result.runnerManifest.component,
           source: result.runnerManifest.source,
           options: result.bundle?.options ?? {},
           durationMs: Date.now() - startedAt,
           blockCount: result.blockCount,
           nativeRegionCount: result.nativeRegionCount,
+          rawArtifacts: result.rawArtifacts.map((artifact) => ({
+            path: artifact.path,
+            mediaType: artifact.mediaType,
+            sizeBytes: artifact.sizeBytes,
+            sha256: artifact.sha256,
+            bytesLocation: "local-runner",
+          })),
           outputDirectory: result.outputDirectory,
           parsedDocument: result.parsed,
         });
