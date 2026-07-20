@@ -746,12 +746,11 @@ button:disabled {
   font-weight: 600;
 }
 
+/* Separator draws the 1px rule and the colour; only the height and rhythm in
+   this toolbar are ours. */
 .source-controls .control-separator {
-  min-width: 1px;
-  width: 1px;
   height: 18px;
   margin: 0 6px;
-  background: var(--line);
 }
 
 .pdf-stage {
@@ -1488,7 +1487,13 @@ button:disabled {
 
 .parser-result {
   min-width: 0;
-  overflow: hidden;
+  /* `clip`, not `hidden`. Both clip the children to the radius, but `hidden`
+     makes this a scroll container, which becomes the sticky containing block
+     for the column head below — so the head stuck inside a box that was itself
+     scrolling in .results-scroll, and scrolled away with it. Measured: 400px of
+     scroll moved it 400px. `clip` does not create a scroll container, so the
+     head resolves against .results-scroll and actually pins. */
+  overflow: clip;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -3880,16 +3885,6 @@ body {
 .parsed-block[data-kind="image"] .block-type,
 .parsed-block[data-kind="figure"] .block-type { color: var(--success); }
 
-.chip-badge {
-  padding: 2px 6px;
-  border-radius: var(--radius-full);
-  background: var(--candidate-1-soft);
-  color: var(--candidate-1-deep);
-  font-family: var(--font-geist-mono), monospace;
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
 
 .view-toggle button {
   transition:
@@ -4111,10 +4106,6 @@ body {
   background: var(--candidate-2);
 }
 
-.chip-badge[data-parser="mineru"] {
-  background: var(--candidate-2-soft);
-  color: var(--candidate-2);
-}
 
 /* Real run details */
 
@@ -4483,10 +4474,6 @@ button.strip-chip:hover { border-color: var(--line-strong); }
   box-shadow: 0 0 0 1px var(--candidate-3);
 }
 
-.chip-badge[data-parser="azuredi"] {
-  background: var(--candidate-3-soft);
-  color: var(--candidate-3-deep);
-}
 
 .source-box[data-parser="azuredi"] {
   border-color: color-mix(in oklab, var(--candidate-3) 45%, transparent);
