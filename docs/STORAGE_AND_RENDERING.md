@@ -37,6 +37,12 @@ The control plane explicitly deletes them after successful browser import,
 failure, or cancellation; a bucket-wide one-day expiration rule is the orphan
 cleanup backstop.
 
+The policy is not considered deployed merely because credentials exist in an
+environment. `infra/r2/configure.mjs --verify` must succeed against the target
+bucket before the planned hosted route is enabled. The current prototype has no
+hosted execution route, so it remains fail-closed while that external state is
+unverified.
+
 ## Temporary BlobStore contract
 
 Core code uses capabilities rather than provider names:
