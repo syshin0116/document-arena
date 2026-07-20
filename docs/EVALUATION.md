@@ -16,9 +16,10 @@ Do not collapse everything into one score until the full quality profile has
 been shown.
 
 Every metric or Judge execution is an independent `EvaluationRun` over immutable
-artifact references. Its durable workflow may resume independently, while its
-authoritative status and outputs are registered in the domain database and
-BlobStore rather than read from a checkpoint.
+artifact references. Its durable workflow may resume independently. The domain
+database is authoritative for the remote job status, temporary bytes use
+`BlobStore`, and the browser imports authoritative retained outputs into
+IndexedDB/OPFS; none of those records is reconstructed from a checkpoint.
 
 ## Reproducible execution contract
 

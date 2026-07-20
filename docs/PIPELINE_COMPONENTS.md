@@ -145,10 +145,12 @@ cloud URLs.
 }
 ```
 
-The orchestrator resolves an artifact id through the authoritative domain index
-and BlobStore adapter, then gives the runner a local mount or short-lived object
-reference. Those delivery details are not part of durable recipes, run records,
-or exports.
+For local execution, the browser resolves a retained artifact id through its
+IndexedDB/OPFS index and gives the runner the bytes directly. For hosted
+execution, the browser stages those bytes and the orchestrator resolves an
+opaque temporary reference through the `BlobStore` adapter, then gives the GCP
+runner a local mount or short-lived presigned object reference. Those delivery
+details are not part of durable recipes, retained run records, or exports.
 
 Initial typed artifacts are:
 
@@ -358,9 +360,9 @@ or artifacts sent remotely.
 ## Vector stores are side-effect sinks
 
 A vector store is not the BlobStore and must not become the source of truth for
-parser results; authoritative records remain in the domain database and
-BlobStore. Its adapter consumes an `EmbeddingSet`, performs an idempotent write,
-and returns an immutable `IndexReceipt` containing:
+parser results; retained authoritative records and bytes remain in browser
+IndexedDB/OPFS. Its adapter consumes an `EmbeddingSet`, performs an idempotent
+write, and returns an immutable `IndexReceipt` containing:
 
 - provider and logical connection name;
 - collection and run-scoped namespace;

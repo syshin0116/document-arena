@@ -150,6 +150,7 @@ vote records, instead of a global leaderboard.
 - [DVC](https://www.dvc.org/blog/dvc-2-0-release/): explain hits and misses
   field-by-field ("image digest changed", "option default resolved
   differently").
-- Publish cache entries only after validation and durable blob storage; verify
-  digests again on read; failed/cancelled/partial attempts never become hits;
-  original execution timing stays separate from cache-retrieval timing.
+- Publish browser-local cache entries only after validation and atomic
+  IndexedDB/OPFS import; verify digests again on read; temporary R2 objects,
+  failed/cancelled/partial attempts never become hits; original execution timing
+  stays separate from cache-retrieval timing.

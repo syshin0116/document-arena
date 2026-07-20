@@ -51,6 +51,8 @@ time, but export is not a required step in the main flow.
   resolves to a typed linear pipeline recipe.
 - **No parser-specific core code:** parser and component behavior is declared by
   manifests and capabilities rather than parser-id branches in the API or UI.
+- **Local-first authority:** IndexedDB/OPFS retains the source, workspace, and
+  results; hosted object storage is only a temporary execution exchange.
 
 ## MVP scope
 
@@ -80,9 +82,11 @@ time, but export is not a required step in the main flow.
 - A Docker-based development and self-hosting path with one documented default
   command.
 - Durable ingest, pipeline-run, and evaluation lifecycles behind a small
-  `WorkflowGateway`, with authoritative domain state and idempotent resume.
-- A provider-neutral `BlobStore` with SeaweedFS in the reference Docker stack
-  and R2 in the hosted service.
+  `WorkflowGateway`, with authoritative operational job state and idempotent
+  resume.
+- IndexedDB/OPFS as the retained workspace authority, plus a provider-neutral
+  temporary `BlobStore`: SeaweedFS in the reference Docker stack and private R2
+  with a one-day lifecycle for hosted GCP execution.
 
 ### Explicitly deferred
 
@@ -96,7 +100,8 @@ time, but export is not a required step in the main flow.
   visual workflow editor. Recipes are ordered linear stages first; the internal
   durable job wrapper is not exposed as a pipeline builder.
 - User-visible Local, Cloud CPU, and Cloud GPU target selection, multi-runner
-  scheduling, and cloud-provider orchestration.
+  scheduling, and provider-specific fleet orchestration beyond the single
+  configured GCP runner.
 - Inferred text-to-source alignment, manual mapping, and specialized split,
   merged, duplicate, table, formula, or hierarchy review tools.
 - Broad deterministic metric suites, benchmark dataset ingestion, scheduled
@@ -204,8 +209,8 @@ but it does not model the component recipe or appear in the UI.
   parser in tests without changing the runner execution path or document UI.
 - Restarting the orchestrator during ingest or a run resumes without starting a
   duplicate container or publishing a duplicate artifact.
-- The workspace can be reconstructed from domain records without reading
-  LangGraph checkpoints.
+- The workspace can be reconstructed from browser IndexedDB/OPFS without
+  reading server domain records or LangGraph checkpoints.
 
 ## Milestones
 
@@ -213,8 +218,9 @@ but it does not model the component recipe or appear in the UI.
 
 - Finalize only the typed artifact, stage manifest, linear recipe, and run-status
   contracts needed by the first vertical slice.
-- Define `WorkflowGateway`, domain repository, and `BlobStore` ports before
-  binding LangGraph, PostgreSQL, or SeaweedFS adapters.
+- Define `WorkflowGateway`, operational domain repository, browser artifact
+  store, and temporary `BlobStore` ports before binding LangGraph, PostgreSQL,
+  or SeaweedFS adapters.
 - Add the shared job envelope, domain job lease/event records, and idempotent
   fixture tasks without adding a broker or user-visible workflow surface.
 - Create a minimal runner that executes one container stage and persists its
@@ -227,12 +233,14 @@ cloud runner, full SDK, benchmark harness, or advanced evaluator is required.
 ### M1 — OpenDataLoader vertical slice
 
 - Ship ingest and pipeline workflow entrypoints plus the PostgreSQL/SeaweedFS
-  reference Compose profile.
+  reference Compose profile, with SeaweedFS limited to temporary execution
+  exchange.
 - Upload one PDF and view it interactively with PDF.js; generate a server render
   only when a declared auxiliary artifact requires it.
 - Run OpenDataLoader with defaults through its container adapter.
-- Persist raw output, canonical pages and blocks, native boxes, attempts/events,
-  basic status, and the reproduction manifest.
+- Persist the source, raw output, canonical pages and blocks, native boxes, and
+  reproduction manifest in IndexedDB/OPFS; persist attempts/events and basic
+  active-job status in the operational domain store.
 - Implement source/result hover and a readable focus view.
 
 Exit: upload -> one-click run -> inspect linked evidence works end to end.

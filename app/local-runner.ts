@@ -108,11 +108,62 @@ export function requiresRemoteConsent(
   return component?.requirements?.network === "remote";
 }
 
-export function remoteConsentApprovalKey(
+export type ExecutionPlan = Readonly<{
+  location: "device" | "hosted";
+  leavesDevice: boolean;
+  destinationName: string;
+  region?: string;
+  retentionPolicyVersion?: string;
+  retentionSeconds?: number;
+  externalProcessor?: Readonly<{
+    name: string;
+    retentionKnown: boolean;
+  }>;
+}>;
+
+/**
+ * Container network permission and document-transfer consent are different
+ * concerns. A hosted runner can execute a network-isolated component while
+ * the PDF still leaves the device; a device-local adapter can call an external
+ * provider. Deployment composition resolves this plan before a run starts.
+ */
+export function requiresDocumentTransferConsent(plan: ExecutionPlan): boolean {
+  return plan.leavesDevice;
+}
+
+export function deviceExecutionPlan(
+  component: LocalRunnerComponent,
+): ExecutionPlan {
+  const external = requiresRemoteConsent(component);
+  const displayName = component.displayName?.trim() || component.id;
+  return {
+    location: "device",
+    leavesDevice: external,
+    destinationName: external ? displayName : "This device",
+    externalProcessor: external
+      ? { name: displayName, retentionKnown: false }
+      : undefined,
+  };
+}
+
+export function documentTransferConsentKey(
   documentId: string,
   component: Pick<LocalRunnerComponent, "id" | "version">,
+  plan: ExecutionPlan,
 ): string {
-  return JSON.stringify([documentId, component.id, component.version]);
+  return JSON.stringify([
+    documentId,
+    component.id,
+    component.version,
+    plan.location,
+    plan.leavesDevice,
+    plan.destinationName,
+    plan.region ?? null,
+    plan.retentionPolicyVersion ?? null,
+    plan.retentionSeconds ?? null,
+    plan.externalProcessor?.name ?? null,
+    plan.externalProcessor?.retentionKnown ?? null,
+  ]);
 }
 
 export function runnerConnectionType(

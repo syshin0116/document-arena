@@ -41,9 +41,10 @@ blog and its source material.
 - Wrap long-running ingest, pipeline, and evaluation jobs with the shared thin
   LangGraph workflow envelope. Keep recipes linear and keep LangGraph out of
   component, artifact, and runner contracts.
-- Treat the domain database as authoritative for jobs, attempts, events, and
-  artifacts. LangGraph checkpoints are rebuildable execution cursors, not a
-  queue, event log, or product data store.
+- Treat browser IndexedDB/OPFS as authoritative for retained workspaces and
+  artifacts, and the domain database as authoritative for server-side jobs,
+  attempts, events, and temporary transfer records. LangGraph checkpoints are
+  rebuildable execution cursors, not a queue, event log, or product data store.
 
 ## Safety and repository hygiene
 
@@ -58,9 +59,12 @@ blog and its source material.
 - Hosted and self-hosted runners use the same API and artifact contract. The
   deployment selects its single MVP runner; do not expose infrastructure choice
   in the common user flow.
-- Access document bytes only through the BlobStore contract. The reference
-  self-host profile uses SeaweedFS, hosted deployment uses R2, and provider
-  names must not leak into core behavior.
+- Access retained document bytes through the browser artifact-store boundary.
+  Access remote-execution bytes only through the temporary `BlobStore`
+  contract: the reference self-host profile uses SeaweedFS and hosted GCP
+  execution uses private R2 with explicit cleanup plus a one-day lifecycle.
+  Provider names and credentials must not leak into core or client behavior;
+  browsers and GCP jobs receive only short-lived presigned URLs.
 - Record structural or hard-to-reverse choices in `DECISIONS.md`.
 
 ## Toolchains
