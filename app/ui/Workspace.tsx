@@ -326,10 +326,14 @@ function StatusDot({ status }: { status: string }) {
 export function Workspace({
   documentId,
   demo = false,
+  sample = false,
   fileName = "uploaded-document.pdf",
 }: {
   documentId: string;
   demo?: boolean;
+  /* Served by the app rather than stored in this browser. Every demo is a
+     sample; not every sample is the demo. */
+  sample?: boolean;
   fileName?: string;
 }) {
   const [state, dispatch] = useReducer(
@@ -1208,7 +1212,7 @@ export function Workspace({
             <PdfSourceViewer
               key={documentId}
               documentId={documentId}
-              demo={demo}
+              sample={sample || demo}
               pageNumber={state.page}
               zoom={zoom}
               thumbnailsOpen={thumbnailsOpen}
@@ -2597,19 +2601,22 @@ function ParserResult({
             returned for page 1 of the sample PDF. The "ﬁ" in "Efﬁcient" is the
             ligature the parser emitted; it is left as-is because normalising it
             here would hide a real characteristic of the output. */}
+        {/* The kind used to be stated twice per block: a `.block-type` label
+            above the text and a `<small>` below it that repeated the kind and
+            appended one statistic. That is 34px of restatement in a 158px
+            block. One meta line carries both. */}
         <button
           className="parsed-block parsed-title"
           {...blockProps("title", "the title")}
         >
-          <span className="block-type">Heading</span>
+          <span className="block-type">Heading · level 2</span>
           <strong>LLaMA: Open and Efﬁcient Foundation Language Models</strong>
-          <small>Heading · level 2</small>
         </button>
         <button
           className="parsed-block"
           {...blockProps("abstract", "the abstract")}
         >
-          <span className="block-type">Paragraph</span>
+          <span className="block-type">Paragraph · 74 words</span>
           <strong>Abstract</strong>
           <p>
             We introduce LLaMA, a collection of foundation language models
@@ -2617,20 +2624,18 @@ function ParserResult({
             of tokens, and show that it is possible to train state-of-the-art
             models using publicly available datasets exclusively.
           </p>
-          <small>Paragraph · 74 words</small>
         </button>
         <button
           className="parsed-block"
           {...blockProps("introduction", "the introduction")}
         >
-          <span className="block-type">Paragraph</span>
+          <span className="block-type">Paragraph · 115 words</span>
           <strong>1 Introduction</strong>
           <p>
             Large Languages Models (LLMs) trained on massive corpora of texts
             have shown their ability to perform new tasks from textual
             instructions or from a few examples (Brown et al., 2020).
           </p>
-          <small>Paragraph · 115 words</small>
         </button>
       </div>
     </article>

@@ -239,7 +239,7 @@ export function ArenaBattle() {
               <div className="pdf-stage">
                 <PdfSourceViewer
                   documentId="demo"
-                  demo
+                  sample
                   pageNumber={page}
                   zoom={92}
                   thumbnailsOpen={false}

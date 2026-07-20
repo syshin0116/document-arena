@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, Clock, FileText, LockKeyhole } from "lucide-react";
 import { m } from "motion/react";
 import {
@@ -9,6 +10,9 @@ import {
   saveLocalDocument,
   type LocalDocumentSummary,
 } from "../local-document-store";
+import {
+  SAMPLE_DOCUMENTS,
+} from "../lib/sample-documents-meta";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -34,6 +38,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { Brand } from "./Brand";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const RECENT_SHELF_LIMIT = 3;
 
 function formatSize(bytes: number) {
   const mb = bytes / (1024 * 1024);
@@ -83,6 +88,80 @@ export function UploadLanding() {
     },
   });
 
+  /* docs/PAGES.md asks for a sample document and a device-local recent list on
+     this page; neither had been built, so a visitor with no PDF to hand had
+     nothing to try and a returning one had no way back. The recent list is
+     capped: it is a way back to work in progress, not an archive, and an
+     uncapped one pushed the drop zone's own column off the fold. */
+  /* The samples sit under the drop zone, not beside it: "no PDF handy?" is the
+     alternative to the thing directly above it, and reads as one decision. */
+  const sampleShelf = (
+    <div className="landing-shelves sample-shelf">
+      {/* Thumbnails, because the choice between these three is a choice about
+          what the document looks like. The descriptors are block counts from
+          each document's real parse, so the shelf answers "which one will
+          stress the parser I care about" rather than just naming papers. */}
+      <section aria-labelledby="sample-heading">
+        <h2 id="sample-heading" className="landing-shelf-heading">
+          No PDF handy?
+        </h2>
+        <ul className="sample-grid">
+          {SAMPLE_DOCUMENTS.map((sample) => (
+            <li key={sample.id}>
+              <Link
+                className="sample-card"
+                href={`/documents/${sample.id}`}
+                title={sample.title}
+              >
+                <Image
+                  className="sample-thumb"
+                  src={sample.thumbnailPath}
+                  alt={`First page of ${sample.title}`}
+                  width={320}
+                  height={414}
+                />
+                <span className="sample-name">{sample.shortTitle}</span>
+                <span className="sample-meta">
+                  {sample.pageCount} pages · {sample.descriptor}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+
+  const recentShelf = recent.length > 0 && (
+    <div className="landing-shelves recent-shelf">
+        <section aria-labelledby="recent-heading">
+          <h2 id="recent-heading" className="landing-shelf-heading">
+            Recent workspaces
+          </h2>
+          <ItemGroup>
+            {recent.slice(0, RECENT_SHELF_LIMIT).map((document) => (
+              <Item
+                key={document.id}
+                size="sm"
+                render={<Link href={`/documents/${document.id}`} />}
+              >
+                <ItemMedia variant="icon">
+                  <Clock />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{document.name}</ItemTitle>
+                  <ItemDescription>{formatSize(document.size)}</ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <ArrowRight />
+                </ItemActions>
+              </Item>
+            ))}
+          </ItemGroup>
+        </section>
+    </div>
+  );
+
   return (
     <m.main
       className="landing-shell landing-shell-v2"
@@ -91,7 +170,9 @@ export function UploadLanding() {
       transition={motionTransition.enter}
     >
       <header className="landing-header">
-        <Brand />
+        <Link className="brand-home-link" href="/" aria-label="Document Arena home">
+          <Brand />
+        </Link>
         {/* Arena and standings used to be reachable only from inside a
             document workspace, so a first visit gave no sign that blind
             comparison exists at all. They are navigation, not a decision the
@@ -115,21 +196,28 @@ export function UploadLanding() {
       </header>
 
       <section className="landing-main" aria-labelledby="landing-title">
-        <m.div
-          className="landing-copy"
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={motionTransition.enter}
-        >
-          <Badge variant="outline" className="landing-kicker">
-            Evidence-first document review
-          </Badge>
-          <h1 id="landing-title">Parse first. Compare with evidence.</h1>
-          <p className="landing-lede">
-            Open a PDF, run the recommended parser, and inspect every block
-            beside the page it came from.
-          </p>
-        </m.div>
+        {/* The copy and the shelves share one grid cell. As separate cells the
+            shelves landed in row 2, whose top edge is set by the drop zone
+            opposite, which opened a 160px hole under the lede. */}
+        <div className="landing-intro">
+          <m.div
+            className="landing-copy"
+            initial={false}
+            animate={{ opacity: 1, y: 0 }}
+            transition={motionTransition.enter}
+          >
+            <Badge variant="outline" className="landing-kicker">
+              Evidence-first document review
+            </Badge>
+            <h1 id="landing-title">Parse first. Compare with evidence.</h1>
+            <p className="landing-lede">
+              Open a PDF, run the recommended parser, and inspect every block
+              beside the page it came from.
+            </p>
+          </m.div>
+
+          {recentShelf}
+        </div>
 
         <m.div
           className="upload-card-wrap"
@@ -160,92 +248,21 @@ export function UploadLanding() {
               </DropzoneMessage>
             </DropZoneArea>
           </Dropzone>
+
+          {/* Belongs to the drop zone, so it sits in the drop zone's cell. As
+              its own grid row it was pushed 244px clear of the box it
+              qualifies, next to nothing at all. */}
+          <div className="privacy-note">
+            <LockKeyhole aria-hidden="true" />
+            <span>
+              Saved only in this browser. We ask before any hosted or external
+              parser transfer.
+            </span>
+          </div>
+
+          {sampleShelf}
         </m.div>
 
-        <div className="privacy-note">
-          <LockKeyhole aria-hidden="true" />
-          <span>
-            Saved only in this browser. We ask before any hosted or external
-            parser transfer.
-          </span>
-        </div>
-
-        {/* docs/PAGES.md asks for a sample document and a device-local recent
-            list on this page; neither had been built, so a visitor with no PDF
-            to hand had nothing to try and a returning one had no way back. */}
-        <div className="landing-shelves">
-          <section aria-labelledby="sample-heading">
-            <h2 id="sample-heading" className="landing-shelf-heading">
-              No PDF handy?
-            </h2>
-            <ItemGroup>
-              <Item size="sm" variant="outline" render={<Link href="/documents/demo" />}>
-                <ItemMedia variant="icon">
-                  <FileText />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle>Sample document</ItemTitle>
-                  <ItemDescription>12 pages · digital text</ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <ArrowRight />
-                </ItemActions>
-              </Item>
-            </ItemGroup>
-          </section>
-
-          {recent.length > 0 && (
-            <section aria-labelledby="recent-heading">
-              <h2 id="recent-heading" className="landing-shelf-heading">
-                Recent workspaces
-              </h2>
-              <ItemGroup>
-                {recent.map((document) => (
-                  <Item
-                    key={document.id}
-                    size="sm"
-                    render={<Link href={`/documents/${document.id}`} />}
-                  >
-                    <ItemMedia variant="icon">
-                      <Clock />
-                    </ItemMedia>
-                    <ItemContent>
-                      <ItemTitle>{document.name}</ItemTitle>
-                      <ItemDescription>{formatSize(document.size)}</ItemDescription>
-                    </ItemContent>
-                    <ItemActions>
-                      <ArrowRight />
-                    </ItemActions>
-                  </Item>
-                ))}
-              </ItemGroup>
-            </section>
-          )}
-        </div>
-      </section>
-
-      <section className="landing-proof landing-proof-v2" aria-label="Review workflow">
-        <article>
-          <span className="proof-index">01</span>
-          <div>
-            <h2>Upload once</h2>
-            <p>Create the document workspace before choosing a parser.</p>
-          </div>
-        </article>
-        <article>
-          <span className="proof-index">02</span>
-          <div>
-            <h2>Inspect evidence</h2>
-            <p>Native regions link the original page to parsed blocks.</p>
-          </div>
-        </article>
-        <article>
-          <span className="proof-index">03</span>
-          <div>
-            <h2>Add one comparison</h2>
-            <p>Keep the same source visible when another result is useful.</p>
-          </div>
-        </article>
       </section>
     </m.main>
   );
