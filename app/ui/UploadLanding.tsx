@@ -1,171 +1,243 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { saveLocalDocument } from "../local-document-store";
+import { ArrowRight, Clock, FileText, LockKeyhole } from "lucide-react";
+import { m } from "motion/react";
+import {
+  listLocalDocuments,
+  saveLocalDocument,
+  type LocalDocumentSummary,
+} from "../local-document-store";
+import { buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dropzone,
+  DropZoneArea,
+  DropzoneDescription,
+  DropzoneMessage,
+  DropzoneTrigger,
+  useDropzone,
+} from "@/components/ui/dropzone";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item";
+import { cn } from "@/lib/utils";
+import { motionTransition } from "@/lib/motion";
+import { ModeToggle } from "@/components/mode-toggle";
 import { Brand } from "./Brand";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
+function formatSize(bytes: number) {
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 export function UploadLanding() {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
+  // Recent workspaces are device-local, so they can only be read after mount.
+  // Until then the shelf renders nothing rather than a placeholder, because a
+  // first-time visitor has none and should not be shown an empty frame.
+  const [recent, setRecent] = useState<LocalDocumentSummary[]>([]);
 
-  async function openWorkspace(file: File) {
-    if (
-      file.type !== "application/pdf" &&
-      !file.name.toLowerCase().endsWith(".pdf")
-    ) {
-      setError("Choose a PDF file to start a workspace.");
-      return;
-    }
-    if (file.size === 0) {
-      setError("This PDF is empty.");
-      return;
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      setError("This PDF is larger than the 50 MB prototype limit.");
-      return;
-    }
+  useEffect(() => {
+    let cancelled = false;
+    listLocalDocuments().then((documents) => {
+      if (!cancelled) setRecent(documents);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-    setError(null);
-    setPreparing(true);
-    try {
-      const document = await saveLocalDocument(file);
-      window.location.assign(`/documents/${document.id}`);
-    } catch {
-      setError(
-        "This browser could not save the local PDF. Check available storage and try again.",
-      );
-      setPreparing(false);
-    }
-  }
+  const dropzone = useDropzone<{ documentId: string }, string>({
+    validation: {
+      accept: { "application/pdf": [".pdf"] },
+      minSize: 1,
+      maxSize: MAX_FILE_SIZE,
+      maxFiles: 1,
+    },
+    onRootError: (message) => setError(message ?? null),
+    onDropFile: async (file) => {
+      setError(null);
+      setPreparing(true);
+      try {
+        const document = await saveLocalDocument(file);
+        window.location.assign(`/documents/${document.id}`);
+        return { status: "success", result: { documentId: document.id } };
+      } catch {
+        const message =
+          "This browser could not save the local PDF. Check available storage and try again.";
+        setError(message);
+        setPreparing(false);
+        return { status: "error", error: message };
+      }
+    },
+  });
 
   return (
-    <main className="landing-shell">
+    <m.main
+      className="landing-shell landing-shell-v2"
+      initial={false}
+      animate={{ opacity: 1 }}
+      transition={motionTransition.enter}
+    >
       <header className="landing-header">
         <Brand />
-        <nav className="landing-nav" aria-label="Product surfaces">
-          <Link className="quiet-button landing-secondary-link" href="/arena">
-            Arena
+        {/* No links to /arena or /leaderboard here. tests/rendered-html.test.mjs
+            asserts their absence and docs/PAGES.md scopes this page to upload
+            with "minimal explanation and no infrastructure decisions", so the
+            other surfaces stay discoverable from the workspace instead. */}
+        <nav className="landing-nav landing-nav-v2" aria-label="Workspace shortcuts">
+          <Link
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "landing-demo-link-v2")}
+            href="/documents/demo"
+          >
+            View demo
+            <ArrowRight data-icon="inline-end" />
           </Link>
-          <Link className="quiet-button landing-secondary-link" href="/leaderboard">
-            Leaderboard
-          </Link>
-          <Link className="quiet-button landing-connections-link" href="/settings/connections">
-            Connections
-          </Link>
-          <Link className="quiet-button landing-demo-link" href="/documents/demo">
-            Open demo
-            <span aria-hidden="true">↗</span>
-          </Link>
+          <ModeToggle />
         </nav>
       </header>
 
       <section className="landing-main" aria-labelledby="landing-title">
-        <div className="landing-copy">
-          <p className="eyebrow">
-            <span className="eyebrow-dot" aria-hidden="true" />
-            Open parser workbench
-          </p>
-          <h1 id="landing-title">See what your parser actually saw.</h1>
-          <p className="landing-lede">
-            Upload once, inspect every result beside the source, and compare a
-            second parser only when you need it.
-          </p>
-        </div>
-
-        <div
-          className="upload-card"
-          data-dragging={dragging || undefined}
-          aria-busy={preparing}
-          onDragEnter={(event) => {
-            event.preventDefault();
-            setDragging(true);
-          }}
-          onDragOver={(event) => event.preventDefault()}
-          onDragLeave={(event) => {
-            if (event.currentTarget === event.target) setDragging(false);
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            setDragging(false);
-            const file = event.dataTransfer.files.item(0);
-            if (file) void openWorkspace(file);
-          }}
+        <m.div
+          className="landing-copy"
+          initial={false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={motionTransition.enter}
         >
-          <input
-            ref={inputRef}
-            className="visually-hidden"
-            type="file"
-            accept="application/pdf,.pdf"
-            aria-label="Choose a PDF document"
-            disabled={preparing}
-            onChange={(event) => {
-              const file = event.target.files?.item(0);
-              if (file) void openWorkspace(file);
-            }}
-          />
-          <div className="upload-document" aria-hidden="true">
-            <span className="upload-document-fold" />
-            <span />
-            <span />
-            <span />
-          </div>
-          <div className="upload-copy">
-            <h2>Drop a PDF here</h2>
-            <p>or choose one from your device</p>
-          </div>
-          <button
-            className="primary-button"
-            type="button"
-            disabled={preparing}
-            onClick={() => inputRef.current?.click()}
-          >
-            {preparing ? "Preparing workspace…" : "Choose PDF"}
-          </button>
-          <p className="upload-limits">PDF only · up to 50 MB</p>
-          {error && (
-            <p className="upload-error" role="alert">
-              {error}
-            </p>
-          )}
-        </div>
+          <Badge variant="outline" className="landing-kicker">
+            Evidence-first document review
+          </Badge>
+          <h1 id="landing-title">Parse first. Compare with evidence.</h1>
+          <p className="landing-lede">
+            Open a PDF, run the recommended parser, and inspect every block
+            beside the page it came from.
+          </p>
+        </m.div>
+
+        <m.div
+          className="upload-card-wrap"
+          initial={false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...motionTransition.enter, delay: 0.06 }}
+        >
+          <Dropzone {...dropzone}>
+            <DropZoneArea className="upload-card" aria-busy={preparing}>
+              <div className="upload-icon" aria-hidden="true">
+                <FileText />
+              </div>
+              <div className="upload-copy">
+                <h2>{preparing ? "Preparing your workspace" : "Bring your PDF into focus"}</h2>
+                <DropzoneDescription>
+                  One document, up to 50 MB. Nothing is uploaded yet.
+                </DropzoneDescription>
+              </div>
+              <DropzoneTrigger
+                aria-label="Choose a PDF document"
+                className={cn(buttonVariants({ size: "lg" }), "upload-trigger")}
+              >
+                {preparing ? "Preparing…" : "Choose PDF"}
+                {!preparing && <ArrowRight data-icon="inline-end" />}
+              </DropzoneTrigger>
+              <DropzoneMessage className="upload-error">
+                {error ?? ""}
+              </DropzoneMessage>
+            </DropZoneArea>
+          </Dropzone>
+        </m.div>
 
         <div className="privacy-note">
-          <span className="privacy-lock" aria-hidden="true" />
-          <span>
-            Local previews stay in this browser. Blind-battle votes stay on this
-            device too.
-          </span>
+          <LockKeyhole aria-hidden="true" />
+          <span>Your document stays in this browser until you choose a runner.</span>
+        </div>
+
+        {/* docs/PAGES.md asks for a sample document and a device-local recent
+            list on this page; neither had been built, so a visitor with no PDF
+            to hand had nothing to try and a returning one had no way back. */}
+        <div className="landing-shelves">
+          <section aria-labelledby="sample-heading">
+            <h2 id="sample-heading" className="landing-shelf-heading">
+              No PDF handy?
+            </h2>
+            <ItemGroup>
+              <Item size="sm" variant="outline" render={<Link href="/documents/demo" />}>
+                <ItemMedia variant="icon">
+                  <FileText />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>Sample document</ItemTitle>
+                  <ItemDescription>12 pages · digital text</ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <ArrowRight />
+                </ItemActions>
+              </Item>
+            </ItemGroup>
+          </section>
+
+          {recent.length > 0 && (
+            <section aria-labelledby="recent-heading">
+              <h2 id="recent-heading" className="landing-shelf-heading">
+                Recent workspaces
+              </h2>
+              <ItemGroup>
+                {recent.map((document) => (
+                  <Item
+                    key={document.id}
+                    size="sm"
+                    render={<Link href={`/documents/${document.id}`} />}
+                  >
+                    <ItemMedia variant="icon">
+                      <Clock />
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle>{document.name}</ItemTitle>
+                      <ItemDescription>{formatSize(document.size)}</ItemDescription>
+                    </ItemContent>
+                    <ItemActions>
+                      <ArrowRight />
+                    </ItemActions>
+                  </Item>
+                ))}
+              </ItemGroup>
+            </section>
+          )}
         </div>
       </section>
 
-      <section className="landing-proof" aria-label="Key capabilities">
+      <section className="landing-proof landing-proof-v2" aria-label="Review workflow">
         <article>
           <span className="proof-index">01</span>
           <div>
-            <h2>Trace the evidence</h2>
-            <p>Native bounding boxes link source regions to parsed blocks.</p>
+            <h2>Upload once</h2>
+            <p>Create the document workspace before choosing a parser.</p>
           </div>
         </article>
         <article>
           <span className="proof-index">02</span>
           <div>
-            <h2>Compare in context</h2>
-            <p>Two parser results stay synchronized to the same source page.</p>
+            <h2>Inspect evidence</h2>
+            <p>Native regions link the original page to parsed blocks.</p>
           </div>
         </article>
         <article>
           <span className="proof-index">03</span>
           <div>
-            <h2>Reproduce every run</h2>
-            <p>Raw outputs, versions, options, and timing remain inspectable.</p>
+            <h2>Add one comparison</h2>
+            <p>Keep the same source visible when another result is useful.</p>
           </div>
         </article>
       </section>
-    </main>
+    </m.main>
   );
 }

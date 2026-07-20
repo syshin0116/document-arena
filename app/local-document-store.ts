@@ -125,6 +125,63 @@ export async function loadLocalDocument(
   };
 }
 
+export type LocalDocumentSummary = {
+  id: string;
+  name: string;
+  size: number;
+  createdAt: string;
+};
+
+/**
+ * Lists stored documents newest first, without their blobs. A cursor is used
+ * rather than getAll so a shelf of 50 MB PDFs is not materialised at once just
+ * to read four metadata fields.
+ */
+export async function listLocalDocuments(
+  limit = 6,
+): Promise<LocalDocumentSummary[]> {
+  if (typeof indexedDB === "undefined") return [];
+
+  let database: IDBDatabase;
+  try {
+    database = await openDatabase();
+  } catch {
+    return [];
+  }
+
+  try {
+    return await new Promise<LocalDocumentSummary[]>((resolve, reject) => {
+      const summaries: LocalDocumentSummary[] = [];
+      const transaction = database.transaction(STORE_NAME, "readonly");
+      const request = transaction.objectStore(STORE_NAME).openCursor();
+
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        const record = cursor.value as StoredLocalDocument;
+        summaries.push({
+          id: record.id,
+          name: record.name,
+          size: record.size,
+          createdAt: record.createdAt,
+        });
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error);
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+      transaction.oncomplete = () => {
+        summaries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        resolve(summaries.slice(0, limit));
+      };
+    });
+  } catch {
+    return [];
+  } finally {
+    database.close();
+  }
+}
+
 type StoredParseResult = {
   key: string;
   documentId: string;
