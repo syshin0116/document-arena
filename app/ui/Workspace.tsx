@@ -1095,30 +1095,31 @@ export function Workspace({
               </button>
               <strong>Original file</strong>
               {!demo && hasNativeMapping && (
-                <div
-                  className="view-toggle region-toggle"
-                  role="tablist"
+                <ToggleGroup
+                  className="region-toggle"
+                  variant="outline"
+                  size="sm"
+                  spacing={0}
+                  role="group"
                   aria-label="Evidence region mode"
                 >
-                  <button
-                    role="tab"
-                    type="button"
-                    aria-selected={!mergeRegions}
+                  <ToggleGroupItem
+                    pressed={!mergeRegions}
+                    aria-pressed={!mergeRegions}
                     title="Show each parser-native region exactly as reported"
-                    onClick={() => setMergeRegions(false)}
+                    onPressedChange={() => setMergeRegions(false)}
                   >
                     Native
-                  </button>
-                  <button
-                    role="tab"
-                    type="button"
-                    aria-selected={mergeRegions}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem
+                    pressed={mergeRegions}
+                    aria-pressed={mergeRegions}
                     title="Union a table's native regions into one highlight"
-                    onClick={() => setMergeRegions(true)}
+                    onPressedChange={() => setMergeRegions(true)}
                   >
                     Merged
-                  </button>
-                </div>
+                  </ToggleGroupItem>
+                </ToggleGroup>
               )}
             </div>
             <div className="source-controls" aria-label="Page controls">

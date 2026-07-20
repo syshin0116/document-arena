@@ -81,11 +81,12 @@ test("single and compare results share the same toolbar state and output target"
   );
 });
 
-test("toolbar CSS keeps pressed styling, stable status space, and mobile targets", () => {
-  assert.match(
-    css,
-    /\.view-toggle button\[aria-pressed="true"\]\s*\{/,
-  );
+test("toolbar keeps pressed styling, stable status space, and mobile targets", () => {
+  // Pressed styling used to be a bespoke .view-toggle rule in globals.css. It
+  // now comes from the shadcn toggle variant's aria-pressed:bg-muted utility,
+  // so the guard checks the rendered control carries that hook rather than
+  // grepping a rule that no longer exists.
+  assert.match(renderToolbar(), /aria-pressed:bg-muted/);
   assert.match(
     css,
     /\.result-toolbar-status\s*\{[^}]*min-height:\s*16px/s,

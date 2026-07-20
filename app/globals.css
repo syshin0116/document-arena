@@ -1322,14 +1322,6 @@ button:disabled {
 }
 
 /* Rendered/Raw stays visible but reads as inactive until Markdown is selected. */
-.view-toggle[data-disabled] button {
-  opacity: 0.5;
-}
-.view-toggle[data-disabled] button[aria-selected="true"],
-.view-toggle[data-disabled] button[aria-pressed="true"] {
-  opacity: 1;
-}
-
 /* Collapsed source rail: a thin strip that widens the results for close comparison. */
 .source-rail {
   display: flex;
@@ -3155,17 +3147,6 @@ body {
 }
 
 .result-view-cluster,
-.view-toggle {
-  border-color: var(--border);
-  background: var(--muted);
-}
-
-.view-toggle button[aria-pressed="true"] {
-  background: var(--background);
-  color: var(--foreground);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
-}
-
 .arena-intro {
   width: min(760px, calc(100% - 40px));
   min-height: calc(100dvh - 64px);
@@ -3697,32 +3678,6 @@ body {
 
 /* Result view toggle and markdown reading view */
 
-.view-toggle {
-  display: inline-flex;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface-subtle);
-}
-
-.view-toggle button {
-  padding: 4px 11px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink-soft);
-  font-size: var(--text-2xs);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.view-toggle button[aria-selected="true"],
-.view-toggle button[aria-pressed="true"] {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow-small);
-}
-
 /* Nested directly inside .parser-result, which already draws a 1px border, an
    8px radius and the surface. Declaring them again put a hairline beside a
    hairline and a radius inside a radius. The wrapper owns the box; this owns
@@ -3883,16 +3838,6 @@ body {
 .parsed-block[data-kind="image"] .block-type,
 .parsed-block[data-kind="figure"] .block-type { color: var(--success); }
 
-
-.view-toggle button {
-  transition:
-    background-color var(--motion-normal) ease,
-    color var(--motion-normal) ease,
-    box-shadow var(--motion-normal) ease,
-    transform var(--motion-fast) var(--ease-out);
-}
-
-.view-toggle button:active { transform: scale(0.96); }
 
 /* Reading view: hover stays lighter than pin, mirroring the source overlay. */
 .markdown-view [data-evidence]:hover,
@@ -4448,9 +4393,10 @@ button.strip-chip:hover { border-color: var(--line-strong); }
   min-width: 0;
 }
 
-.region-toggle button {
+/* The evidence Native/Merged switch is a shadcn ToggleGroup now. It rides the
+   28px source toolbar, so its items run at the 2xs step and stay compact. */
+.region-toggle [data-slot="toggle-group-item"] {
   font-size: var(--text-2xs);
-  padding: 3px 9px;
 }
 
 /* Candidate C (Azure DI). Hue now comes from the candidate scale in the token
