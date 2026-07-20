@@ -2918,6 +2918,32 @@ body {
   height: 13px;
 }
 
+/* The shelves sit under the copy, in the column-1 row the grid was already
+   leaving empty. A visitor with no PDF gets something to open, and a returning
+   one gets back to work without a bookmarked unlisted URL.
+
+   Only placement and the section heading live here. The rows themselves are
+   shadcn's Item component, which already carries the hover, focus ring, media
+   slot, and title/description rhythm this would otherwise hand-roll. */
+.landing-shelves {
+  display: flex;
+  grid-column: 1;
+  grid-row: 2;
+  flex-direction: column;
+  gap: 20px;
+  align-self: start;
+  margin-top: 20px;
+}
+
+.landing-shelf-heading {
+  margin: 0 0 6px;
+  color: var(--muted-foreground);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .landing-proof {
   width: min(1180px, calc(100% - 48px));
   margin-top: clamp(64px, 9vh, 112px);
