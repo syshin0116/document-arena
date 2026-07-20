@@ -71,24 +71,37 @@ signed catalogs, and persistent parser services are later concerns.
 The first hosted target splits the local-first web surface from remote
 execution:
 
-- Vercel runs the official Next.js application, authentication, workspace
-  coordination, presigned transfer creation, job submission, and short status
-  APIs. Workspace content reads stay in the browser.
+- Vercel runs the official Next.js Node application in Singapore, including
+  Better Auth, workspace coordination, presigned transfer creation, job
+  submission, and short status APIs. Local-only use remains anonymous and
+  workspace content reads stay in the browser.
 - The browser uploads PDF bytes directly to a private R2 execution bucket with
   a short-lived presigned PUT; the Next.js application does not proxy document
   bodies.
 - A separately deployed workflow service owns durable job leases and the thin
   LangGraph lifecycle envelope.
-- GCP compute executes the generic OCI contract and launches parser containers.
-  Each job receives only exact-key, short-lived presigned GET/PUT URLs; it is
+- The provider-neutral runner gateway submits digest-pinned component images to
+  GCP Batch in `asia-northeast3`; Batch executes the OCI component directly, so
+  no nested Docker daemon or provider branch enters the core contract. Each job
+  receives only exact-key, short-lived presigned GET/PUT URLs; it is
   never embedded in or publicly exposed by the web service and receives no R2
-  account credential.
+  secret key or reusable signing credential. The signed URL still contains the
+  access-key identifier and is therefore handled as a secret bearer capability.
 - The browser downloads and verifies the completed bundle, imports it into
   IndexedDB/OPFS, and acknowledges import so the temporary prefix can be
   deleted. The private bucket's one-day lifecycle rule removes orphaned objects.
 - Managed PostgreSQL remains authoritative for jobs, leases, attempts, and
   events. R2 is reached only through the provider-neutral `BlobStore` contract
   and is not durable product storage.
+
+Neon hosts the operational and checkpoint schemas in Singapore. Better Auth
+owns a separate `auth` schema in that same database and initially enables only
+GitHub OAuth. Hosted run creation requires a fully validated session and an
+available quota/grant; local parsing and browser history never require login.
+Vercel obtains short-lived GCP credentials through OIDC Workload Identity
+Federation. Static GCP service-account JSON keys are not accepted deployment
+configuration. Reviewed component images are mirrored by digest into Seoul
+Artifact Registry before a catalog entry becomes hosted-available.
 
 Cloudflare's R2 egress policy does not waive Google Cloud charges. In
 particular, output bytes sent from GCP compute to R2 leave Google's network and
@@ -287,7 +300,7 @@ job-scoped workflow and can fail or retry without changing parser runs.
 The code keeps four persistence roles separate:
 
 - authoritative browser IndexedDB/OPFS state for retained workspaces, source
-  PDFs, raw output, and canonical results;
+  PDFs, imported raw output, and canonical results;
 - authoritative PostgreSQL domain tables for active job leases, attempts,
   events, stage status, and the temporary transfer ledger;
 - a temporary `BlobStore` execution exchange for job-scoped input and output
@@ -304,6 +317,11 @@ PostgreSQL merely for checkpointing.
 
 Provider details and render behavior are defined in
 [Storage, rendering, and native geometry](STORAGE_AND_RENDERING.md).
+
+Today the browser retains canonical results and verified raw-artifact
+descriptors while raw bytes remain runner-local. The target persistence split
+above becomes fully true only after the raw-byte import path lands; hosted
+execution remains disabled until then.
 
 ## Minimal reproducibility record
 

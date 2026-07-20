@@ -41,10 +41,11 @@ blog and its source material.
 - Wrap long-running ingest, pipeline, and evaluation jobs with the shared thin
   LangGraph workflow envelope. Keep recipes linear and keep LangGraph out of
   component, artifact, and runner contracts.
-- Treat browser IndexedDB/OPFS as authoritative for retained workspaces and
-  artifacts, and the domain database as authoritative for server-side jobs,
-  attempts, events, and temporary transfer records. LangGraph checkpoints are
-  rebuildable execution cursors, not a queue, event log, or product data store.
+- Treat browser IndexedDB/OPFS as authoritative for locally retained workspaces
+  and imported artifacts, and the domain database as authoritative for
+  server-side jobs, attempts, events, and the temporary remote-artifact ledger.
+  LangGraph checkpoints are rebuildable execution cursors, not a queue, event
+  log, or product data store.
 
 ## Safety and repository hygiene
 
