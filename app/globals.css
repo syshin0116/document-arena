@@ -255,6 +255,19 @@
   border-radius: var(--radius-sm);
 }
 
+.brand-wordmark {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-base);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.brand[data-compact] .brand-wordmark {
+  font-size: var(--text-sm);
+}
+
 .details-button,
 .back-button,
 .sheet-close {

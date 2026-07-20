@@ -1,11 +1,9 @@
 export function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="brand" aria-label="Document Arena">
-      <span className="brand-mark" aria-hidden="true">
-        <span />
-        <span />
+    <span className="brand" data-compact={compact || undefined} aria-label="Document Arena">
+      <span className="brand-wordmark" aria-hidden="true">
+        Document Arena
       </span>
-      {!compact && <span className="brand-name">Document Arena</span>}
     </span>
   );
 }
