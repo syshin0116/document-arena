@@ -2277,9 +2277,11 @@ button:disabled {
   line-height: 1.1;
 }
 
+/* No resting background. It used to be --surface-subtle, which is an alias of
+   --muted — the exact colour the ghost variant hovers to — so the button had no
+   hover affordance at all, and being unlayered it also beat hover:bg-muted. */
 .sheet-close {
   flex: none;
-  background: var(--surface-subtle);
   font-size: var(--text-lg);
   font-weight: 400;
   /* The glyph is a multiplication sign, which sits high in the em box. */
