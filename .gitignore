@@ -32,6 +32,11 @@ secrets/
 credentials.json
 credentials.*.json
 service-account*.json
+application_default_credentials.json
+/.gcloud/
+/.wrangler/
+.dev.vars
+.dev.vars.*
 
 # env files (can opt-in for committing if needed)
 .env*

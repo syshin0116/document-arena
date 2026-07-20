@@ -4,7 +4,9 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
-  remoteConsentApprovalKey,
+  deviceExecutionPlan,
+  documentTransferConsentKey,
+  requiresDocumentTransferConsent,
   requiresRemoteConsent,
   runnerConnectionType,
 } from "../app/local-runner";
@@ -48,30 +50,72 @@ test("remote consent is derived only from the manifest network requirement", () 
   assert.equal(runnerConnectionType(arbitraryRemote), "partner-ocr");
 });
 
-test("remote approval is scoped to the exact document and component version", () => {
+test("transfer consent is independent from component network permission", () => {
+  const offline = component("offline", { network: "none" });
+  const hosted = {
+    location: "hosted",
+    leavesDevice: true,
+    destinationName: "Document Arena hosted runner",
+    region: "asia-northeast3",
+    retentionPolicyVersion: "temporary-r2-v1",
+    retentionSeconds: 86_400,
+  };
+
+  assert.equal(requiresRemoteConsent(offline), false);
+  assert.equal(requiresDocumentTransferConsent(hosted), true);
+  assert.equal(
+    requiresDocumentTransferConsent(deviceExecutionPlan(offline)),
+    false,
+  );
+  assert.equal(
+    requiresDocumentTransferConsent(
+      deviceExecutionPlan(component("external", { network: "remote" })),
+    ),
+    true,
+  );
+});
+
+test("transfer approval scope changes with destination and retention policy", () => {
   const remote = component("future-partner-parser", { network: "remote" });
-  const key = remoteConsentApprovalKey("local_document-a", remote);
+  const plan = deviceExecutionPlan(remote);
+  const key = documentTransferConsentKey("local_document-a", remote, plan);
 
   assert.equal(
     key,
-    remoteConsentApprovalKey("local_document-a", remote),
+    documentTransferConsentKey("local_document-a", remote, plan),
   );
   assert.notEqual(
     key,
-    remoteConsentApprovalKey("local_document-b", remote),
+    documentTransferConsentKey("local_document-b", remote, plan),
   );
   assert.notEqual(
     key,
-    remoteConsentApprovalKey("local_document-a", {
-      ...remote,
-      id: "another-parser",
+    documentTransferConsentKey(
+      "local_document-a",
+      { ...remote, id: "another-parser" },
+      plan,
+    ),
+  );
+  assert.notEqual(
+    key,
+    documentTransferConsentKey(
+      "local_document-a",
+      { ...remote, version: "2.0.0" },
+      plan,
+    ),
+  );
+  assert.notEqual(
+    key,
+    documentTransferConsentKey("local_document-a", remote, {
+      ...plan,
+      destinationName: "Another destination",
     }),
   );
   assert.notEqual(
     key,
-    remoteConsentApprovalKey("local_document-a", {
-      ...remote,
-      version: "2.0.0",
+    documentTransferConsentKey("local_document-a", remote, {
+      ...plan,
+      retentionPolicyVersion: "temporary-r2-v2",
     }),
   );
 });
@@ -86,6 +130,9 @@ test("remote run confirmation renders the disclosure and modal contract", () => 
           env: { key: "REMOTE_API_KEY" },
         },
       }),
+      executionPlan: deviceExecutionPlan(
+        component("future-partner-parser", { network: "remote" }),
+      ),
       fileName: "quarterly-report.pdf",
       fileSize: 123_456,
       confirming: false,
@@ -117,6 +164,9 @@ test("confirmation controls expose an in-flight disabled state", () => {
   const html = renderToStaticMarkup(
     createElement(RemoteRunConsentDialog, {
       component: component("future-partner-parser", { network: "remote" }),
+      executionPlan: deviceExecutionPlan(
+        component("future-partner-parser", { network: "remote" }),
+      ),
       fileName: "report.pdf",
       fileSize: 7,
       confirming: true,

@@ -80,10 +80,11 @@ make runner-serve       # http://localhost:8799
 # 3. Upload a PDF at http://localhost:3000 and press "Run OpenDataLoader"
 ```
 
-The PDF stays in your browser's IndexedDB and is posted directly to the local
-runner; the parser executes in an isolated container (`--network none`,
-read-only, non-root) and returns raw output plus a canonical document with
-native bounding boxes.
+The browser is authoritative for the workspace: metadata lives in IndexedDB and
+large retained bytes use IndexedDB today, moving to OPFS as the local artifact
+store grows. The PDF is posted directly to the local runner; the parser executes
+in an isolated container (`--network none`, read-only, non-root) and returns raw
+output plus a canonical document with native bounding boxes for local retention.
 
 The runner accepts browser requests only from the exact local web origins for
 `DOCUMENT_ARENA_WEB_PORT` (`localhost` and `127.0.0.1` by default). Set
@@ -176,10 +177,33 @@ Parser component (pinned image · policy-controlled network · read-only · non-
 Workspace: Blocks / Markdown views · evidence hover · coverage badge
 ```
 
+Hosted execution keeps the same local-first authority. The browser receives
+short-lived presigned URLs from the control plane, stages source bytes in a
+private Cloudflare R2 bucket, and imports completed results from R2 into
+IndexedDB/OPFS. GCP supplies the compute; R2 is only a temporary execution
+exchange behind `BlobStore`, not durable document storage. Objects are deleted
+when the terminal result is imported (or a run is cancelled), with a one-day
+bucket lifecycle rule as the cleanup backstop.
+
+```text
+Browser IndexedDB/OPFS (authoritative)
+   │ presigned PUT                         ▲ presigned GET + local import
+   ▼                                       │
+Cloudflare R2 (private, temporary, 24h) ◀── GCP runner (compute)
+```
+
+Long-lived R2 signing credentials remain server-side and never enter browser
+configuration, logs, or run options; the browser and GCP jobs receive only
+job-scoped, short-lived signed URLs. Those URLs are bearer capabilities and are
+not persisted. R2's zero-egress policy does not make the round trip free: result
+uploads from GCP to R2 are internet data transfer out from GCP and must be
+included in cost estimates. See [Cloudflare R2 pricing](https://developers.cloudflare.com/r2/pricing/)
+and [Google Cloud network pricing](https://cloud.google.com/vpc/network-pricing).
+
 Design decisions are logged one line at a time in [DECISIONS.md](DECISIONS.md).
-The planned service architecture (BlobStore, durable orchestration, hosted
-runners) is documented in [docs/](docs/) and intentionally not faked in the
-running code.
+The planned service architecture (temporary BlobStore exchange, durable job
+orchestration, hosted runners) is documented in [docs/](docs/) and
+intentionally not faked in the running code.
 
 ---
 

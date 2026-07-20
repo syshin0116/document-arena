@@ -32,13 +32,14 @@ import {
   blockLabel,
   buildReadingNodes,
   checkLocalRunner,
+  deviceExecutionPlan,
   evidenceIdForBlock,
   parseWithLocalRunner,
-  remoteConsentApprovalKey,
-  requiresRemoteConsent,
+  requiresDocumentTransferConsent,
   runnerComponent,
   runnerConnectionType,
   toEvidenceRegions,
+  type ExecutionPlan,
   type LocalParseResult,
   type LocalRunnerComponent,
   type LocalRunnerInfo,
@@ -93,6 +94,7 @@ type PendingRemoteRun = {
   parser: ParserId;
   options?: Record<string, unknown>;
   component: LocalRunnerComponent;
+  executionPlan: ExecutionPlan;
   document: LocalDocument;
   openedFromPicker: boolean;
 };
@@ -362,7 +364,6 @@ export function Workspace({
   const resultViewId = useId();
   const canvasRef = useRef<HTMLDivElement>(null);
   const timers = useRef<number[]>([]);
-  const approvedRemoteRuns = useRef(new Set<string>());
   const remoteConsentSubmitting = useRef(false);
   const remoteConsentReturnFocus = useRef<HTMLElement | null>(null);
   const runOptionsSubmittingRef = useRef(false);
@@ -668,12 +669,8 @@ export function Workspace({
         return;
       }
 
-      if (
-        !requiresRemoteConsent(component) ||
-        approvedRemoteRuns.current.has(
-          remoteConsentApprovalKey(documentId, component),
-        )
-      ) {
+      const executionPlan = deviceExecutionPlan(component);
+      if (!requiresDocumentTransferConsent(executionPlan)) {
         if (pickerOpen) setPickerOpen(false);
         await runLocalParse(parser, options);
         return;
@@ -696,6 +693,7 @@ export function Workspace({
           parser,
           options,
           component,
+          executionPlan,
           document: localDocument,
           openedFromPicker: pickerOpen,
         });
@@ -746,9 +744,6 @@ export function Workspace({
     const target = request.openedFromPicker
       ? pickerReturnFocus.current
       : remoteConsentReturnFocus.current;
-    approvedRemoteRuns.current.add(
-      remoteConsentApprovalKey(request.document.id, request.component),
-    );
     remoteConsentReturnFocus.current = null;
     setPendingRemoteRun(null);
     if (request.openedFromPicker) setPickerOpen(false);
@@ -1511,6 +1506,7 @@ export function Workspace({
       {pendingRemoteRun && (
         <RemoteRunConsentDialog
           component={pendingRemoteRun.component}
+          executionPlan={pendingRemoteRun.executionPlan}
           fileName={pendingRemoteRun.document.file.name}
           fileSize={pendingRemoteRun.document.file.size}
           confirming={remoteConsentConfirming}
@@ -1524,6 +1520,7 @@ export function Workspace({
 
 export function RemoteRunConsentDialog({
   component,
+  executionPlan,
   fileName,
   fileSize,
   confirming,
@@ -1531,6 +1528,7 @@ export function RemoteRunConsentDialog({
   onConfirm,
 }: {
   component: LocalRunnerComponent;
+  executionPlan: ExecutionPlan;
   fileName: string;
   fileSize: number;
   confirming: boolean;
@@ -1541,6 +1539,9 @@ export function RemoteRunConsentDialog({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const displayName = component.displayName?.trim() || component.id;
   const connectionType = runnerConnectionType(component);
+  const retention = executionPlan.retentionSeconds
+    ? `${Math.ceil(executionPlan.retentionSeconds / 3600)} hours maximum`
+    : null;
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -1590,11 +1591,13 @@ export function RemoteRunConsentDialog({
           }
         }}
       >
-        <p className="eyebrow">External document transfer</p>
-        <h2 id="remote-consent-title">Send this PDF to {displayName}?</h2>
+        <p className="eyebrow">Document transfer review</p>
+        <h2 id="remote-consent-title">
+          Send this PDF to {executionPlan.destinationName}?
+        </h2>
         <p id="remote-consent-description">
-          This component declares remote execution. The complete PDF will leave
-          this device and be sent to an external service before parsing starts.
+          The complete PDF will leave this device before {displayName} starts.
+          This approval applies only to this run.
         </p>
         <dl className="remote-consent-details">
           <div>
@@ -1609,6 +1612,24 @@ export function RemoteRunConsentDialog({
             <dt>Component</dt>
             <dd>{displayName}</dd>
           </div>
+          <div>
+            <dt>Execution</dt>
+            <dd>
+              {executionPlan.location === "hosted" ? "Hosted" : "On this device"}
+            </dd>
+          </div>
+          {executionPlan.region && (
+            <div>
+              <dt>Region</dt>
+              <dd>{executionPlan.region}</dd>
+            </div>
+          )}
+          {retention && (
+            <div>
+              <dt>Temporary retention</dt>
+              <dd>{retention}</dd>
+            </div>
+          )}
           {connectionType && (
             <div>
               <dt>Connection type</dt>
@@ -1623,8 +1644,7 @@ export function RemoteRunConsentDialog({
           the run record.
         </p>
         <p className="remote-consent-session-note">
-          If approved, this component stays approved for this document until
-          the page is refreshed.
+          Retrying or starting another run asks again before the PDF is sent.
         </p>
         <div className="remote-consent-actions">
           <button

@@ -1,6 +1,6 @@
 # Document Arena architecture
 
-Status: accepted minimal core  
+Status: accepted minimal core, local-first retention updated 2026-07-20
 Date: 2026-07-15
 
 ## Architectural goal
@@ -32,13 +32,15 @@ See [Pipeline and component contract](PIPELINE_COMPONENTS.md).
 
 ```mermaid
 flowchart LR
-    U[Browser] --> W[Web control plane]
+    U[(Browser IndexedDB + OPFS)] --> W[Web control plane]
     W --> D[(Domain PostgreSQL)]
     W --> G[Workflow service]
     G --> D
     G --> K[(Checkpoint schema)]
-    G --> O[(BlobStore)]
-    G --> R[One configured runner]
+    W -. presigned URLs .-> U
+    U <--> O[(Temporary BlobStore)]
+    G --> R[GCP runner]
+    O <--> R
     R --> C[Component OCI container]
     C -. output bundle .-> R
     R -. receipt .-> G
@@ -46,13 +48,16 @@ flowchart LR
     E -. result .-> G
 ```
 
-- The web application handles uploads, workspaces, run requests, and comparison
-  UI; it never runs parser code.
+- IndexedDB and OPFS are authoritative for retained source documents,
+  workspaces, and results. The web application coordinates local UI and hosted
+  execution; it never runs parser code or proxies document bodies.
 - The workflow service leases durable jobs, invokes the shared LangGraph
   envelope, and updates authoritative domain records.
 - The runner executes generic component contracts and knows no parser names.
 - Components own parser-specific invocation and canonical conversion.
-- Metadata and large artifacts are separated behind small storage interfaces.
+- PostgreSQL is authoritative for server-side job operations, not retained
+  document bytes or the user's workspace.
+- Hosted object storage is a temporary execution exchange behind `BlobStore`.
 - A hosted deployment chooses its runner automatically. A self-hosted Docker
   deployment uses the same API locally.
 
@@ -63,18 +68,34 @@ signed catalogs, and persistent parser services are later concerns.
 
 ## Hosted deployment boundary
 
-The first hosted target splits the web surface from durable execution:
+The first hosted target splits the local-first web surface from remote
+execution:
 
 - Vercel runs the official Next.js application, authentication, workspace
-  reads, signed upload creation, job submission, and short status APIs.
-- The browser uploads PDF bytes directly to R2 with a short-lived signed URL;
-  the Next.js application does not proxy document bodies.
+  coordination, presigned transfer creation, job submission, and short status
+  APIs. Workspace content reads stay in the browser.
+- The browser uploads PDF bytes directly to a private R2 execution bucket with
+  a short-lived presigned PUT; the Next.js application does not proxy document
+  bodies.
 - A separately deployed workflow service owns durable job leases and the thin
   LangGraph lifecycle envelope.
-- A private runner host executes the generic OCI contract and launches parser
-  containers. It is never embedded in or publicly exposed by the web service.
-- Managed PostgreSQL remains authoritative for product and job state, while R2
-  is reached only through the provider-neutral `BlobStore` contract.
+- GCP compute executes the generic OCI contract and launches parser containers.
+  Each job receives only exact-key, short-lived presigned GET/PUT URLs; it is
+  never embedded in or publicly exposed by the web service and receives no R2
+  account credential.
+- The browser downloads and verifies the completed bundle, imports it into
+  IndexedDB/OPFS, and acknowledges import so the temporary prefix can be
+  deleted. The private bucket's one-day lifecycle rule removes orphaned objects.
+- Managed PostgreSQL remains authoritative for jobs, leases, attempts, and
+  events. R2 is reached only through the provider-neutral `BlobStore` contract
+  and is not durable product storage.
+
+Cloudflare's R2 egress policy does not waive Google Cloud charges. In
+particular, output bytes sent from GCP compute to R2 leave Google's network and
+must be budgeted under the applicable GCP internet data-transfer-out SKU. Rates
+depend on region, service, tier, and volume; use the current
+[Google Cloud network pricing](https://cloud.google.com/vpc/network-pricing)
+rather than a hard-coded estimate.
 
 This is one product API and one user flow, not a user-visible infrastructure
 choice. A small initial deployment may colocate the workflow service and runner
@@ -102,28 +123,26 @@ kind, not a special dependency imported by the runner.
 GET    /v1/health
 GET    /v1/components
 GET    /v1/recipes
-POST   /v1/documents
-POST   /v1/documents/{documentId}/upload-complete
-GET    /v1/documents/{documentId}
-DELETE /v1/documents/{documentId}
-POST   /v1/documents/{documentId}/runs
-GET    /v1/runs/{runId}
-POST   /v1/runs/{runId}/cancel
-POST   /v1/documents/{documentId}/evaluations
-GET    /v1/evaluations/{evaluationRunId}
+POST   /v1/execution-jobs
+POST   /v1/execution-jobs/{jobId}/source-complete
+GET    /v1/execution-jobs/{jobId}
+POST   /v1/execution-jobs/{jobId}/cancel
+POST   /v1/execution-jobs/{jobId}/result-download
+POST   /v1/execution-jobs/{jobId}/import-complete
 GET    /v1/jobs/{jobId}/events?afterSeq={seq}
 ```
 
 The run request normally contains only a `recipeId`. Advanced clients may
 override schema-validated component options. The deployment resolves the runner
 and secrets; first-time users do not choose CPU/GPU targets or endpoints.
-All GET status and workspace responses are projections of authoritative domain
-records; they never expose or depend on LangGraph checkpoint data.
+Status responses are projections of authoritative server job records; workspace
+and retained-result reads come from IndexedDB/OPFS. Neither surface reads
+LangGraph checkpoint data.
 
 ## Domain model
 
 ```text
-DocumentWorkspace
+BrowserWorkspace (IndexedDB/OPFS authority)
  ├─ SourceDocument
  ├─ PipelineRun[]
  │   ├─ resolved recipe and recipe hash
@@ -133,6 +152,13 @@ DocumentWorkspace
  │   └─ indexReceipt?: ArtifactRef
  └─ EvaluationRun[]
 
+ExecutionJob (server operational authority)
+ ├─ opaque localWorkspaceId
+ ├─ recipe revision and transfer ledger
+ ├─ StageRun[]
+ ├─ status, lease, timestamps, error, and resource summary
+ └─ JobEvent[] with monotonic sequence
+
 StageRun
  ├─ component revision and resolved options
  ├─ input ArtifactRef[]
@@ -140,14 +166,11 @@ StageRun
  ├─ StageAttempt[]
  ├─ status, timestamps, error, and resource summary
  └─ raw artifacts and logs
-
-Job
- ├─ kind: ingest | pipeline | evaluation | cleanup
- ├─ owner-scoped idempotency key
- ├─ status and lease
- ├─ JobEvent[] with monotonic sequence
- └─ workflow thread id? (ingest, pipeline, evaluation only)
 ```
+
+The browser imports the verified result and materializes its retained
+`PipelineRun`; the server-side job may then discard transfer records and object
+keys according to the one-day expiration policy.
 
 The UI may call a `PipelineRun` a “parser run.” Keeping the internal model
 generic lets a later run reuse one parser result with a different LLM or vector
@@ -185,9 +208,10 @@ This gives three useful properties without implementing a DAG:
 - stage caching can eventually key on input hashes, component revision, and
   resolved options.
 
-Durable records store logical artifact ids, never host paths or expiring URLs.
-`storageRef` is a provider-neutral bucket/key reference, never a public provider
-URL.
+Retained browser records store logical artifact ids and opaque local byte
+references, never expiring URLs. During execution, server records may hold a
+provider-neutral temporary `storageRef`; it is a bucket/key reference behind
+`BlobStore`, never a public provider URL and never the retained result location.
 
 ## Minimal canonical parser result
 
@@ -236,8 +260,9 @@ small run manifest, and structured failure information. An HTTP service
 protocol may be added only after measured model-startup cost justifies it.
 
 The workflow calls the runner through idempotent submit and await tasks. Submit
-returns a stable `runnerJobId`; the workflow validates the returned bundle and
-publishes artifacts through `BlobStore` only after success.
+returns a stable `runnerJobId`; the GCP runner reads and writes through
+job-scoped presigned URLs. The workflow validates the temporary returned bundle,
+then exposes a presigned download for browser verification and local import.
 
 Components are isolated with time, memory, process, disk, and optional GPU
 limits. Network and secret access are opt-in declarations. LLM and vector-store
@@ -259,19 +284,23 @@ job-scoped workflow and can fail or retry without changing parser runs.
 
 ## Persistence
 
-The code keeps three persistence roles separate:
+The code keeps four persistence roles separate:
 
-- authoritative PostgreSQL domain tables for workspaces, jobs, attempts, events,
-  stage status, and artifact indexes;
-- a `BlobStore` for PDFs, optional page images, raw output, and canonical
-  results;
+- authoritative browser IndexedDB/OPFS state for retained workspaces, source
+  PDFs, raw output, and canonical results;
+- authoritative PostgreSQL domain tables for active job leases, attempts,
+  events, stage status, and the temporary transfer ledger;
+- a temporary `BlobStore` execution exchange for job-scoped input and output
+  bytes;
 - a separate LangGraph checkpoint schema containing rebuildable execution
   cursors only.
 
 Minimal unit development may use SQLite, SqliteSaver, and a local directory.
 The reference Docker deployment uses one PostgreSQL cluster with separate
-domain/checkpoint schemas plus SeaweedFS. The hosted service uses PostgreSQL
-plus R2. It does not combine D1 with PostgreSQL merely for checkpointing.
+domain/checkpoint schemas plus SeaweedFS as the temporary exchange. The hosted
+service uses PostgreSQL, GCP compute, and an R2 temporary bucket with explicit
+cleanup plus a one-day lifecycle backstop. It does not combine D1 with
+PostgreSQL merely for checkpointing.
 
 Provider details and render behavior are defined in
 [Storage, rendering, and native geometry](STORAGE_AND_RENDERING.md).
@@ -298,8 +327,11 @@ profiling are valuable later, but are not launch blockers.
 - Default component networking to off; declare required external connections.
 - Never log document text or secret values by default.
 - Show when a stage sends document content to an external LLM or vector store.
-- Tombstone before deletion, cancel active work, then purge source, derived
-  artifacts, events, and checkpoints through a retryable cleanup receipt.
+- Never ship BlobStore or cloud-provider credentials to browser code. Presigned
+  URLs are short-lived bearer capabilities and are neither logged nor retained.
+- Local deletion clears IndexedDB/OPFS state. Active remote work is cancelled,
+  and its temporary job prefix is purged through retryable cleanup; the R2
+  one-day lifecycle remains the orphan backstop.
 
 ## Expansion test
 

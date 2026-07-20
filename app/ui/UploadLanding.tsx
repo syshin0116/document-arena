@@ -164,7 +164,10 @@ export function UploadLanding() {
 
         <div className="privacy-note">
           <LockKeyhole aria-hidden="true" />
-          <span>Your document stays in this browser until you choose a runner.</span>
+          <span>
+            Saved only in this browser. We ask before any hosted or external
+            parser transfer.
+          </span>
         </div>
 
         {/* docs/PAGES.md asks for a sample document and a device-local recent

@@ -153,7 +153,7 @@ application boundaries exist. Its planned shape is:
 - web/control plane;
 - the thin workflow service;
 - one PostgreSQL cluster with separately migrated domain and checkpoint schemas;
-- SeaweedFS with its S3 endpoint and persistent volume;
+- SeaweedFS with its S3 endpoint as the temporary execution exchange;
 - one generic local runner.
 
 OpenDataLoader is launched by the runner as an on-demand component container,
@@ -162,8 +162,8 @@ the pinned PDFium image is pulled only for an explicit render job. Redis, Kafka,
 a parser fleet, Garage, and RustFS are not in the reference stack.
 
 A lightweight developer profile may use SQLite/SqliteSaver and a mounted local
-artifact directory. It is for unit and UI development, not the reference
-self-host durability claim.
+temporary-exchange directory. Retained workspace artifacts remain in browser
+IndexedDB/OPFS in every profile.
 
 The reference data/workflow services, web upload flow, LangGraph envelope,
 Redis-backed live updates, and hosted runner are still plans rather than part of
