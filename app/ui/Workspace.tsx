@@ -62,6 +62,7 @@ import {
 } from "../run-options";
 import { AppHeader } from "./AppHeader";
 import { buttonVariants } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { RunOptionFields, RunOptionsDialog } from "./RunOptionsDialog";
@@ -1132,7 +1133,7 @@ export function Workspace({
               >
                 ▤
               </button>
-              <span className="control-separator" />
+              <Separator orientation="vertical" className="control-separator" />
               <button
                 type="button"
                 aria-label="Previous page"
@@ -1164,7 +1165,7 @@ export function Workspace({
               >
                 ›
               </button>
-              <span className="control-separator" />
+              <Separator orientation="vertical" className="control-separator" />
               <button
                 type="button"
                 aria-label="Zoom out"
