@@ -7,7 +7,7 @@ Date: 2026-07-15
 
 Users choose what they want to run, not where a container should run.
 
-- The hosted service automatically uses its project-managed GCP runner.
+- The hosted service automatically uses its project-managed GCP Batch adapter.
 - A self-hosted Docker installation automatically uses its local runner.
 - The common parser picker does not expose Local/Cloud CPU/Cloud GPU choices.
 - The run details still record execution location and coarse hardware for
@@ -37,13 +37,20 @@ heartbeats, cancellation requests, and public events; PostgresSaver owns none of
 those. No fleet broker, registry, scheduler, regions, mTLS, or automatic GPU
 placement are required.
 
-OpenDataLoader runs on the first project-managed GCP CPU environment. M2 adds
-one known GCP Linux environment for MinerU. The exact GCP compute product is a
-deployment adapter choice; it does not leak into the common runner or UI
-contract.
+OpenDataLoader runs first as a GCP Batch CPU job in `asia-northeast3`. M2 adds a
+reviewed Seoul GPU machine shape for MinerU through the same adapter. Each Batch
+job runs the manifest-selected, digest-pinned component image directly; it does
+not start Docker inside a generic container. The provider choice stays in the
+deployment adapter and does not leak into the common runner or UI contract.
+
+Reviewed external images are mirrored by digest into Artifact Registry in the
+same region. Vercel calls GCP through OIDC Workload Identity Federation; neither
+the repository nor Vercel stores a service-account JSON key.
 
 ## Security baseline
 
+- Keep hosted execution disabled unless R2 policy verification, Better Auth
+  session validation, a per-user quota/grant, and GCP WIF readiness all pass.
 - Authenticate hosted runner calls.
 - Verify source and artifact hashes.
 - Isolate each run and apply time, memory, process, disk, and output limits.
@@ -97,3 +104,12 @@ Add fleet-level capabilities only after one GCP runner no longer suffices:
 
 Kubernetes and provider-specific orchestration are explicitly deferred until
 measured queue depth or utilization requires them.
+
+Official deployment references:
+
+- [GCP Batch container jobs](https://cloud.google.com/batch/docs/create-run-basic-job)
+- [GCP Batch pricing](https://cloud.google.com/batch/pricing)
+- [Vercel OIDC](https://vercel.com/docs/oidc)
+- [GCP Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation)
+- [Better Auth for Next.js](https://better-auth.com/docs/integrations/next)
+- [Better Auth PostgreSQL adapter](https://better-auth.com/docs/adapters/postgresql)

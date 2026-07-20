@@ -85,9 +85,11 @@ record may not.
 
 For hosted execution, the browser stages a local source through a short-lived
 presigned PUT, then calls the source-complete endpoint. The server verifies
-object HEAD, size, media type, and checksum before its domain transaction queues
-the execution outbox record. The R2 object remains temporary; the original in
-IndexedDB/OPFS stays authoritative.
+object HEAD, size, and media type, then streams the stored bytes through
+`verifyBlobSha256` before its domain transaction queues the execution outbox
+record. Caller-controlled custom metadata and S3 ETags are never accepted as a
+verified digest. The R2 object remains temporary; the original in IndexedDB/OPFS
+stays authoritative.
 
 ~~~text
 verify_source

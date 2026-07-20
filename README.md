@@ -83,8 +83,11 @@ make runner-serve       # http://localhost:8799
 The browser is authoritative for the workspace: metadata lives in IndexedDB and
 large retained bytes use IndexedDB today, moving to OPFS as the local artifact
 store grows. The PDF is posted directly to the local runner; the parser executes
-in an isolated container (`--network none`, read-only, non-root) and returns raw
-output plus a canonical document with native bounding boxes for local retention.
+in an isolated container (`--network none`, read-only, non-root) and returns a
+canonical document with native bounding boxes plus verified raw-artifact
+descriptors. The browser appends the canonical result and descriptors to local
+run history; the raw bytes remain in the runner output directory until the
+explicit browser-import path lands.
 
 The runner accepts browser requests only from the exact local web origins for
 `DOCUMENT_ARENA_WEB_PORT` (`localhost` and `127.0.0.1` by default). Set
@@ -199,6 +202,13 @@ not persisted. R2's zero-egress policy does not make the round trip free: result
 uploads from GCP to R2 are internet data transfer out from GCP and must be
 included in cost estimates. See [Cloudflare R2 pricing](https://developers.cloudflare.com/r2/pricing/)
 and [Google Cloud network pricing](https://cloud.google.com/vpc/network-pricing).
+
+The planned hosted stack is Vercel Node plus Neon PostgreSQL, Better Auth backed
+by a separate Neon `auth` schema, private R2 for temporary exchange, and GCP
+Batch in Seoul for digest-pinned OCI execution. Local workspaces stay anonymous;
+only hosted runs require a GitHub-authenticated session and quota. Vercel reaches
+GCP through OIDC Workload Identity Federation, so no service-account JSON key is
+stored in Vercel or this repository.
 
 Design decisions are logged one line at a time in [DECISIONS.md](DECISIONS.md).
 The planned service architecture (temporary BlobStore exchange, durable job

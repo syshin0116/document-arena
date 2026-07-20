@@ -109,7 +109,10 @@ time, but export is not a required step in the main flow.
   M4, per document type, fed only by blind votes.
 - Multi-pass Judge consistency checks, pairwise tie-breaks, and ranking models.
 - Portable HTML reports, comments, annotation tools, and manual preference studies.
-- Public accounts, organizations, billing, quotas, and multi-tenant GPU fleets.
+- Public self-service accounts, organizations, billing, and multi-tenant GPU
+  fleets. A private hosted-run preview may add GitHub authentication and a
+  manually issued quota/grant without making browser-local workspaces account
+  data.
 - Office formats other than PDF and parser training or fine-tuning.
 
 ## Extensible internal model
@@ -280,13 +283,14 @@ verified extension seam without exposing a workflow builder.
 
 ## Decisions needed before M1
 
-1. **Retention value:** choose the default expiry shown beside upload. The
-   mechanism is already `expiresAt` plus an idempotent cleanup job and bucket
-   lifecycle safety net.
+1. **Browser retention UX:** define storage-pressure, eviction, export, and
+   deletion messaging. Remote execution exchange is already fixed to explicit
+   cleanup plus a one-day lifecycle backstop; it is not retained workspace
+   storage.
 2. **MVP limits:** choose conservative PDF size and page limits based on the first
    OpenDataLoader measurements.
-3. **MinerU runtime:** choose one project-managed Linux execution environment for
-   M2. This remains an implementation detail rather than a user-facing target
-   choice.
+3. **MinerU Batch shape:** benchmark one reviewed GCP Batch GPU machine in
+   `asia-northeast3`; the provider remains an adapter detail rather than a
+   user-facing target choice.
 4. **Judge provider:** choose one multimodal provider for M3 behind a small adapter,
    with remote submission disabled until the user consents.

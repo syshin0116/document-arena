@@ -45,7 +45,8 @@ unverified.
 
 ## Temporary BlobStore contract
 
-Core code uses capabilities rather than provider names:
+The implemented single-object subset uses capabilities rather than provider
+names:
 
 ~~~text
 put
@@ -53,11 +54,15 @@ head
 open with optional byte range
 signPut
 signGet
-completeMultipart
-abortMultipart
 delete
 deleteMany
 ~~~
+
+Multipart completion/abort and provider-side prefix discovery are deferred.
+Before multipart upload is enabled, the shared contract and compatibility suite
+must cover completion, abort, and orphaned-upload cleanup. Current cleanup uses
+the authoritative transfer ledger to call `deleteMany` with known object refs;
+it does not pretend that `BlobStore` can list a provider prefix.
 
 Listing objects is not an artifact index. IndexedDB records every retained
 logical artifact, local byte reference, checksum, size, media type, and lineage.
@@ -113,6 +118,11 @@ indexes, and transactional workspace state. A successful hosted result is not
 complete from the user's perspective until the browser verifies and imports it
 locally.
 
+The current local slice appends canonical results and verified raw-artifact
+descriptors to IndexedDB. Raw artifact bytes still live in the local runner
+output directory and are explicitly marked `not-imported`; hosted execution
+must not launch until immutable raw-byte import is implemented.
+
 ## Hosted execution handoff (planned)
 
 ~~~text
@@ -120,7 +130,7 @@ create local workspace
   -> request an authorized execution ticket
   -> control plane issues a short-lived presigned PUT
   -> browser uploads the job source directly to temporary BlobStore
-  -> control plane verifies HEAD, size, type, and checksum
+  -> control plane verifies HEAD size/type, then streams and hashes the object
   -> GCP worker receives job-scoped presigned GET/PUT URLs
   -> worker reads source, runs the component, and uploads the result bundle
   -> browser downloads, verifies, and imports the result into IndexedDB/OPFS
@@ -130,7 +140,10 @@ create local workspace
 Buckets are private. Presigned URLs are short lived, limited to the exact key
 and HTTP method, and treated as bearer capabilities. The application validates
 job ownership before issuing each URL and never persists a signed URL. The
-browser and GCP worker receive presigned URLs, never the R2 access key or secret.
+browser and GCP worker never receive the secret key or reusable signing
+credentials. A SigV4 URL necessarily exposes its access-key identifier in the
+`X-Amz-Credential` query field, so the complete URL is treated as a secret bearer
+capability.
 
 ## Retention and deletion
 
@@ -276,17 +289,17 @@ fixtures prove the mapping. It is not required for the first hover experience.
 
 ## Storage compatibility suite
 
-Every non-filesystem provider must pass the same tests:
+Every non-filesystem provider must pass the implemented single-object suite:
 
 - PUT, HEAD, complete GET, DELETE, and repeated delete;
 - single byte-range GET returning 206 and Content-Range;
 - ETag and If-Range behavior used by the PDF endpoint;
 - signed PUT and GET expiration;
 - browser CORS headers if direct URLs are enabled;
-- multipart completion and abort;
-- full job-prefix deletion and repeated cleanup;
+- known-ref batch deletion and repeated cleanup;
 - the provisioned hosted bucket has an unfiltered one-day expiration rule;
 - concurrent immutable writes for independent parser runs.
 
-The application uses only this verified subset even if a provider implements
-more of the S3 API.
+Multipart completion/abort and provider-side full-prefix deletion join this
+suite before those capabilities are exposed. The application uses only the
+verified subset even if a provider implements more of the S3 API.
