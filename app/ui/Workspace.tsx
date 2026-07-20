@@ -1123,7 +1123,7 @@ export function Workspace({
             </div>
             <div className="source-controls" aria-label="Page controls">
               <button
-                className="thumbnail-toggle"
+                className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "thumbnail-toggle")}
                 type="button"
                 aria-label={thumbnailsOpen ? "Hide page thumbnails" : "Show page thumbnails"}
                 aria-expanded={thumbnailsOpen}
@@ -1136,6 +1136,7 @@ export function Workspace({
               <Separator orientation="vertical" className="control-separator" />
               <button
                 type="button"
+                className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
                 aria-label="Previous page"
                 onClick={() =>
                   dispatch({
@@ -1153,6 +1154,7 @@ export function Workspace({
               </span>
               <button
                 type="button"
+                className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
                 aria-label="Next page"
                 onClick={() =>
                   dispatch({
@@ -1168,6 +1170,7 @@ export function Workspace({
               <Separator orientation="vertical" className="control-separator" />
               <button
                 type="button"
+                className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
                 aria-label="Zoom out"
                 disabled={zoom <= 50}
                 onClick={() => setZoom((value) => Math.max(50, value - 10))}
@@ -1175,6 +1178,7 @@ export function Workspace({
               <span>{zoom}%</span>
               <button
                 type="button"
+                className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
                 aria-label="Zoom in"
                 disabled={zoom >= 200}
                 onClick={() => setZoom((value) => Math.min(200, value + 10))}

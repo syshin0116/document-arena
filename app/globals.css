@@ -719,21 +719,13 @@ button:disabled {
   font-size: var(--text-2xs);
 }
 
+/* Box, hover, focus ring and disabled state come from buttonVariants ghost /
+   icon-sm, which is 28px — the same size this rule hand-rolled. Only the glyph
+   size is ours: these are text arrows and signs, not icons, so they need to be
+   larger than the button default. Disabled opacity was 0.28 and is now
+   shadcn's 0.5, which is legible rather than nearly invisible. */
 .source-controls button {
-  display: inline-grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
   font-size: var(--text-lg);
-}
-
-.source-controls button:disabled {
-  opacity: 0.28;
 }
 
 .source-controls span {
@@ -2503,7 +2495,6 @@ button:disabled {
 @media (hover: hover) and (pointer: fine) {
   .back-button:hover,
   .details-button:hover { background: oklch(0 0 0 / 0.055); color: var(--ink); }
-  .source-controls button:hover { background: oklch(0 0 0 / 0.055); color: var(--ink); }
   .source-box:hover { opacity: 1; }
   .parser-option:hover:not(:disabled) { border-color: rgb(var(--evidence-rgb) / 0.3); }
 }
