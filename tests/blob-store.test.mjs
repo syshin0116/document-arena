@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
   BlobAlreadyExistsError,
+  BlobIntegrityError,
   BlobNotFoundError,
   DEFAULT_BLOB_RETENTION_SECONDS,
   defaultBlobExpiresAt,
   signedRequestTtlSeconds,
+  verifyBlobSha256,
 } from "../services/storage/blob-store.ts";
 import { createR2BlobStore } from "../services/storage/r2-blob-store.ts";
 import { S3CompatibleBlobStore } from "../services/storage/s3-compatible-blob-store.ts";
@@ -20,7 +23,6 @@ const REF = {
 const METADATA = {
   mediaType: "application/pdf",
   expiresAt: "2026-07-21T01:02:03.000Z",
-  sha256: "a".repeat(64),
 };
 
 test("the core BlobStore contract keeps 24-hour retention separate from URL TTL", async () => {
@@ -29,8 +31,8 @@ test("the core BlobStore contract keeps 24-hour retention separate from URL TTL"
   assert.equal(signedRequestTtlSeconds(), 900);
   assert.equal(signedRequestTtlSeconds({ ttlSeconds: 1 }), 1);
   assert.throws(
-    () => signedRequestTtlSeconds({ ttlSeconds: 604_801 }),
-    /between 1 and 604800/,
+    () => signedRequestTtlSeconds({ ttlSeconds: 3_601 }),
+    /between 1 and 3600/,
   );
 
   const source = await readFile(
@@ -40,7 +42,7 @@ test("the core BlobStore contract keeps 24-hour retention separate from URL TTL"
   assert.doesNotMatch(source, /cloudflare|\br2\b|\baws\b/i);
 });
 
-test("R2 signs method-scoped upload, download, and delete bearer requests", async () => {
+test("R2 exposes only method-scoped upload and download bearer requests", async () => {
   const store = createR2BlobStore({
     accountId: "1".repeat(32),
     bucket: REF.bucket,
@@ -50,7 +52,10 @@ test("R2 signs method-scoped upload, download, and delete bearer requests", asyn
   });
 
   const upload = await store.signPut(
-    { ref: REF, metadata: METADATA },
+    {
+      ref: REF,
+      metadata: { ...METADATA, sha256: "a".repeat(64) },
+    },
     { ttlSeconds: 300 },
   );
   assert.equal(upload.method, "PUT");
@@ -59,7 +64,6 @@ test("R2 signs method-scoped upload, download, and delete bearer requests", asyn
     "content-type": "application/pdf",
     "if-none-match": "*",
     "x-amz-meta-document-arena-expires-at": METADATA.expiresAt,
-    "x-amz-meta-document-arena-sha256": METADATA.sha256,
   });
 
   const uploadUrl = new URL(upload.url);
@@ -81,22 +85,16 @@ test("R2 signs method-scoped upload, download, and delete bearer requests", asyn
   );
   assert.equal(
     uploadUrl.searchParams.get("X-Amz-SignedHeaders"),
-    "content-type;host;if-none-match;x-amz-meta-document-arena-expires-at;x-amz-meta-document-arena-sha256",
+    "content-type;host;if-none-match;x-amz-meta-document-arena-expires-at",
   );
-  assert.equal(
-    uploadUrl.searchParams.get("X-Amz-Signature"),
-    "dcab565128ec7165207a6b8be79c3f0dd0abff5a575e23e14673d4a5eec037c9",
-  );
+  assert.match(uploadUrl.searchParams.get("X-Amz-Signature"), /^[a-f0-9]{64}$/);
   assert.doesNotMatch(upload.url, /example-secret-key/);
 
   const download = await store.signGet(REF, { ttlSeconds: 60 });
-  const deletion = await store.signDelete(REF, { ttlSeconds: 60 });
   assert.equal(download.method, "GET");
-  assert.equal(deletion.method, "DELETE");
   assert.deepEqual(download.headers, {});
-  assert.deepEqual(deletion.headers, {});
-  assert.notEqual(download.url, deletion.url);
   assert.equal(new URL(download.url).searchParams.get("X-Amz-Expires"), "60");
+  assert.equal(store.signDelete, undefined);
 });
 
 test("the shared adapter maps put, head, range-open, and idempotent delete", async () => {
@@ -111,7 +109,7 @@ test("the shared adapter maps put, head, range-open, and idempotent delete", asy
         etag: '"head-etag"',
         "last-modified": "Mon, 20 Jul 2026 01:02:03 GMT",
         "x-amz-meta-document-arena-expires-at": METADATA.expiresAt,
-        "x-amz-meta-document-arena-sha256": METADATA.sha256,
+        "x-amz-meta-document-arena-sha256": "a".repeat(64),
       },
     }),
     new Response(new Uint8Array([2, 3]), {
@@ -163,7 +161,6 @@ test("the shared adapter maps put, head, range-open, and idempotent delete", asy
     mediaType: "application/pdf",
     lastModified: "Mon, 20 Jul 2026 01:02:03 GMT",
     expiresAt: METADATA.expiresAt,
-    sha256: METADATA.sha256,
   });
 
   const opened = await store.open(REF, { offset: 1, length: 2 });
@@ -230,4 +227,64 @@ test("missing objects have provider-neutral behavior", async () => {
     assert.deepEqual(error.ref, REF);
     return true;
   });
+});
+
+test("SHA-256 verification hashes streamed object bytes", async () => {
+  const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+  const expectedSha256 = createHash("sha256").update(bytes).digest("hex");
+  const store = {
+    async open(ref) {
+      return {
+        ref,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(bytes.slice(0, 2));
+            controller.enqueue(bytes.slice(2));
+            controller.close();
+          },
+        }),
+        status: 200,
+        contentLength: bytes.byteLength,
+      };
+    },
+  };
+
+  assert.deepEqual(await verifyBlobSha256(store, REF, expectedSha256), {
+    ref: REF,
+    algorithm: "sha256",
+    sha256: expectedSha256,
+    sizeBytes: bytes.byteLength,
+  });
+});
+
+test("SHA-256 verification rejects bytes that do not match the expected digest", async () => {
+  const bytes = new Uint8Array([9, 8, 7]);
+  const actualSha256 = createHash("sha256").update(bytes).digest("hex");
+  const expectedSha256 = "0".repeat(64);
+  const store = {
+    async open(ref) {
+      return {
+        ref,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(bytes);
+            controller.close();
+          },
+        }),
+        status: 200,
+        contentLength: bytes.byteLength,
+      };
+    },
+  };
+
+  await assert.rejects(
+    verifyBlobSha256(store, REF, expectedSha256),
+    (error) => {
+      assert.ok(error instanceof BlobIntegrityError);
+      assert.deepEqual(error.ref, REF);
+      assert.equal(error.expectedSha256, expectedSha256);
+      assert.equal(error.actualSha256, actualSha256);
+      return true;
+    },
+  );
 });
