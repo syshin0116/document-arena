@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "bun:test";
 import { thumbnailRenderPages } from "../app/pdf-thumbnail-pages.ts";
 
 test("the active PDF page always has a rendered thumbnail window", () => {

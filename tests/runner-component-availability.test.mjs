@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "bun:test";
 import { componentAvailability } from "../services/runner/component-availability.mjs";
 
 test("local components are runnable when their pinned image exists", () => {

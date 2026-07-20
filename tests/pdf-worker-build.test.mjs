@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { access, readFile, readdir, stat } from "node:fs/promises";
-import test from "node:test";
+import { test } from "bun:test";
 
 test("the Next.js production build emits a non-empty PDF.js worker", async () => {
   await access(new URL("../.next/BUILD_ID", import.meta.url));
