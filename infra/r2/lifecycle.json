@@ -1,0 +1,23 @@
+{
+  "rules": [
+    {
+      "id": "expire-all-temporary-objects-after-one-day",
+      "conditions": {
+        "prefix": ""
+      },
+      "enabled": true,
+      "abortMultipartUploadsTransition": {
+        "condition": {
+          "type": "Age",
+          "maxAge": 86400
+        }
+      },
+      "deleteObjectsTransition": {
+        "condition": {
+          "type": "Age",
+          "maxAge": 86400
+        }
+      }
+    }
+  ]
+}
