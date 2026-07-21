@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SAMPLE_DOCUMENTS } from "../lib/sample-documents-meta";
+import {
+  listLocalDocuments,
+  type LocalDocumentSummary,
+} from "../local-document-store";
 
 /**
  * A ⌘K command palette for the actions that are navigation, not parser choice.
@@ -34,8 +38,28 @@ export function CommandPalette() {
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
+  const [recent, setRecent] = useState<LocalDocumentSummary[]>([]);
+
+  // The device-local workspaces, so ⌘K can resume work from any surface. Read on
+  // mount and re-read each time the palette opens, since another tab or an
+  // upload may have changed the store.
+  const loadRecent = useCallback(() => {
+    listLocalDocuments()
+      .then(setRecent)
+      .catch(() => setRecent([]));
+  }, []);
+  useEffect(() => {
+    loadRecent();
+  }, [loadRecent]);
 
   const commands = useMemo<Command[]>(() => {
+    const workspaces = recent.map((d) => ({
+      id: `recent-${d.id}`,
+      label: `Open · ${d.name}`,
+      hint: "recent",
+      href: `/documents/${d.id}`,
+      keywords: `${d.name} workspace recent resume`,
+    }));
     const samples = SAMPLE_DOCUMENTS.map((s) => ({
       id: `sample-${s.id}`,
       label: `Open sample · ${s.shortTitle}`,
@@ -44,13 +68,14 @@ export function CommandPalette() {
       keywords: `${s.title} ${s.shortTitle} sample document parse`,
     }));
     return [
+      ...workspaces,
       ...samples,
       { id: "arena", label: "Start a blind battle", hint: "arena", href: "/arena", keywords: "arena blind vote compare battle" },
       { id: "standings", label: "View standings", hint: "go", href: "/leaderboard", keywords: "standings leaderboard votes ranking" },
       { id: "design", label: "Design tokens", hint: "go", href: "/design", keywords: "design tokens colours type reference" },
       { id: "home", label: "Upload a PDF", hint: "go", href: "/", keywords: "home upload open pdf document" },
     ];
-  }, []);
+  }, [recent]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -111,16 +136,17 @@ export function CommandPalette() {
     };
   }, [openPalette]);
 
-  // Focus the input on open; lock body scroll.
+  // Focus the input on open; refresh the workspace list; lock body scroll.
   useEffect(() => {
     if (!open) return;
+    loadRecent();
     inputRef.current?.focus();
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previous;
     };
-  }, [open]);
+  }, [open, loadRecent]);
 
   if (!open) return null;
 
