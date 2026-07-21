@@ -2865,6 +2865,26 @@ body {
 }
 
 /* The evidence teaser: one real screenshot, framed, below the fold. */
+/* The Workspaces nav menu: saved documents, most-recent first. */
+.workspaces-menu {
+  min-width: 260px;
+}
+
+.workspaces-menu-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaces-menu-size {
+  margin-left: auto;
+  padding-left: 12px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: var(--text-2xs);
+  color: var(--ink-faint);
+}
+
 .landing-teaser {
   width: min(1180px, calc(100% - 48px));
   margin: clamp(48px, 8vh, 88px) auto clamp(40px, 7vh, 72px);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Clock, FileText, LockKeyhole } from "lucide-react";
+import { ArrowRight, ChevronDown, Clock, FileText, LockKeyhole } from "lucide-react";
 import { m } from "motion/react";
 import {
   listLocalDocuments,
@@ -21,15 +21,13 @@ import {
   DropzoneTrigger,
   useDropzone,
 } from "@/components/ui/dropzone";
+import { Button } from "@/components/ui/button";
 import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemMedia,
-  ItemTitle,
-} from "@/components/ui/item";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { motionTransition } from "@/lib/motion";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -37,7 +35,6 @@ import { Brand } from "./Brand";
 import { OPEN_EVENT } from "./CommandPalette";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
-const RECENT_SHELF_LIMIT = 3;
 
 function formatSize(bytes: number) {
   const mb = bytes / (1024 * 1024);
@@ -141,34 +138,33 @@ export function UploadLanding() {
     </div>
   );
 
-  const recentShelf = recent.length > 0 && (
-    <div className="landing-shelves recent-shelf">
-        <section aria-labelledby="recent-heading">
-          <h2 id="recent-heading" className="landing-shelf-heading">
-            Recent workspaces
-          </h2>
-          <ItemGroup>
-            {recent.slice(0, RECENT_SHELF_LIMIT).map((document) => (
-              <Item
-                key={document.id}
-                size="sm"
-                render={<Link href={`/documents/${document.id}`} />}
-              >
-                <ItemMedia variant="icon">
-                  <Clock />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle>{document.name}</ItemTitle>
-                  <ItemDescription>{formatSize(document.size)}</ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <ArrowRight />
-                </ItemActions>
-              </Item>
-            ))}
-          </ItemGroup>
-        </section>
-    </div>
+  /* Saved workspaces live in a nav menu, not a landing shelf. A truncated
+     three-item list under the copy was only reachable from the landing and
+     could not grow; a menu is reachable here and resumes from ⌘K on every other
+     surface. The landing itself stays about starting something new. */
+  const workspacesMenu = recent.length > 0 && (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" size="sm" />}
+      >
+        Workspaces
+        <ChevronDown data-icon="inline-end" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="workspaces-menu">
+        {recent.map((document) => (
+          <DropdownMenuItem
+            key={document.id}
+            render={<Link href={`/documents/${document.id}`} />}
+          >
+            <Clock />
+            <span className="workspaces-menu-name">{document.name}</span>
+            <span className="workspaces-menu-size">
+              {formatSize(document.size)}
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 
   return (
@@ -197,6 +193,7 @@ export function UploadLanding() {
           >
             Search <kbd>⌘K</kbd>
           </button>
+          {workspacesMenu}
           <Link
             className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
             href="/arena"
@@ -235,8 +232,6 @@ export function UploadLanding() {
               page shows you where.
             </p>
           </m.div>
-
-          {recentShelf}
         </div>
 
         <m.div
