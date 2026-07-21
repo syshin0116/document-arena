@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { motionTransition } from "@/lib/motion";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Brand } from "./Brand";
+import { OPEN_EVENT } from "./CommandPalette";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const RECENT_SHELF_LIMIT = 3;
@@ -187,6 +188,15 @@ export function UploadLanding() {
             upload flow asks the visitor to make, so the page can name them
             without taking on the parser choice this page still keeps out. */}
         <nav className="landing-nav landing-nav-v2" aria-label="Product surfaces">
+          <button
+            type="button"
+            className="cmdk-trigger"
+            onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}
+            aria-haspopup="dialog"
+            aria-label="Open command palette"
+          >
+            Search <kbd>⌘K</kbd>
+          </button>
           <Link
             className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
             href="/arena"

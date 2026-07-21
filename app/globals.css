@@ -2908,6 +2908,138 @@ body {
   height: auto;
 }
 
+/* ⌘K command palette */
+.cmdk-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  background: oklch(0 0 0 / 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.cmdk-panel {
+  width: min(560px, calc(100% - 32px));
+  overflow: clip;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow-large);
+  backdrop-filter: blur(18px);
+}
+
+.cmdk-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-base);
+  outline: none;
+}
+
+.cmdk-input::placeholder {
+  color: var(--ink-faint);
+}
+
+.cmdk-list {
+  margin: 0;
+  padding: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.cmdk-item[aria-selected="true"] {
+  background: var(--surface-accent);
+  color: var(--ink);
+}
+
+.cmdk-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cmdk-item-hint {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+.cmdk-empty {
+  padding: 14px 12px;
+  color: var(--ink-faint);
+  font-size: var(--text-sm);
+}
+
+/* The visible ⌘K trigger in a header. */
+.cmdk-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-faint);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.cmdk-trigger:hover {
+  border-color: var(--ink-faint);
+  color: var(--ink);
+}
+
+.cmdk-trigger:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.cmdk-trigger kbd {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: var(--text-2xs);
+  color: var(--ink-faint);
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmdk-trigger {
+    transition: none;
+  }
+}
+
 .landing-copy h1 {
   max-width: 520px;
   margin-top: 18px;
