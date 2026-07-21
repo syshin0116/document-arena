@@ -66,3 +66,11 @@ tsconfig.tsbuildinfo
 /.agents/
 /.codex/
 /.claude/settings.local.json
+
+# Local agent skill installs (hallmark etc.)
+/skills-lock.json
+/.claude/skills/
+
+# Local agent skill installs (hallmark etc.)
+/skills-lock.json
+/.claude/skills/
