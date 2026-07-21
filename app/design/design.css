@@ -1,0 +1,269 @@
+/* Scoped to the /design token reference. Co-located so it never adds to the
+   main stylesheet. Every rule is namespaced under .dref. */
+
+.dref {
+  min-height: 100dvh;
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.dref-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--shell-head);
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-raised);
+  backdrop-filter: blur(18px);
+}
+
+.dref-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.dref-header-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.dref-body {
+  width: min(1080px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 40px 0 96px;
+}
+
+.dref-lede {
+  max-width: 62ch;
+  margin: 0 0 40px;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.dref code {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.92em;
+  color: var(--ink);
+}
+
+.dref-section {
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+}
+
+.dref-section > h2 {
+  margin: 0 0 4px;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.dref-section-note {
+  max-width: 60ch;
+  margin: 0 0 20px;
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+/* colour swatches */
+.dref-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.dref-swatch {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.dref-chip {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+}
+
+.dref-swatch-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dref-note {
+  color: var(--ink-faint);
+  font-size: var(--text-2xs);
+}
+
+.dref-value {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: var(--text-2xs);
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* key/value rows */
+.dref-rows {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+
+.dref-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.dref-row:last-child {
+  border-bottom: 0;
+}
+
+.dref-row > code {
+  min-width: 200px;
+}
+
+/* type scale */
+.dref-type {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+
+.dref-type-row {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
+  align-items: baseline;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.dref-type-row:last-child {
+  border-bottom: 0;
+}
+
+.dref-type-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dref-type-sample {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* weights */
+.dref-weights {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.dref-weight {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.dref-weight-sample {
+  font-size: 2.25rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+/* boxes: radii + shadows */
+.dref-boxes {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.dref-box-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.dref-box {
+  width: 72px;
+  height: 72px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line-strong);
+}
+
+.dref-box-lift {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+/* motion demo */
+.dref-motion-demo {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background: var(--candidate-1);
+  transition-property: transform;
+  transform: translateX(0);
+}
+
+.dref-row:hover .dref-motion-demo {
+  transform: translateX(120px);
+}
+
+.dref-chrome-bar {
+  display: inline-block;
+  width: 120px;
+  background: var(--surface-accent);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dref-motion-demo,
+  .dref-row:hover .dref-motion-demo {
+    transition: none;
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .dref-type-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .dref-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .dref-row > code {
+    min-width: 0;
+  }
+}
