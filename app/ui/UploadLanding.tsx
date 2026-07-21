@@ -274,6 +274,30 @@ export function UploadLanding() {
         </m.div>
 
       </section>
+
+      {/* A look at the thing the copy promises. The landing is the functional
+          bench, not a marketing page, so this is one honest screenshot of a
+          real parse - the source page beside the blocks read from it - not a
+          feature grid. It teaches "evidence-first" to a first visit that has
+          never opened a workspace. */}
+      <section className="landing-teaser" aria-label="What a parsed document looks like">
+        <figure className="teaser-frame">
+          <figcaption className="teaser-caption">
+            <span className="teaser-caption-dot" aria-hidden="true" />
+            Every block, beside the region it was read from
+          </figcaption>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className="teaser-shot"
+            src="/teaser/workspace-evidence.webp"
+            alt="A workspace: a paper's first page on the left, and a parser's blocks on the right, each labelled with its kind and word count."
+            width={1400}
+            height={707}
+            loading="lazy"
+            decoding="async"
+          />
+        </figure>
+      </section>
     </m.main>
   );
 }
