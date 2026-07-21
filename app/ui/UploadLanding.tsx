@@ -13,7 +13,6 @@ import {
   SAMPLE_DOCUMENTS,
 } from "../lib/sample-documents-meta";
 import { buttonVariants } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Dropzone,
   DropZoneArea,
@@ -215,13 +214,15 @@ export function UploadLanding() {
             animate={{ opacity: 1, y: 0 }}
             transition={motionTransition.enter}
           >
-            <Badge variant="outline" className="landing-kicker">
+            <p className="landing-kicker landing-kicker-eyebrow">
+              <span className="landing-kicker-tick" aria-hidden="true" />
               Evidence-first document review
-            </Badge>
-            <h1 id="landing-title">Parse first. Compare with evidence.</h1>
+            </p>
+            <h1 id="landing-title">Parse it. Then prove every block.</h1>
             <p className="landing-lede">
-              Open a PDF, run the recommended parser, and inspect every block
-              beside the page it came from.
+              Open a PDF and read the parser&apos;s output beside the exact
+              region of the page it came from. When two parsers disagree, the
+              page shows you where.
             </p>
           </m.div>
 

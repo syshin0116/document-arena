@@ -2839,10 +2839,29 @@ body {
   align-items: flex-start;
 }
 
-.landing-kicker {
-  border-color: var(--border);
-  background: var(--muted);
-  color: var(--muted-foreground);
+/* A mono machine-readout eyebrow with an accent tick, not a pill badge. The
+   uppercase mono label is the product's own voice — it is how the workspace
+   labels every block kind — so the landing opens in it. */
+.landing-kicker-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-faint);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.landing-kicker-tick {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: var(--radius-full);
+  background: var(--indigo);
 }
 
 .landing-copy h1 {
