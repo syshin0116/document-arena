@@ -147,7 +147,7 @@ test("server-renders the focused PDF upload experience", async () => {
   const html = await response.text();
   assert.match(html, /<title>Document Arena · Compare document pipelines<\/title>/i);
   assert.match(html, /<a[^>]*aria-label="Document Arena home"[^>]*href="\/"/);
-  assert.match(html, /Parse first\. Compare with evidence\./);
+  assert.match(html, /Parse it\. Then prove every block\./);
   assert.match(html, /Bring your PDF into focus/);
   assert.match(html, /type="file"/);
   assert.match(html, /accept="application\/pdf,.pdf"/);
