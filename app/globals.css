@@ -1443,6 +1443,20 @@ button:disabled {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  /* A hairline top marker shows which column's regions the source is drawing.
+     Transparent until active so the columns stay flush at rest. */
+  border-top: 2px solid transparent;
+  transition: border-color var(--motion-fast) var(--ease-standard);
+}
+
+.result-compare-column[data-source-active] {
+  border-top-color: var(--indigo);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-compare-column {
+    transition: none;
+  }
 }
 
 .result-columns[data-columns="2"] {
