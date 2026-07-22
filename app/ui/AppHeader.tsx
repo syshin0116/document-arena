@@ -1,8 +1,5 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { Brand } from "./Brand";
 
 export function AppHeader({
@@ -17,13 +14,8 @@ export function AppHeader({
   return (
     <header className="workspace-header app-header">
       <div className="workspace-identity">
-        <Link
-          className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "back-button")}
-          href="/"
-          aria-label="Back to upload"
-        >
-          <ArrowLeft />
-        </Link>
+        {/* No back arrow: the wordmark beside it already links home, so the
+            arrow was a second control to the same place. */}
         <Link className="workspace-brand" href="/" aria-label="Document Arena home">
           <Brand compact />
         </Link>

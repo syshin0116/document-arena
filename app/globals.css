@@ -268,30 +268,8 @@
   font-size: var(--text-sm);
 }
 
-/* buttonVariants supplies the box, radius, cursor and transition. .back-button
-   is not migrated yet, so it keeps the chassis; the other two only need the
-   colour and the letter-spacing the variants do not set. */
-.back-button {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 0;
-  border-radius: var(--radius-lg);
-  cursor: pointer;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  width: 36px;
-  padding: 0;
-  background: transparent;
-  color: var(--ink-soft);
-  transition:
-    transform var(--motion-fast) var(--ease-out),
-    background-color var(--motion-normal) ease,
-    color var(--motion-normal) ease;
-}
-
+/* buttonVariants supplies the box, radius, cursor and transition. These two
+   only need the colour and letter-spacing the variants do not set. */
 .details-button,
 .sheet-close {
   letter-spacing: -0.01em;
@@ -299,7 +277,6 @@
 }
 
 .details-button:active,
-.back-button:active,
 .sheet-close:active,
 .parser-option:active,
 .run-chip:active {
@@ -2495,9 +2472,7 @@ button:disabled {
   /* .details-button is migrated, so its hover comes from the ghost variant,
      which is theme-aware. This black wash is not: at 5.5% it lifts a light
      surface but darkens a dark one, so the migrated control was getting the
-     wrong direction in dark mode. .back-button is not migrated yet and still
-     needs it. */
-  .back-button:hover { background: oklch(0 0 0 / 0.055); color: var(--ink); }
+     wrong direction in dark mode. */
   .source-box:hover { opacity: 1; }
   .parser-option:hover:not(:disabled) { border-color: rgb(var(--evidence-rgb) / 0.3); }
 }
@@ -2771,7 +2746,6 @@ button:disabled {
   }
 
   .details-button,
-  .back-button,
   .sheet-close,
   .parser-option,
   .run-chip {
@@ -3304,10 +3278,6 @@ body {
   background: color-mix(in oklab, var(--background) 88%, transparent);
   box-shadow: none;
   backdrop-filter: blur(18px);
-}
-
-.app-header .back-button {
-  color: var(--muted-foreground);
 }
 
 .header-separator {
