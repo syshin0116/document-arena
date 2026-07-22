@@ -346,6 +346,11 @@ export function Workspace({
   );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // In compare, the source draws one parser's regions at a time - the column
+  // you last pointed at - rather than every parser's boxes at once, which
+  // stacked tight word boxes under coarse whole-table boxes into an unreadable
+  // soup. Null falls back to the first completed parser.
+  const [focusedParser, setFocusedParser] = useState<ParserId | null>(null);
   const [zoom, setZoom] = useState(92);
   const [thumbnailsOpen, setThumbnailsOpen] = useState(true);
   const [displayFileName, setDisplayFileName] = useState(fileName);
@@ -456,6 +461,16 @@ export function Workspace({
       ? demoEvidenceRegions
       : []
     : localRegions;
+
+  // Which parser's boxes the source shows. In compare that is one parser at a
+  // time (the pointed-at column, else the first); in single view it is the one
+  // parser on screen. localRegions already scopes to shownParsers, so this only
+  // narrows the compare case from all of them to one.
+  const sourceParserId: string = comparing
+    ? focusedParser && completedParsers.includes(focusedParser)
+      ? focusedParser
+      : (completedParsers[0] ?? "*")
+    : "*";
   const hasNativeMapping = demo
     ? demoHasNativeMapping
     : localRegions.some((region) => region.pageNumber === state.page);
@@ -1199,7 +1214,7 @@ export function Workspace({
               zoom={zoom}
               thumbnailsOpen={thumbnailsOpen}
               regions={sourceRegions}
-              regionParserId="*"
+              regionParserId={sourceParserId}
               activeEvidence={evidence}
               pinnedEvidence={state.pinnedEvidence}
               comparing={comparing}
@@ -1363,8 +1378,18 @@ export function Workspace({
                   {completedParsers.map((parser) => {
                     const result = resultFor(parser);
                     if (!result) return null;
+                    // Pointing at (or tabbing into) a column makes the source
+                    // draw that parser's regions. focusCapture covers keyboard.
                     return (
-                      <div key={parser} className="result-compare-column">
+                      <div
+                        key={parser}
+                        className="result-compare-column"
+                        data-source-active={
+                          sourceParserId === parser || undefined
+                        }
+                        onMouseEnter={() => setFocusedParser(parser)}
+                        onFocusCapture={() => setFocusedParser(parser)}
+                      >
                         {renderResultBody(parser, result)}
                       </div>
                     );
