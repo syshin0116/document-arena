@@ -3,7 +3,9 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
+  Children,
   memo,
+  type ComponentPropsWithoutRef,
   type ReactNode,
   useCallback,
   useEffect,
@@ -379,9 +381,6 @@ export function Workspace({
   const resultsScrollRef = useRef<HTMLDivElement | null>(null);
   const pageSyncSource = useRef<"scroll" | "page" | null>(null);
   const pageSyncRaf = useRef<number | null>(null);
-  // Set when a pin originates from clicking a box on the source PDF, so the
-  // results scroll to that block (but not when the pin came from the results).
-  const pinFromSource = useRef(false);
   const evidence = displayedEvidence(state);
 
   const resultFor = useCallback(
@@ -868,26 +867,9 @@ export function Workspace({
 
   function pinSourceEvidence(next: string) {
     if (isKnownEvidence(next)) {
-      pinFromSource.current = true;
       pinEvidence(next);
     }
   }
-
-  // A pin from the source PDF scrolls the results to the matching block.
-  useEffect(() => {
-    if (demo || !pinFromSource.current) return;
-    pinFromSource.current = false;
-    const pinned = state.pinnedEvidence;
-    if (!pinned) return;
-    const container = resultsScrollRef.current;
-    const target = container?.querySelector<HTMLElement>(
-      `[data-evidence-id="${CSS.escape(pinned)}"]`,
-    );
-    target?.scrollIntoView({
-      block: "center",
-      behavior: preferredScrollBehavior(),
-    });
-  }, [state.pinnedEvidence, demo]);
 
   // Scrolling the results moves the source PDF to whichever page section sits
   // nearest the top of the scroll area (throttled to one read per frame).
@@ -2172,8 +2154,34 @@ function LocalFailedResult({
 // uploaded document, so it must not be trusted as HTML).
 const MARKDOWN_REMARK_PLUGINS = [remarkGfm];
 const MARKDOWN_REHYPE_PLUGINS = [rehypeRaw, rehypeSanitize];
+const MARKDOWN_COMPONENTS = { table: MarkdownTable };
 // Azure DI marks page boundaries in its Markdown; MinerU/OpenDataLoader do not.
 const PAGE_BREAK_RE = /<!--\s*PageBreak\s*-->/i;
+
+// Raw parser HTML can put a title directly inside <table>. React rejects text
+// nodes there and the browser reparses them differently during hydration.
+// Preserve meaningful text as a valid caption and discard formatting-only
+// whitespace; ordinary Markdown tables pass through unchanged.
+function MarkdownTable({
+  children,
+  ...props
+}: ComponentPropsWithoutRef<"table">) {
+  const childNodes = Children.toArray(children);
+  const caption = childNodes
+    .filter((child): child is string => typeof child === "string")
+    .join("")
+    .trim();
+  const tableChildren = childNodes.filter(
+    (child) => typeof child !== "string",
+  );
+
+  return (
+    <table {...props}>
+      {caption ? <caption>{caption}</caption> : null}
+      {tableChildren}
+    </table>
+  );
+}
 
 // The Markdown view: the parser's own Markdown string. Rendered runs it through
 // react-markdown (real headings/tables, split on Azure DI page breaks); Raw
@@ -2234,6 +2242,7 @@ const MarkdownView = memo(function MarkdownView({
                 <ReactMarkdown
                   remarkPlugins={MARKDOWN_REMARK_PLUGINS}
                   rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
+                  components={MARKDOWN_COMPONENTS}
                 >
                   {chunk}
                 </ReactMarkdown>
