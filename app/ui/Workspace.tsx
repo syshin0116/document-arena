@@ -406,13 +406,17 @@ export function Workspace({
   const effectiveTab: ParserId | "compare" | null = demo
     ? null
     : (() => {
+        // Explicit selection wins. Compare is only ever entered by choosing it,
+        // never forced: a second finished parser used to slam the view into a
+        // stacked three-parser compare and strand the single-parser tabs, which
+        // is the opposite of "one parser per tab". Now finishing a run leaves
+        // you on that parser's tab; Compare is the ⇄ chip you click.
         if (runTab === "compare") {
           if (completedParsers.length >= 2) return "compare";
         } else if (runTab && localRuns[runTab]) {
           return runTab;
         }
-        if (completedParsers.length >= 2) return "compare";
-        if (completedParsers.length === 1) return completedParsers[0];
+        if (completedParsers.length >= 1) return completedParsers[0];
         // Nothing complete yet: surface a running/failed parser if any.
         const active = LOCAL_PARSER_ORDER.find(
           (p) =>
@@ -1875,7 +1879,9 @@ function RunnerStrip({
   return (
     <div className="runner-strip" aria-label="Parser runs">
       {entries.map((entry) => {
-        const letter = entry.parser === "mineru" ? "B" : "A";
+        // A/B/C from the shared map, not a mineru-or-A guess that labelled both
+        // OpenDataLoader and Azure DI "A".
+        const letter = PARSER_LETTER[entry.parser];
         const result =
           entry.run?.status === "complete" ? entry.run.result : null;
         if (entry.status === "complete" && result) {
