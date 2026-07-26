@@ -82,6 +82,60 @@ test("a fresh subscribe re-reads storage written while unmounted", async () => {
   );
 });
 
+test("two subscribers (as the leaderboard has) do not fight over the cache", async () => {
+  const { store } = installWindow();
+  const mod = await import("../app/vote-store.ts");
+  mod.resetVoteCacheForTests();
+  store.set(
+    "document-arena/votes/v2",
+    JSON.stringify([vote({ blind: true })]),
+  );
+
+  // LeaderboardView calls useSyncExternalStore twice, so subscribeToVotes runs
+  // twice on one mount. The second must not invalidate what the first read.
+  const un1 = mod.subscribeToVotes(() => {});
+  const first = mod.getBlindVotesSnapshot();
+  const un2 = mod.subscribeToVotes(() => {});
+  assert.equal(
+    mod.getBlindVotesSnapshot(),
+    first,
+    "the second subscribe must not hand back a new array identity",
+  );
+
+  // But a full unsubscribe then remount must re-read, since no storage event
+  // could have been observed in the gap.
+  un1();
+  un2();
+  store.set(
+    "document-arena/votes/v2",
+    JSON.stringify([vote({ blind: true }), vote({ id: "v2", blind: true })]),
+  );
+  mod.subscribeToVotes(() => {});
+  assert.equal(
+    mod.getBlindVotesSnapshot().length,
+    2,
+    "a remount after full unsubscribe sees writes made while away",
+  );
+});
+
+test("a throwing subscriber cannot make a stored vote look unsaved", async () => {
+  installWindow();
+  const mod = await import("../app/vote-store.ts");
+  mod.resetVoteCacheForTests();
+  mod.subscribeToVotes(() => {
+    throw new Error("a broken subscriber");
+  });
+
+  const saved = mod.saveVote(vote());
+  mod.resetVoteCacheForTests();
+  assert.equal(mod.loadVotes().length, 1, "the write succeeded");
+  assert.equal(
+    saved,
+    true,
+    "so it must report success - reporting failure would re-arm the buttons and duplicate the vote",
+  );
+});
+
 test("saving notifies same-tab subscribers", async () => {
   installWindow();
   const mod = await import("../app/vote-store.ts");
