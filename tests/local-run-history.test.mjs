@@ -102,3 +102,17 @@ test("the IndexedDB path appends runs and the workspace surfaces save failures",
   assert.match(runnerSource, /runId: result\.runnerManifest\.jobId/);
   assert.match(runnerSource, /bytesLocation: "local-runner"/);
 });
+
+test("a sample document may be receipted, an unknown id may not", () => {
+  // Samples are served by the app under a stable id and were never written to
+  // the browser document store. Refusing them left every sample run unsaveable,
+  // so a sample could be parsed but never appear in run history or a vote.
+  const receipt = createLocalParseRunReceipt("mamba", "opendataloader", resultFor({ runId: "job-sample", version: "2.5.0", options: {} }));
+  assert.equal(receipt.documentId, "mamba");
+  assert.match(receipt.recordId, /^mamba:opendataloader:/);
+
+  assert.throws(
+    () => createLocalParseRunReceipt("mystery-doc", "opendataloader", resultFor({ runId: "job-sample", version: "2.5.0", options: {} })),
+    /local document id or a known sample id/,
+  );
+});

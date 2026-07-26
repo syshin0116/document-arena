@@ -743,6 +743,40 @@ export function Workspace({
     checkLocalRunner().then(setLocalRunner);
   }, []);
 
+  /**
+   * The PDF a run reads.
+   *
+   * Uploads live in IndexedDB, but samples are served by the app and were never
+   * written there, so a sample run failed with "no longer available in the
+   * browser store" - a message about a document that had never been stored.
+   * Both paths land on the same `File` the runner takes.
+   */
+  const loadRunDocument = useCallback(async (): Promise<LocalDocument> => {
+    if (sample) {
+      const response = await fetch(
+        `/v1/documents/${encodeURIComponent(documentId)}/content`,
+      );
+      if (!response.ok) {
+        throw new Error(
+          `The sample PDF could not be loaded (HTTP ${response.status}).`,
+        );
+      }
+      const blob = await response.blob();
+      return {
+        id: documentId,
+        file: new File([blob], fileName, { type: "application/pdf" }),
+      };
+    }
+
+    const stored = await loadLocalDocument(documentId);
+    if (!stored) {
+      throw new Error(
+        "This local PDF is no longer available in the browser store.",
+      );
+    }
+    return stored;
+  }, [documentId, fileName, sample]);
+
   const runLocalParse = useCallback(
     async (
       parser: ParserId,
@@ -757,13 +791,7 @@ export function Workspace({
       );
       dispatch({ type: "start-run", parser });
       try {
-        const document =
-          preparedDocument ?? (await loadLocalDocument(documentId));
-        if (!document) {
-          throw new Error(
-            "This local PDF is no longer available in the browser store.",
-          );
-        }
+        const document = preparedDocument ?? (await loadRunDocument());
         const result = await parseWithLocalRunner(
           document.file,
           LOCAL_COMPONENT_IDS[parser],
@@ -838,7 +866,7 @@ export function Workspace({
         dispatch({ type: "fail-run", parser });
       }
     },
-    [demo, documentId],
+    [demo, documentId, loadRunDocument],
   );
 
   const failRunRequest = useCallback((parser: ParserId, message: string) => {
@@ -887,12 +915,7 @@ export function Workspace({
           ? document.activeElement
           : null;
       try {
-        const localDocument = await loadLocalDocument(documentId);
-        if (!localDocument) {
-          throw new Error(
-            "This local PDF is no longer available in the browser store.",
-          );
-        }
+        const localDocument = await loadRunDocument();
         remoteConsentSubmitting.current = false;
         setRemoteConsentConfirming(false);
         setPendingRemoteRun({
@@ -914,8 +937,8 @@ export function Workspace({
     },
     [
       demo,
-      documentId,
       failRunRequest,
+      loadRunDocument,
       localRunner,
       pickerOpen,
       runLocalParse,
@@ -3022,10 +3045,14 @@ function LocalParserSheet({
   );
   const inspectable = (entry: (typeof entries)[number]) =>
     Boolean(entry.component);
+  // A completed parser stays executable: this sheet is titled "new independent
+  // run" and run history keeps every receipt, so refusing a rerun contradicted
+  // both, and left no way to run the same parser twice on one document. Only a
+  // run already in flight is blocked. Remote components still pass through the
+  // transfer consent dialog, which asks again before every send.
   const executable = (entry: (typeof entries)[number]) =>
     inspectable(entry) &&
     localComponentRunAvailability(entry.component).available &&
-    entry.status !== "complete" &&
     entry.status !== "running";
 
   const [selected, setSelected] = useState<ParserId>(

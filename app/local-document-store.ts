@@ -9,6 +9,7 @@ import {
   type ParserSpeedSample,
   type RawSpeedRecord,
 } from "./parser-speed";
+import { SAMPLE_DOCUMENTS } from "./lib/sample-documents-meta";
 
 // Persistent browser data keeps its original stable key across the product rename.
 const DATABASE_NAME = "parser-arena-local-documents";
@@ -252,14 +253,27 @@ export type LocalParseRunReceipt = {
 
 export type LocalParseRunSummary = Omit<LocalParseRunReceipt, "result">;
 
+/** Ids a run receipt may be keyed by: browser uploads and the served samples. */
+export function isReceiptableDocumentId(documentId: string): boolean {
+  return (
+    documentId.startsWith("local_") ||
+    SAMPLE_DOCUMENTS.some((sample) => sample.id === documentId)
+  );
+}
+
 export function createLocalParseRunReceipt(
   documentId: string,
   parser: string,
   result: LocalParseResult,
   savedAt = new Date().toISOString(),
 ): LocalParseRunReceipt {
-  if (!documentId.startsWith("local_")) {
-    throw new Error("A local run receipt requires a local document id.");
+  // Uploads live in this browser; samples are served by the app under a stable
+  // id. Both are real runs worth keeping, and a sample id is more reproducible
+  // than an upload id, so both may be receipted. Anything else is a caller bug.
+  if (!isReceiptableDocumentId(documentId)) {
+    throw new Error(
+      "A run receipt requires a local document id or a known sample id.",
+    );
   }
   if (parser.trim().length === 0) {
     throw new Error("A local run receipt requires a parser name.");
