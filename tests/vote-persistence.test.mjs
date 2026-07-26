@@ -95,6 +95,42 @@ test("saving notifies same-tab subscribers", async () => {
   assert.equal(notified, 1, "the storage event never fires in the writing tab");
 });
 
+test("cast verdicts are recoverable per document and candidate set", async () => {
+  const { store } = installWindow();
+  store.set(
+    "document-arena/votes/v2",
+    JSON.stringify([
+      vote({ id: "a", documentId: "doc1", outcome: "mineru" }),
+      vote({
+        id: "b",
+        documentId: "doc1",
+        outcome: "tie",
+        candidates: [
+          { parserId: "opendataloader", runId: "j1", recordId: "r1" },
+          { parserId: "mineru", runId: "j2", recordId: "r2" },
+          { parserId: "azuredi", runId: "j3", recordId: "r3" },
+        ],
+      }),
+      vote({ id: "c", documentId: "doc2", outcome: "opendataloader" }),
+    ]),
+  );
+  const mod = await import("../app/vote-store.ts");
+  mod.resetVoteCacheForTests();
+
+  const verdicts = mod.loadCastVerdicts("doc1");
+  // The two-way and three-way comparisons are different battles, so a verdict
+  // on one must not lock the other.
+  assert.equal(verdicts["doc1:opendataloader,mineru"], "mineru");
+  assert.equal(verdicts["doc1:opendataloader,mineru,azuredi"], "tie");
+  assert.equal(Object.keys(verdicts).length, 2, "other documents are excluded");
+
+  // SSR has no localStorage; the seed must be empty rather than throwing.
+  const realWindow = globalThis.window;
+  delete globalThis.window;
+  assert.deepEqual(mod.loadCastVerdicts("doc1"), {});
+  globalThis.window = realWindow;
+});
+
 test("legacy v1 votes are dropped, not counted", async () => {
   const { store } = installWindow();
   store.set(

@@ -57,7 +57,7 @@ import {
 } from "../local-document-store";
 import { preferredScrollBehavior } from "../motion-preference";
 import { buildVote } from "../vote-builder";
-import { saveVote, type VoteOutcome } from "../vote-store";
+import { loadCastVerdicts, saveVote, type VoteOutcome } from "../vote-store";
 import {
   cleanRunOptionValues,
   defaultRunOptionValues,
@@ -432,7 +432,14 @@ export function Workspace({
   const [focusedParser, setFocusedParser] = useState<ParserId | null>(null);
   // Verdicts cast this session, keyed by document and page: one comparison is
   // one vote, and the bar shows what you called rather than inviting a re-vote.
-  const [castVotes, setCastVotes] = useState<Record<string, VoteOutcome>>({});
+  // Seeded from storage so a reload does not re-arm a comparison that was
+  // already judged: component state alone forgets on refresh and would let the
+  // same battle be recorded again. Lazy initialiser rather than an effect,
+  // since localStorage is unavailable during SSR and a setState in an effect
+  // would cascade a render.
+  const [castVotes, setCastVotes] = useState<Record<string, VoteOutcome>>(
+    () => (demo ? {} : loadCastVerdicts(documentId)),
+  );
   const [zoom, setZoom] = useState(92);
   const [thumbnailsOpen, setThumbnailsOpen] = useState(true);
   const [displayFileName, setDisplayFileName] = useState(fileName);
