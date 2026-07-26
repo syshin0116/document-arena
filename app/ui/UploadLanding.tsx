@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { motionTransition } from "@/lib/motion";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Brand } from "./Brand";
+import { AuthControl } from "./AuthControl";
 import { OPEN_EVENT } from "./CommandPalette";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -206,6 +207,7 @@ export function UploadLanding() {
           >
             Leaderboard
           </Link>
+          <AuthControl />
           <ModeToggle />
         </nav>
       </header>

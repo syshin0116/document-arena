@@ -1,0 +1,14 @@
+{
+  "created_files": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/migrate-production.yml"
+  ],
+  "file_hashes": {
+    ".github/workflows/ci.yml": "965786849e07c631dd1228a5b8b1ae69ad1628faac95d1b3a03d824d08f4afb6",
+    ".github/workflows/migrate-production.yml": "c8a41a4752ec5a98bc00cfd2debd8751b70cedb1e17e1797c141358b577d68fa"
+  },
+  "fileset_sha256": "a1fcdc07a5a2033c311f241a9149924c9c3e5ba8fbb115f38cfe3ec92646fe7b",
+  "generator_version": "1.1.0",
+  "project_name": "document-arena",
+  "schema_version": 2
+}
