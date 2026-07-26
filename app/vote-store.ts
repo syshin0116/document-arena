@@ -124,6 +124,7 @@ export function saveVote(vote: BlindVote): void {
     votes.push(vote);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(votes));
     voteCache = null;
+    labeledCountCache = null;
     // The storage event never fires in the tab that wrote, so a same-page
     // standings readout would otherwise stay stale until reload.
     for (const listener of listeners) listener();
@@ -139,6 +140,7 @@ let voteCache: readonly BlindVote[] | null = null;
 export function subscribeToVotes(onChange: () => void): () => void {
   const handle = () => {
     voteCache = null;
+    labeledCountCache = null;
     onChange();
   };
   listeners.add(onChange);
@@ -164,17 +166,31 @@ export function getServerVotesSnapshot(): readonly BlindVote[] {
   return EMPTY_VOTES;
 }
 
-/** Blind votes rank; labeled ones are recorded but never counted. */
-export function getVoteCounts(): { blind: number; labeled: number } {
-  const votes = loadVotes();
-  let blind = 0;
-  for (const vote of votes) if (vote.blind) blind += 1;
-  return { blind, labeled: votes.length - blind };
+/**
+ * Blind votes rank; labeled ones are recorded but never counted.
+ *
+ * Returns a number, not an object: useSyncExternalStore compares snapshots by
+ * identity, and a fresh `{blind, labeled}` each call would loop forever. The
+ * count is cached alongside the vote cache and invalidated with it.
+ */
+let labeledCountCache: number | null = null;
+
+export function getLabeledVoteCount(): number {
+  if (labeledCountCache === null) {
+    labeledCountCache = loadVotes().filter((vote) => !vote.blind).length;
+  }
+  return labeledCountCache;
+}
+
+/** The server has no localStorage, so it renders the same zero every time. */
+export function getServerLabeledVoteCount(): number {
+  return 0;
 }
 
 /** The module-level cache leaks across tests otherwise. */
 export function resetVoteCacheForTests(): void {
   voteCache = null;
+  labeledCountCache = null;
 }
 
 export type ParserStanding = {

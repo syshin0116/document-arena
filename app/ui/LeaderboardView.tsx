@@ -5,6 +5,8 @@ import { useMemo, useSyncExternalStore } from "react";
 import {
   aggregateStandings,
   getBlindVotesSnapshot,
+  getLabeledVoteCount,
+  getServerLabeledVoteCount,
   getServerVotesSnapshot,
   subscribeToVotes,
 } from "../vote-store";
@@ -31,6 +33,15 @@ export function LeaderboardView() {
     getServerVotesSnapshot,
   );
   const voteCount = votes.length;
+  // Blind votes rank; labeled ones are recorded and must still be visible, or a
+  // vote you just cast leaves no trace anywhere in the product. Read through the
+  // store like the votes themselves: calling into localStorage during render
+  // gave the server 0 and the client 1, which is a hydration mismatch.
+  const labeledCount = useSyncExternalStore(
+    subscribeToVotes,
+    getLabeledVoteCount,
+    getServerLabeledVoteCount,
+  );
   const standings = useMemo(() => aggregateStandings(votes), [votes]);
 
   return (
@@ -83,9 +94,21 @@ export function LeaderboardView() {
         {standings.length === 0 ? (
           <div className="leaderboard-empty">
             <h2>No blind votes yet.</h2>
-            <p>Run a battle in the Arena to seed this device&apos;s rankings.</p>
-            <Link className={buttonVariants({ size: "lg" })} href="/arena">
-              Start a sample battle
+            {labeledCount > 0 ? (
+              <p>
+                {labeledCount} labeled comparison
+                {labeledCount === 1 ? "" : "s"} recorded on this device. Those
+                are kept but never ranked, because the parser names were
+                visible when you chose.
+              </p>
+            ) : (
+              <p>
+                Compare two parsers on a document, then pick a winner in the
+                verdict bar under the columns.
+              </p>
+            )}
+            <Link className={buttonVariants({ size: "lg" })} href="/">
+              Open a document
             </Link>
           </div>
         ) : (
@@ -131,6 +154,12 @@ export function LeaderboardView() {
                 </div>
               );
             })}
+            {labeledCount > 0 && (
+              <p className="leaderboard-labeled-note">
+                Plus {labeledCount} labeled comparison
+                {labeledCount === 1 ? "" : "s"}, kept but not ranked.
+              </p>
+            )}
           </div>
         )}
       </section>
