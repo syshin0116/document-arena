@@ -201,6 +201,25 @@ export function getServerLabeledVoteCount(): number {
   return 0;
 }
 
+/**
+ * Verdicts already cast for a document, keyed by candidate set, so a reload
+ * does not re-arm a comparison that was already judged. `castVotes` is
+ * component state and does not survive a refresh on its own.
+ */
+export function loadCastVerdicts(
+  documentId: string,
+): Record<string, VoteOutcome> {
+  const verdicts: Record<string, VoteOutcome> = {};
+  for (const vote of loadVotes()) {
+    if (vote.documentId !== documentId) continue;
+    const key = vote.candidates
+      .map((candidate) => candidate.parserId)
+      .join(",");
+    verdicts[`${documentId}:${key}`] = vote.outcome;
+  }
+  return verdicts;
+}
+
 /** The module-level cache leaks across tests otherwise. */
 export function resetVoteCacheForTests(): void {
   voteCache = null;
