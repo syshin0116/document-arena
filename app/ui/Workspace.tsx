@@ -56,6 +56,8 @@ import {
   type RestoredParseRun,
 } from "../local-document-store";
 import { preferredScrollBehavior } from "../motion-preference";
+import { buildVote } from "../vote-builder";
+import { saveVote, type VoteOutcome } from "../vote-store";
 import {
   cleanRunOptionValues,
   defaultRunOptionValues,
@@ -113,6 +115,82 @@ type PendingRunOptions = {
 
 type ResultContentView = "blocks" | "markdown";
 type ResultRenderMode = "rendered" | "raw";
+
+/**
+ * The verdict bar under a comparison.
+ *
+ * Button order is the candidate order it is handed, which is the column order,
+ * which is what the recorded vote claims - so this renders the array as given
+ * rather than sorting it.
+ */
+export function VerdictBar({
+  candidates,
+  votedOutcome,
+  disabledReason,
+  onVote,
+}: {
+  candidates: readonly { parserId: ParserId; label: string }[];
+  votedOutcome: VoteOutcome | null;
+  disabledReason: string | null;
+  onVote: (outcome: VoteOutcome) => void;
+}) {
+  const verdictLabel = (outcome: VoteOutcome) => {
+    if (outcome === "tie") return "a tie";
+    if (outcome === "all-poor") return "all poor";
+    return candidates.find((c) => c.parserId === outcome)?.label ?? outcome;
+  };
+
+  if (votedOutcome) {
+    return (
+      <footer className="verdict-bar" aria-label="Recorded verdict">
+        <span className="verdict-label">Recorded</span>
+        <strong className="verdict-recorded">
+          You called this {verdictLabel(votedOutcome)}.
+        </strong>
+        <span className="verdict-note">
+          Labels were visible, so this is recorded but not ranked.
+        </span>
+      </footer>
+    );
+  }
+
+  return (
+    <footer className="verdict-bar" aria-label="Vote on this comparison">
+      <span className="verdict-label">Which read it better?</span>
+      {candidates.map((candidate) => (
+        <button
+          key={candidate.parserId}
+          type="button"
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          data-parser={candidate.parserId}
+          disabled={Boolean(disabledReason)}
+          onClick={() => onVote(candidate.parserId)}
+        >
+          {candidate.label}
+        </button>
+      ))}
+      <button
+        type="button"
+        className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+        disabled={Boolean(disabledReason)}
+        onClick={() => onVote("tie")}
+      >
+        Tie
+      </button>
+      <button
+        type="button"
+        className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+        disabled={Boolean(disabledReason)}
+        onClick={() => onVote("all-poor")}
+      >
+        All poor
+      </button>
+      {disabledReason && (
+        <span className="verdict-note">{disabledReason}</span>
+      )}
+    </footer>
+  );
+}
 
 export function ResultViewToolbar({
   mappingAvailable,
@@ -352,6 +430,9 @@ export function Workspace({
   // stacked tight word boxes under coarse whole-table boxes into an unreadable
   // soup. Null falls back to the first completed parser.
   const [focusedParser, setFocusedParser] = useState<ParserId | null>(null);
+  // Verdicts cast this session, keyed by document and page: one comparison is
+  // one vote, and the bar shows what you called rather than inviting a re-vote.
+  const [castVotes, setCastVotes] = useState<Record<string, VoteOutcome>>({});
   const [zoom, setZoom] = useState(92);
   const [thumbnailsOpen, setThumbnailsOpen] = useState(true);
   const [displayFileName, setDisplayFileName] = useState(fileName);
@@ -398,10 +479,23 @@ export function Workspace({
     [demo, localRuns],
   );
 
-  // Parsers that have a completed result, in catalog order.
-  const completedParsers = demo
-    ? []
-    : LOCAL_PARSER_ORDER.filter((parser) => resultFor(parser));
+  /** The key this run is stored under, so a vote can point back at it. */
+  const recordIdFor = useCallback(
+    (parser: ParserId): string | null => {
+      if (demo) return null;
+      const run = localRuns[parser];
+      return run?.status === "complete" ? run.recordId : null;
+    },
+    [demo, localRuns],
+  );
+
+  // Parsers that have a completed result, in catalog order. Memoised because
+  // the vote handler closes over it; a fresh array each render would rebuild
+  // that callback on every keystroke elsewhere in the workspace.
+  const completedParsers = useMemo(
+    () => (demo ? [] : LOCAL_PARSER_ORDER.filter((parser) => resultFor(parser))),
+    [demo, resultFor],
+  );
 
   const effectiveTab: ParserId | "compare" | null = demo
     ? null
@@ -471,6 +565,53 @@ export function Workspace({
   // time (the pointed-at column, else the first); in single view it is the one
   // parser on screen. localRegions already scopes to shownParsers, so this only
   // narrows the compare case from all of them to one.
+  const voteKey = `${documentId}:${state.page}`;
+
+  /**
+   * Records a verdict over the runs that actually produced these columns.
+   *
+   * Every invariant lives in buildVote, which throws rather than writing a
+   * plausible-but-wrong record - saveVote swallows errors and the standings
+   * show blind votes only, so a silent bad write would be invisible.
+   */
+  const castVote = useCallback(
+    (outcome: VoteOutcome) => {
+      try {
+        const candidates = completedParsers.map((parser) => {
+          const result = resultFor(parser);
+          if (!result) throw new Error(`${parser} has no completed run.`);
+          return {
+            parserId: parser,
+            runId: result.runId,
+            recordId: recordIdFor(parser) ?? "",
+          };
+        });
+        const vote = buildVote({
+          documentId,
+          page: state.page,
+          candidates,
+          outcome,
+          // Labels are visible in the workspace, so this is an honest labeled
+          // vote. Only blind votes rank; blind mode ships separately.
+          blind: false,
+          sourceArtifactId: resultFor(completedParsers[0])?.source?.artifactId,
+          id: crypto.randomUUID(),
+          now: new Date(),
+        });
+        saveVote(vote);
+        setCastVotes((current) => ({ ...current, [voteKey]: outcome }));
+      } catch (error) {
+        toast.error("That verdict was not recorded.", {
+          description:
+            error instanceof Error
+              ? error.message
+              : "The vote could not be built.",
+        });
+      }
+    },
+    [completedParsers, documentId, recordIdFor, resultFor, state.page, voteKey],
+  );
+
   const sourceParserId: string = comparing
     ? focusedParser && completedParsers.includes(focusedParser)
       ? focusedParser
@@ -1410,6 +1551,19 @@ export function Workspace({
                   })}
                 </div>
               </div>
+              <VerdictBar
+                candidates={completedParsers.map((parser) => ({
+                  parserId: parser,
+                  label: PARSER_DISPLAY[parser],
+                }))}
+                votedOutcome={castVotes[voteKey] ?? null}
+                disabledReason={
+                  completedParsers.some((parser) => recordIdFor(parser) === null)
+                    ? "One of these runs was not saved to browser history, so a vote could not be reopened."
+                    : null
+                }
+                onVote={castVote}
+              />
             </div>
           )}
 
