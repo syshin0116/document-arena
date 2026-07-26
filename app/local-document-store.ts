@@ -336,22 +336,36 @@ function loadLatestParseRun(
   });
 }
 
+/**
+ * The stored run plus the key it is stored under. A vote carries the recordId
+ * so the comparison can be reopened, so rehydrating a run has to keep it -
+ * returning the payload alone made every restored run unvotable.
+ */
+export type RestoredParseRun = {
+  result: LocalParseResult;
+  /** Null for records from the legacy overwrite-prone store, which had no key. */
+  recordId: string | null;
+};
+
 export async function loadLocalParseResults(
   documentId: string,
   parsers: readonly string[],
-): Promise<Record<string, LocalParseResult>> {
+): Promise<Record<string, RestoredParseRun>> {
   if (!documentId.startsWith("local_")) return {};
   const database = await openDatabase();
   if (!database.objectStoreNames.contains(RUNS_STORE)) {
     database.close();
     throw new Error("The browser run-history store is unavailable.");
   }
-  const results: Record<string, LocalParseResult> = {};
+  const results: Record<string, RestoredParseRun> = {};
   try {
     for (const parser of parsers) {
       const receipt = await loadLatestParseRun(database, documentId, parser);
       if (receipt?.result) {
-        results[parser] = receipt.result;
+        results[parser] = {
+          result: receipt.result,
+          recordId: receipt.recordId ?? null,
+        };
         continue;
       }
 
@@ -365,7 +379,10 @@ export async function loadLocalParseResults(
           LEGACY_RESULTS_STORE,
         )) as LegacyStoredParseResult | undefined;
         if (legacy?.result) {
-          results[parser] = legacy.result as LocalParseResult;
+          results[parser] = {
+            result: legacy.result as LocalParseResult,
+            recordId: null,
+          };
         }
       }
     }
