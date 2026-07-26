@@ -117,8 +117,16 @@ export function loadVotes(): BlindVote[] {
 
 const listeners = new Set<() => void>();
 
-export function saveVote(vote: BlindVote): void {
-  if (typeof window === "undefined") return;
+/**
+ * Returns whether the vote was actually persisted.
+ *
+ * It used to swallow the failure and return void, so a blocked or full
+ * localStorage (Safari private browsing, quota exhausted) left the caller
+ * showing "recorded" for a vote that was never written - the exact silent
+ * failure this store exists to avoid.
+ */
+export function saveVote(vote: BlindVote): boolean {
+  if (typeof window === "undefined") return false;
   try {
     const votes = loadVotes();
     votes.push(vote);
@@ -128,9 +136,9 @@ export function saveVote(vote: BlindVote): void {
     // The storage event never fires in the tab that wrote, so a same-page
     // standings readout would otherwise stay stale until reload.
     for (const listener of listeners) listener();
+    return true;
   } catch {
-    // Votes are device-local convenience data in the prototype; a full storage
-    // quota should not break the flow.
+    return false;
   }
 }
 
@@ -143,6 +151,12 @@ export function subscribeToVotes(onChange: () => void): () => void {
     labeledCountCache = null;
     onChange();
   };
+  // Drop the caches on subscribe. The storage listener only exists while a
+  // subscriber is mounted, so a vote written by another tab in the meantime
+  // would otherwise never be seen: the stale snapshot survives the unmount and
+  // is returned verbatim on remount.
+  voteCache = null;
+  labeledCountCache = null;
   listeners.add(onChange);
   if (typeof window !== "undefined") {
     window.addEventListener("storage", handle);

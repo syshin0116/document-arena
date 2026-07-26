@@ -565,7 +565,10 @@ export function Workspace({
   // time (the pointed-at column, else the first); in single view it is the one
   // parser on screen. localRegions already scopes to shownParsers, so this only
   // narrows the compare case from all of them to one.
-  const voteKey = `${documentId}:${state.page}`;
+  // The key carries the candidate set: a comparison that gains or loses a
+  // parser is a different comparison, and keying on document+page alone left
+  // the new one permanently unvotable and labelled with the old verdict.
+  const voteKey = `${documentId}:${state.page}:${completedParsers.join(",")}`;
 
   /**
    * Records a verdict over the runs that actually produced these columns.
@@ -598,7 +601,15 @@ export function Workspace({
           id: crypto.randomUUID(),
           now: new Date(),
         });
-        saveVote(vote);
+        if (!saveVote(vote)) {
+          // Blocked or full storage: say so rather than showing "recorded" for
+          // a verdict that was never written.
+          toast.error("That verdict could not be saved.", {
+            description:
+              "This browser refused to store it. Check that site data is allowed and that storage is not full.",
+          });
+          return;
+        }
         setCastVotes((current) => ({ ...current, [voteKey]: outcome }));
       } catch (error) {
         toast.error("That verdict was not recorded.", {
