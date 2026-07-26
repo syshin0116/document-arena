@@ -228,14 +228,18 @@ test("mobile Arena keeps source and both candidates reachable before voting", ()
   );
 });
 
-test("server-renders the leaderboard with a device-local empty state", async () => {
+test("server-renders the leaderboard while run history is still unread", async () => {
   const response = await render("/leaderboard");
   assert.equal(response.status, 200);
 
   const html = await response.text();
   assert.match(html, /Who wins blind votes\?/);
-  assert.match(html, /No blind votes yet\./);
   assert.match(html, /Methodology/);
+  // Both metrics live in browser storage the server cannot read, so the server
+  // must not commit to "nothing here" - that claim would be a guess, and for a
+  // device with runs it would be wrong until the client took over.
+  assert.match(html, /Reading run history/);
+  assert.doesNotMatch(html, /Nothing measured yet\./);
 });
 
 test("built demo content endpoint serves complete and ranged PDF bytes", async () => {

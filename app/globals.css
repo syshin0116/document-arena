@@ -3685,7 +3685,7 @@ body {
 
 .leaderboard-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px 70px 60px 70px;
+  grid-template-columns: minmax(0, 1fr) 124px 150px 62px 48px 62px;
   align-items: center;
   gap: 12px;
   padding: 13px 18px;
@@ -3723,6 +3723,42 @@ body {
 .leaderboard-parser small {
   color: var(--ink-faint);
   font-size: var(--text-2xs);
+}
+
+/* The number and its sample stack: the sample is the caveat, so it has to sit
+   with the figure rather than in a footnote nobody reads. */
+.leaderboard-speed {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.leaderboard-speed b {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboard-speed .leaderboard-unit {
+  color: var(--ink-faint);
+  font-size: var(--text-2xs);
+  font-weight: 400;
+}
+
+.leaderboard-speed small {
+  color: var(--ink-faint);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  /* No nowrap: a slow parser's range is wide enough to spill the cell, and a
+     second line is better than text running under the next column. */
+  text-wrap: pretty;
+}
+
+.leaderboard-rank[data-unranked] {
+  background: var(--surface-subtle);
+  color: var(--ink-faint);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .leaderboard-rank {
@@ -3873,10 +3909,15 @@ body {
   }
 
   .leaderboard-row {
-    grid-template-columns: minmax(0, 1fr) 96px 52px 44px 56px;
+    grid-template-columns: minmax(0, 1fr) 88px 132px;
     padding: 12px 13px;
   }
   .leaderboard-bar { width: 48px; }
+
+  /* Battles / ties / all-poor are sample detail; the two metrics are the point. */
+  .leaderboard-row > :nth-child(n + 4) {
+    display: none;
+  }
   .arena-vote-bar { justify-content: stretch; }
   .arena-vote-actions { width: 100%; }
   .arena-vote-actions > * { flex: 1; }
