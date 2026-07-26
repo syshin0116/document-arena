@@ -3,11 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  type ArenaParserId,
-  type BlindVoteOutcome,
-  saveVote,
-} from "../vote-store";
+import { type ArenaParserId } from "../vote-store";
 import { ModeToggle } from "@/components/mode-toggle";
 import { AppHeader } from "./AppHeader";
 import { buttonVariants } from "@/components/ui/button";
@@ -28,21 +24,17 @@ const PdfSourceViewer = dynamic(() => import("./PdfSourceViewer"), {
 
 const parserMeta: Record<
   ArenaParserId,
-  { name: string; version: string; timing: string; artifactId: string }
+  { name: string; version: string; timing: string }
 > = {
-  opendataloader: {
-    name: "OpenDataLoader",
-    version: "2.5.0",
-    timing: "4.2s",
-    artifactId: "demo-opendataloader-parsed-document",
-  },
-  mineru: {
-    name: "MinerU",
-    version: "2.6.1",
-    timing: "11.8s",
-    artifactId: "demo-mineru-parsed-document",
-  },
+  opendataloader: { name: "OpenDataLoader", version: "2.5.0", timing: "4.2s" },
+  mineru: { name: "MinerU", version: "2.6.1", timing: "11.8s" },
 };
+
+/* The arena judges hardcoded JSX, so its verdict is a local UI state and is
+   deliberately NOT persisted: a vote about static markup would pollute the
+   standings. Real votes come from the workspace, over parsers that actually
+   ran. */
+type BattleOutcome = ArenaParserId | "tie" | "both-poor";
 
 type BattlePhase = "intro" | "running" | "blind" | "revealed";
 type ArenaMobilePane = "source" | "candidate-a" | "candidate-b";
@@ -59,7 +51,7 @@ export function ArenaBattle() {
     "opendataloader",
     "mineru",
   ]);
-  const [outcome, setOutcome] = useState<BlindVoteOutcome | null>(null);
+  const [outcome, setOutcome] = useState<BattleOutcome | null>(null);
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState<number | null>(null);
   const [mobilePane, setMobilePane] =
@@ -90,22 +82,13 @@ export function ArenaBattle() {
     timers.current.push(timer);
   }
 
-  function castVote(vote: BlindVoteOutcome) {
+  function castVote(vote: BattleOutcome) {
     setOutcome(vote);
     setPhase("revealed");
-    saveVote({
-      id: `vote_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-      createdAt: new Date().toISOString(),
-      documentId: "demo",
-      documentType: "digital-text",
-      page,
-      permutation,
-      candidateArtifactIds: permutation.map(
-        (parser) => parserMeta[parser].artifactId,
-      ),
-      outcome: vote,
-      blind: true,
-    });
+    // Deliberately not persisted. The two candidates here are hardcoded JSX,
+    // and the artifact ids this used to store ("demo-…-parsed-document")
+    // resolved to nothing, so every recorded vote was an opinion about static
+    // markup that still counted toward the standings.
   }
 
   return (
