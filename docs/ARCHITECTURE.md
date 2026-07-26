@@ -71,10 +71,12 @@ signed catalogs, and persistent parser services are later concerns.
 The first hosted target splits the local-first web surface from remote
 execution:
 
-- Vercel runs the official Next.js Node application in Singapore, including
-  Better Auth, workspace coordination, presigned transfer creation, job
-  submission, and short status APIs. Local-only use remains anonymous and
-  workspace content reads stay in the browser.
+- A Cloud Run service runs the official Next.js Node application in
+  `asia-northeast3`, including Better Auth, workspace coordination, presigned
+  transfer creation, job submission, and short status APIs. Local-only use
+  remains anonymous and workspace content reads stay in the browser.
+- A separate Cloud Run service runs the durable orchestrator and dispatcher.
+  It does not execute parser containers.
 - The browser uploads PDF bytes directly to a private R2 execution bucket with
   a short-lived presigned PUT; the Next.js application does not proxy document
   bodies.
@@ -98,10 +100,12 @@ Neon hosts the operational and checkpoint schemas in Singapore. Better Auth
 owns a separate `auth` schema in that same database and initially enables only
 GitHub OAuth. Hosted run creation requires a fully validated session and an
 available quota/grant; local parsing and browser history never require login.
-Vercel obtains short-lived GCP credentials through OIDC Workload Identity
-Federation. Static GCP service-account JSON keys are not accepted deployment
-configuration. Reviewed component images are mirrored by digest into Seoul
-Artifact Registry before a catalog entry becomes hosted-available.
+Each Cloud Run service obtains short-lived Google credentials from its attached
+least-privilege service account. Static GCP service-account JSON keys are not
+accepted deployment configuration. Only the runner gateway's service account
+may submit, inspect, and cancel Batch jobs. Reviewed component images are
+mirrored by digest into Seoul Artifact Registry before a catalog entry becomes
+hosted-available.
 
 Cloudflare's R2 egress policy does not waive Google Cloud charges. In
 particular, output bytes sent from GCP compute to R2 leave Google's network and

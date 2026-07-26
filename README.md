@@ -203,12 +203,13 @@ uploads from GCP to R2 are internet data transfer out from GCP and must be
 included in cost estimates. See [Cloudflare R2 pricing](https://developers.cloudflare.com/r2/pricing/)
 and [Google Cloud network pricing](https://cloud.google.com/vpc/network-pricing).
 
-The planned hosted stack is Vercel Node plus Neon PostgreSQL, Better Auth backed
-by a separate Neon `auth` schema, private R2 for temporary exchange, and GCP
-Batch in Seoul for digest-pinned OCI execution. Local workspaces stay anonymous;
-only hosted runs require a GitHub-authenticated session and quota. Vercel reaches
-GCP through OIDC Workload Identity Federation, so no service-account JSON key is
-stored in Vercel or this repository.
+The planned hosted stack uses separate Cloud Run services in Seoul for the
+Next.js API/control plane and durable orchestrator, Neon PostgreSQL with Better
+Auth in a separate Neon `auth` schema, private R2 for temporary exchange, and
+GCP Batch in Seoul for digest-pinned OCI execution. Local workspaces stay
+anonymous; only hosted runs require a GitHub-authenticated session and quota.
+Each Cloud Run service uses an attached least-privilege service account, so no
+service-account JSON key is stored in a container or this repository.
 
 Design decisions are logged one line at a time in [DECISIONS.md](DECISIONS.md).
 The planned service architecture (temporary BlobStore exchange, durable job
@@ -277,9 +278,9 @@ uv-managed `pyproject.toml`. The Compose stack (`make up`) contains only
 runnable services — planned infrastructure is documented, not stubbed.
 
 The browser and short-lived control-plane routes use the official Next.js
-runtime and can deploy to Vercel or another compatible Node/Docker host.
-Durable orchestration and OCI parser execution are separate backend services;
-web routes do not execute parser containers or proxy uploaded PDF bodies.
+runtime in a Cloud Run service. Durable orchestration is a separate Cloud Run
+service and OCI parser execution runs on GCP Batch; web routes do not execute
+parser containers or proxy uploaded PDF bodies.
 
 ---
 

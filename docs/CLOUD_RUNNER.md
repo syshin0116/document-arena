@@ -44,13 +44,15 @@ not start Docker inside a generic container. The provider choice stays in the
 deployment adapter and does not leak into the common runner or UI contract.
 
 Reviewed external images are mirrored by digest into Artifact Registry in the
-same region. Vercel calls GCP through OIDC Workload Identity Federation; neither
-the repository nor Vercel stores a service-account JSON key.
+same region. The Cloud Run runner gateway calls Batch with its attached
+least-privilege service account; neither the repository nor a container stores
+a service-account JSON key.
 
 ## Security baseline
 
 - Keep hosted execution disabled unless R2 policy verification, Better Auth
-  session validation, a per-user quota/grant, and GCP WIF readiness all pass.
+  session validation, a per-user quota/grant, and Cloud Run service-account IAM
+  readiness all pass.
 - Authenticate hosted runner calls.
 - Verify source and artifact hashes.
 - Isolate each run and apply time, memory, process, disk, and output limits.
@@ -109,7 +111,6 @@ Official deployment references:
 
 - [GCP Batch container jobs](https://cloud.google.com/batch/docs/create-run-basic-job)
 - [GCP Batch pricing](https://cloud.google.com/batch/pricing)
-- [Vercel OIDC](https://vercel.com/docs/oidc)
-- [GCP Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation)
+- [Cloud Run service identity](https://cloud.google.com/run/docs/securing/service-identity)
 - [Better Auth for Next.js](https://better-auth.com/docs/integrations/next)
 - [Better Auth PostgreSQL adapter](https://better-auth.com/docs/adapters/postgresql)
