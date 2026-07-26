@@ -1505,6 +1505,14 @@ button:disabled {
   grid-template-columns: repeat(2, minmax(290px, 1fr));
 }
 
+/* A three-way comparison is the arena's own feature. Without this the columns
+   fall back to the single-column base and stack, which is the one thing a
+   side-by-side comparison must not do - the reader finishes A before ever
+   seeing B. The floor drops because three columns share the same width. */
+.result-columns[data-columns="3"] {
+  grid-template-columns: repeat(3, minmax(230px, 1fr));
+}
+
 .parser-result {
   min-width: 0;
   /* `clip`, not `hidden`. Both clip the children to the radius, but `hidden`
@@ -2539,7 +2547,10 @@ button:disabled {
     grid-template-columns: minmax(360px, 43fr) minmax(430px, 57fr);
   }
 
-  .result-columns[data-columns="2"] {
+  /* Below this width three columns cannot each hold readable text, so both
+     multi-column layouts collapse to a horizontal scroll of one. */
+  .result-columns[data-columns="2"],
+  .result-columns[data-columns="3"] {
     grid-template-columns: minmax(280px, 1fr);
   }
 
@@ -2693,7 +2704,8 @@ button:disabled {
   .results-scroll { padding: 12px 10px 32px; }
   .evidence-hint { align-items: flex-start; }
   .evidence-hint kbd { display: none; }
-  .result-columns[data-columns="2"] { grid-template-columns: minmax(260px, 1fr); }
+  .result-columns[data-columns="2"],
+  .result-columns[data-columns="3"] { grid-template-columns: minmax(260px, 1fr); }
   .run-dock { padding: 0 8px; }
   .run-chip small { display: none; }
   .details-button { font-size: 0; }
@@ -3404,13 +3416,6 @@ body {
   letter-spacing: -0.055em;
 }
 
-.arena-vote-bar {
-  border-color: var(--border);
-  background: color-mix(in oklab, var(--background) 92%, transparent);
-  box-shadow: 0 -10px 30px rgb(0 0 0 / 0.04);
-  backdrop-filter: blur(18px);
-}
-
 /* Framing left, standings right. The single centred column left a two-row
    table sitting in 450px of a 1440px viewport with two thirds of the screen
    empty, and pushed the caveats that make these numbers honest below the
@@ -3583,7 +3588,7 @@ body {
   background: var(--canvas-deep);
 }
 
-.arena-shell[data-phase="intro"],
+.arena-shell[data-phase="pick"],
 .arena-shell[data-phase="running"] {
   grid-template-rows: 64px minmax(0, 1fr);
 }
@@ -3618,29 +3623,10 @@ body {
   display: none;
 }
 
-.arena-vote-bar {
-  position: relative;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 10px 18px;
-  padding: 11px 16px;
-  border-top: 1px solid var(--line);
-  background: var(--surface-raised);
-  backdrop-filter: blur(10px);
-}
-
-.arena-vote-question {
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.arena-vote-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* The wrapper exists only so a narrow screen can hide the other candidates; it
+   must not become an extra box between the grid and the column. */
+.arena-candidate {
+  display: contents;
 }
 
 .parser-result[data-accent="neutral"] .parser-letter {
@@ -3685,7 +3671,7 @@ body {
 
 .leaderboard-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px 70px 60px 70px;
+  grid-template-columns: minmax(0, 1fr) 120px 150px 68px 52px 78px;
   align-items: center;
   gap: 12px;
   padding: 13px 18px;
@@ -3695,6 +3681,40 @@ body {
 
 .leaderboard-row:first-child {
   border-top: 0;
+}
+
+/* The whole header cell is the control, so the click target matches the label
+   a reader is aiming at rather than the text's own width. */
+.leaderboard-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+  white-space: nowrap;
+}
+
+.leaderboard-sort:hover {
+  color: var(--foreground);
+}
+
+.leaderboard-sort[data-active] {
+  color: var(--foreground);
+}
+
+.leaderboard-sort > span {
+  opacity: 0.45;
+}
+
+.leaderboard-sort[data-active] > span {
+  opacity: 1;
 }
 
 .leaderboard-head {
@@ -3723,6 +3743,42 @@ body {
 .leaderboard-parser small {
   color: var(--ink-faint);
   font-size: var(--text-2xs);
+}
+
+/* The number and its sample stack: the sample is the caveat, so it has to sit
+   with the figure rather than in a footnote nobody reads. */
+.leaderboard-speed {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.leaderboard-speed b {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboard-speed .leaderboard-unit {
+  color: var(--ink-faint);
+  font-size: var(--text-2xs);
+  font-weight: 400;
+}
+
+.leaderboard-speed small {
+  color: var(--ink-faint);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  /* No nowrap: a slow parser's range is wide enough to spill the cell, and a
+     second line is better than text running under the next column. */
+  text-wrap: pretty;
+}
+
+.leaderboard-rank[data-unranked] {
+  background: var(--surface-subtle);
+  color: var(--ink-faint);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .leaderboard-rank {
@@ -3814,7 +3870,7 @@ body {
     min-height: 0;
   }
 
-  .arena-shell[data-phase="intro"],
+  .arena-shell[data-phase="pick"],
   .arena-shell[data-phase="running"] {
     grid-template-rows: 58px minmax(0, 1fr);
   }
@@ -3825,8 +3881,7 @@ body {
   }
 
   .arena-mobile-pane-switcher {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
     gap: 4px;
     padding: 4px;
     border-bottom: 1px solid var(--line);
@@ -3835,6 +3890,7 @@ body {
 
   .arena-mobile-pane-switcher button {
     min-width: 0;
+    flex: 1;
     border: 0;
     border-radius: var(--radius-sm);
     background: transparent;
@@ -3842,6 +3898,9 @@ body {
     cursor: pointer;
     font-size: var(--text-2xs);
     font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .arena-mobile-pane-switcher button[aria-pressed="true"] {
@@ -3850,36 +3909,45 @@ body {
     box-shadow: 0 1px 3px oklch(0 0 0 / 0.09);
   }
 
-  .arena-canvas[data-mobile-pane="source"] .results-pane,
-  .arena-canvas[data-mobile-pane="candidate-a"] .source-pane,
-  .arena-canvas[data-mobile-pane="candidate-b"] .source-pane {
+  .arena-canvas[data-mobile-pane="source"] .results-pane {
     display: none;
   }
 
-  .arena-canvas[data-mobile-pane="candidate-a"]
-    [data-arena-candidate="b"],
-  .arena-canvas[data-mobile-pane="candidate-b"]
-    [data-arena-candidate="a"] {
+  .arena-canvas:not([data-mobile-pane="source"]) .source-pane {
     display: none;
   }
 
-  .arena-canvas .result-columns[data-columns="2"] {
+  /* Only the selected candidate. `display: contents` is dropped here so the
+     wrapper can be hidden at all. */
+  .arena-candidate {
+    display: block;
+    min-width: 0;
+  }
+
+  .arena-canvas[data-mobile-pane="c0"] .arena-candidate:not([data-candidate="0"]),
+  .arena-canvas[data-mobile-pane="c1"] .arena-candidate:not([data-candidate="1"]),
+  .arena-canvas[data-mobile-pane="c2"] .arena-candidate:not([data-candidate="2"]) {
+    display: none;
+  }
+
+  .arena-canvas.workspace-canvas {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .arena-shell[data-phase="blind"][data-mobile-pane="source"]
-    .arena-vote-bar {
-    display: none;
+  .arena-canvas .result-columns {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .leaderboard-row {
-    grid-template-columns: minmax(0, 1fr) 96px 52px 44px 56px;
+    grid-template-columns: minmax(0, 1fr) 88px 132px;
     padding: 12px 13px;
   }
   .leaderboard-bar { width: 48px; }
-  .arena-vote-bar { justify-content: stretch; }
-  .arena-vote-actions { width: 100%; }
-  .arena-vote-actions > * { flex: 1; }
+
+  /* Battles / ties / all-poor are sample detail; the two metrics are the point. */
+  .leaderboard-row > :nth-child(n + 4) {
+    display: none;
+  }
 }
 
 .arena-canvas.workspace-canvas {
@@ -4844,4 +4912,53 @@ button.strip-chip:hover { border-color: var(--line-strong); }
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* The battle picker. Documents are the only choice here: which parsers run is
+   decided by what the runner offers and what already has a receipt, and saying
+   so up front would name the candidates. */
+.arena-pick-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  width: min(720px, 100%);
+}
+
+.arena-pick-group h2 {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.arena-pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.arena-pick-row button {
+  height: auto;
+  flex-direction: column;
+  gap: 1px;
+  padding-block: 9px;
+}
+
+.arena-pick-row button small {
+  color: var(--muted-foreground);
+  font-size: var(--text-2xs);
+}
+
+.arena-error {
+  max-width: 52ch;
+  padding: 10px 14px;
+  border: 1px solid var(--amber-7, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--amber-soft, var(--muted));
+  color: var(--foreground);
+  font-size: var(--text-xs);
 }

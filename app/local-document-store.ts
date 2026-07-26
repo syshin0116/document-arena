@@ -4,6 +4,12 @@ import type {
   LocalParseResult,
   LocalRawArtifactMetadata,
 } from "./local-runner";
+import {
+  selectSpeedSamples,
+  type ParserSpeedSample,
+  type RawSpeedRecord,
+} from "./parser-speed";
+import { SAMPLE_DOCUMENTS } from "./lib/sample-documents-meta";
 
 // Persistent browser data keeps its original stable key across the product rename.
 const DATABASE_NAME = "parser-arena-local-documents";
@@ -247,14 +253,27 @@ export type LocalParseRunReceipt = {
 
 export type LocalParseRunSummary = Omit<LocalParseRunReceipt, "result">;
 
+/** Ids a run receipt may be keyed by: browser uploads and the served samples. */
+export function isReceiptableDocumentId(documentId: string): boolean {
+  return (
+    documentId.startsWith("local_") ||
+    SAMPLE_DOCUMENTS.some((sample) => sample.id === documentId)
+  );
+}
+
 export function createLocalParseRunReceipt(
   documentId: string,
   parser: string,
   result: LocalParseResult,
   savedAt = new Date().toISOString(),
 ): LocalParseRunReceipt {
-  if (!documentId.startsWith("local_")) {
-    throw new Error("A local run receipt requires a local document id.");
+  // Uploads live in this browser; samples are served by the app under a stable
+  // id. Both are real runs worth keeping, and a sample id is more reproducible
+  // than an upload id, so both may be receipted. Anything else is a caller bug.
+  if (!isReceiptableDocumentId(documentId)) {
+    throw new Error(
+      "A run receipt requires a local document id or a known sample id.",
+    );
   }
   if (parser.trim().length === 0) {
     throw new Error("A local run receipt requires a parser name.");
@@ -351,7 +370,7 @@ export async function loadLocalParseResults(
   documentId: string,
   parsers: readonly string[],
 ): Promise<Record<string, RestoredParseRun>> {
-  if (!documentId.startsWith("local_")) return {};
+  if (!isReceiptableDocumentId(documentId)) return {};
   const database = await openDatabase();
   if (!database.objectStoreNames.contains(RUNS_STORE)) {
     database.close();
@@ -397,11 +416,98 @@ export async function loadLocalParseResults(
  * were imported into the browser. Canonical result payloads stay internal to
  * the object store and are omitted from the returned history summaries.
  */
+/**
+ * Every completed run on this device, across all documents.
+ *
+ * The history API is per-document because that is what the workspace asks for;
+ * a leaderboard needs the whole store, so this walks it once and keeps only the
+ * few fields a speed figure needs rather than materialising every parsed
+ * document.
+ */
+export type { ParserSpeedSample };
+
+export async function listParserSpeedSamples(): Promise<ParserSpeedSample[]> {
+  const database = await openDatabase();
+  const stores = [RUNS_STORE, LEGACY_RESULTS_STORE].filter((store) =>
+    database.objectStoreNames.contains(store),
+  );
+  if (stores.length === 0) {
+    database.close();
+    return [];
+  }
+  try {
+    return await new Promise<ParserSpeedSample[]>((resolve, reject) => {
+      const receipts: RawSpeedRecord[] = [];
+      const legacy: RawSpeedRecord[] = [];
+      const transaction = database.transaction(stores, "readonly");
+
+      const read = (store: string, onRecord: (value: unknown) => void): void => {
+        const request = transaction.objectStore(store).openCursor();
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return;
+          onRecord(cursor.value);
+          cursor.continue();
+        };
+        request.onerror = () => reject(request.error);
+      };
+
+      const asRecord = (
+        parser: string,
+        documentId: string,
+        runId: string,
+        result: LocalParseResult | undefined,
+      ): RawSpeedRecord => ({
+        parser,
+        documentId,
+        runId,
+        durationMs: result?.durationMs,
+        pageCount: result?.parsedDocument?.pages?.length,
+      });
+
+      if (database.objectStoreNames.contains(RUNS_STORE)) {
+        read(RUNS_STORE, (value) => {
+          const receipt = value as LocalParseRunReceipt;
+          receipts.push(
+            asRecord(
+              receipt.parser,
+              receipt.documentId,
+              receipt.runId,
+              receipt.result,
+            ),
+          );
+        });
+      }
+
+      if (database.objectStoreNames.contains(LEGACY_RESULTS_STORE)) {
+        read(LEGACY_RESULTS_STORE, (value) => {
+          const record = value as LegacyStoredParseResult;
+          legacy.push(
+            asRecord(
+              record.parser,
+              record.documentId,
+              record.key,
+              record.result as LocalParseResult | undefined,
+            ),
+          );
+        });
+      }
+
+      // Merged on completion: cursor finish order is not guaranteed, so the
+      // receipt list is only known to be complete here.
+      transaction.oncomplete = () => resolve(selectSpeedSamples(receipts, legacy));
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } finally {
+    database.close();
+  }
+}
+
 export async function listLocalParseRunHistory(
   documentId: string,
   parser?: string,
 ): Promise<LocalParseRunSummary[]> {
-  if (!documentId.startsWith("local_")) return [];
+  if (!isReceiptableDocumentId(documentId)) return [];
   const database = await openDatabase();
   if (!database.objectStoreNames.contains(RUNS_STORE)) {
     database.close();

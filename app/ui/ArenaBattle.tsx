@@ -3,10 +3,39 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ModeToggle } from "@/components/mode-toggle";
-import { AppHeader } from "./AppHeader";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { AppHeader } from "./AppHeader";
+import { VerdictBar } from "./VerdictBar";
+import { BlockReadingView } from "./Workspace";
+import {
+  LOCAL_COMPONENT_IDS,
+  LOCAL_PARSER_ORDER,
+  POSITION_ACCENTS,
+  POSITION_LETTERS,
+  PARSER_DISPLAY,
+} from "../parsers";
+import {
+  listLocalDocuments,
+  loadLocalParseResults,
+  saveLocalParseResult,
+  type LocalDocumentSummary,
+} from "../local-document-store";
+import { loadDocumentFile } from "../document-file";
+import {
+  checkLocalRunner,
+  parseWithLocalRunner,
+  runnerComponent,
+  type LocalParseResult,
+  type LocalRunnerProbe,
+} from "../local-runner";
+import { localComponentRunAvailability } from "../run-options";
+import { SAMPLE_DOCUMENTS } from "../lib/sample-documents-meta";
+import { buildVote } from "../vote-builder";
+import { saveVote, type VoteOutcome } from "../vote-store";
+import type { ParserId } from "../workspace-state";
 
 const PdfSourceViewer = dynamic(() => import("./PdfSourceViewer"), {
   ssr: false,
@@ -14,58 +43,104 @@ const PdfSourceViewer = dynamic(() => import("./PdfSourceViewer"), {
     <div className="pdf-viewer-shell">
       <div className="pdf-viewer-message" role="status">
         <span className="spinner" aria-hidden="true" />
-        <strong>Loading sample PDF</strong>
+        <strong>Loading PDF</strong>
         <span>Starting the local PDF renderer</span>
       </div>
     </div>
   ),
 });
 
-const parserMeta: Record<
-  ArenaParserId,
-  { name: string; version: string; timing: string }
-> = {
-  opendataloader: { name: "OpenDataLoader", version: "2.5.0", timing: "4.2s" },
-  mineru: { name: "MinerU", version: "2.6.1", timing: "11.8s" },
+type BattlePhase = "pick" | "running" | "blind" | "revealed";
+
+/** One candidate in a battle: a real run, and the receipt a vote points at. */
+type Candidate = {
+  parserId: ParserId;
+  result: LocalParseResult;
+  recordId: string;
 };
 
-/* The arena judges hardcoded JSX, so its verdict is local UI state and is
-   deliberately NOT persisted: a vote about static markup would pollute the
-   standings. Real votes come from the workspace, over parsers that actually
-   ran - which is also why these two ids are local to this file rather than
-   the vote store's parser union. */
-type ArenaParserId = "opendataloader" | "mineru";
-type BattleOutcome = ArenaParserId | "tie" | "both-poor";
+type BattleDocument = {
+  id: string;
+  name: string;
+  /** Samples are served by the app; uploads live in this browser. */
+  sample: boolean;
+};
 
-type BattlePhase = "intro" | "running" | "blind" | "revealed";
-type ArenaMobilePane = "source" | "candidate-a" | "candidate-b";
-
-function shuffledPair(): [ArenaParserId, ArenaParserId] {
-  return Math.random() < 0.5
-    ? ["opendataloader", "mineru"]
-    : ["mineru", "opendataloader"];
+/**
+ * Deterministic-per-battle shuffle.
+ *
+ * `Math.random` is called once when a battle starts, never during render, so a
+ * re-render cannot reorder the columns out from under a reader mid-vote.
+ */
+function shuffle<T>(items: readonly T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 export function ArenaBattle() {
-  const [phase, setPhase] = useState<BattlePhase>("intro");
-  const [permutation, setPermutation] = useState<[ArenaParserId, ArenaParserId]>([
-    "opendataloader",
-    "mineru",
-  ]);
-  const [outcome, setOutcome] = useState<BattleOutcome | null>(null);
+  const [phase, setPhase] = useState<BattlePhase>("pick");
+  const [runner, setRunner] = useState<LocalRunnerProbe | null>(null);
+  const [uploads, setUploads] = useState<LocalDocumentSummary[]>([]);
+  const [battleDocument, setBattleDocument] = useState<BattleDocument | null>(
+    null,
+  );
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [outcome, setOutcome] = useState<VoteOutcome | null>(null);
+  const [progress, setProgress] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState<number | null>(null);
-  const [mobilePane, setMobilePane] =
-    useState<ArenaMobilePane>("candidate-a");
-  const timers = useRef<number[]>([]);
+  /** "source", or the index of the candidate column a narrow screen shows. */
+  const [mobilePane, setMobilePane] = useState<"source" | number>(0);
+  /**
+   * Set before the first await so a second click cannot start a second battle.
+   *
+   * The picker unmounts once the phase changes, but every click in a
+   * double-click lands before React re-renders, and each one would run the
+   * missing parsers again - twice the wait, and twice the bill for a remote
+   * component.
+   */
+  const battleInFlight = useRef(false);
+  /**
+   * The in-flight health probe.
+   *
+   * `runnableParsers` is read after an await inside `startBattle`, but the
+   * function is recreated per render, so the click captures whatever the probe
+   * had produced at click time - `null` for the first second or so. Clicking a
+   * sample that fast reported "This runner offers 0" about a healthy runner.
+   */
+  const runnerProbe = useRef<Promise<LocalRunnerProbe> | null>(null);
 
-  useEffect(
-    () => () => timers.current.forEach((timer) => window.clearTimeout(timer)),
-    [],
-  );
+  useEffect(() => {
+    let cancelled = false;
+    const probe = checkLocalRunner();
+    runnerProbe.current = probe;
+    probe.then((result) => {
+      if (!cancelled) setRunner(result);
+    });
+    listLocalDocuments(6)
+      .then((documents) => {
+        if (!cancelled) setUploads(documents);
+      })
+      .catch(() => {
+        if (!cancelled) setUploads([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handlePageCountChange = useCallback((count: number) => {
     setPageCount(count);
+    // The previous battle's count is still in state while the new PDF loads, so
+    // Next stays enabled past the new document's end. Without this a 27-page
+    // battle followed by a 9-page one can leave the reader on page 13 of 9 -
+    // and a vote recorded there would cite a page that does not exist.
+    setPage((current) => Math.min(current, Math.max(1, count)));
   }, []);
   const handlePageChange = useCallback((next: number) => {
     setPage(Math.max(1, next));
@@ -73,82 +148,282 @@ export function ArenaBattle() {
   const noop = useCallback(() => {}, []);
   const noopActivate: (id: string | null) => void = noop;
 
-  function startBattle() {
-    setPermutation(shuffledPair());
+  /**
+   * Parsers a probed runner can actually execute right now.
+   *
+   * Presence is not enough: a component whose container image was never built
+   * is still advertised, and asking it to run fails with "not runnable on this
+   * runner" after the battle has already started.
+   */
+  const runnableFrom = (probe: LocalRunnerProbe | null): ParserId[] => {
+    if (probe?.status !== "ready") return [];
+    return LOCAL_PARSER_ORDER.filter(
+      (parser) =>
+        localComponentRunAvailability(
+          runnerComponent(probe.info, LOCAL_COMPONENT_IDS[parser]),
+        ).available,
+    );
+  };
+
+  async function startBattle(document: BattleDocument) {
+    if (battleInFlight.current) return;
+    battleInFlight.current = true;
+    setBattleDocument(document);
+    setCandidates([]);
     setOutcome(null);
+    setError(null);
     setPage(1);
-    setMobilePane("candidate-a");
+    setPageCount(null);
+    setMobilePane(0);
     setPhase("running");
-    const timer = window.setTimeout(() => setPhase("blind"), 1600);
-    timers.current.push(timer);
+
+    try {
+      // Saved receipts first: a battle should not pay to re-run what this
+      // browser already has, and a receipt is exactly what a vote points at.
+      setProgress("Reading saved runs");
+      // Awaited, not read from render state: a click during the probe window
+      // would otherwise see no runnable parsers at all.
+      const [restored, probe] = await Promise.all([
+        loadLocalParseResults(document.id, LOCAL_PARSER_ORDER),
+        runnerProbe.current ?? checkLocalRunner(),
+      ]);
+      const runnableParsers = runnableFrom(probe);
+
+      const found: Candidate[] = [];
+      const missing: ParserId[] = [];
+      for (const parser of LOCAL_PARSER_ORDER) {
+        const run = restored[parser];
+        // A run without a receipt cannot be cited, so it is treated as absent
+        // and re-run rather than silently disqualifying the whole battle.
+        if (run?.recordId) {
+          found.push({
+            parserId: parser,
+            result: run.result,
+            recordId: run.recordId,
+          });
+        } else if (runnableParsers.includes(parser)) {
+          missing.push(parser);
+        }
+      }
+
+      if (found.length + missing.length < 2) {
+        throw new Error(
+          "A battle needs two parsers. This runner offers " +
+            `${found.length + missing.length}. Start the local runner, or pick a document with saved runs.`,
+        );
+      }
+
+      let file: File | null = null;
+      if (missing.length > 0) {
+        file = await loadDocumentFile(document.id);
+      }
+
+      const failures: string[] = [];
+      // Both ends fixed before the loop. `found` is pushed to inside it, so
+      // counting off it made the total climb as the battle went - "1 of 2",
+      // then "2 of 3" - and never reach itself.
+      const fromReceipts = found.length;
+      const total = fromReceipts + missing.length;
+      for (const [index, parser] of missing.entries()) {
+        setProgress(
+          `Parsing with candidate ${fromReceipts + index + 1} of ${total}`,
+        );
+        try {
+          const result = await parseWithLocalRunner(
+            file!,
+            LOCAL_COMPONENT_IDS[parser],
+            () => {},
+          );
+          const receipt = await saveLocalParseResult(
+            document.id,
+            parser,
+            result,
+          );
+          found.push({ parserId: parser, result, recordId: receipt.recordId });
+        } catch (caught) {
+          // One parser refusing to run is not a reason to throw away the others.
+          // Naming it here would leak an identity, so the count is all that is
+          // reported until the reveal.
+          failures.push(
+            caught instanceof Error ? caught.message : "unknown runner error",
+          );
+        }
+      }
+
+      if (found.length < 2) {
+        throw new Error(
+          `Only ${found.length} parser finished, so there is nothing to compare. ${failures.join(" ")}`.trim(),
+        );
+      }
+
+      setCandidates(shuffle(found));
+      setProgress("");
+      setPhase("blind");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "The battle could not start.",
+      );
+      setPhase("pick");
+    } finally {
+      battleInFlight.current = false;
+    }
   }
 
-  function castVote(vote: BattleOutcome) {
-    setOutcome(vote);
-    setPhase("revealed");
-    // Deliberately not persisted. The two candidates here are hardcoded JSX,
-    // and the artifact ids this used to store ("demo-…-parsed-document")
-    // resolved to nothing, so every recorded vote was an opinion about static
-    // markup that still counted toward the standings.
+  function castVote(vote: VoteOutcome) {
+    if (!battleDocument) return;
+    try {
+      const built = buildVote({
+        documentId: battleDocument.id,
+        page,
+        candidates: candidates.map((candidate) => ({
+          parserId: candidate.parserId,
+          runId: candidate.result.runId,
+          recordId: candidate.recordId,
+        })),
+        outcome: vote,
+        // Names, versions, and timings were masked the whole way here, so this
+        // one counts.
+        blind: true,
+        sourceArtifactId: candidates[0]?.result.source?.artifactId,
+        id: crypto.randomUUID(),
+        now: new Date(),
+      });
+      if (!saveVote(built)) {
+        toast.error("That verdict could not be saved.", {
+          description:
+            "This browser refused to store it. Check that site data is allowed and that storage is not full.",
+        });
+        return;
+      }
+      setOutcome(vote);
+      setPhase("revealed");
+    } catch (caught) {
+      toast.error("That verdict was not recorded.", {
+        description:
+          caught instanceof Error
+            ? caught.message
+            : "The vote could not be built.",
+      });
+    }
   }
+
+  const revealed = phase === "revealed";
 
   return (
-    <main
-      className="arena-shell"
-      data-phase={phase}
-      data-mobile-pane={mobilePane}
-    >
+    <main className="arena-shell" data-phase={phase}>
       <AppHeader
         title="Arena"
-        meta="Blind battle · sample document"
+        meta="Blind battle · votes count here"
         actions={
           <>
-          <ModeToggle />
-          <Link className={buttonVariants({ variant: "outline", size: "sm" })} href="/leaderboard">
-            Leaderboard
-          </Link>
+            <ModeToggle />
+            <Link
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              href="/leaderboard"
+            >
+              Leaderboard
+            </Link>
           </>
         }
       />
 
-      {phase === "intro" && (
+      {phase === "pick" && (
         <section className="arena-intro" aria-labelledby="arena-title">
           <p className="eyebrow">
             <span className="eyebrow-dot" aria-hidden="true" />
             Judge without brand bias
           </p>
-          <h1 id="arena-title">Two parsers. No labels. Your call.</h1>
+          <h1 id="arena-title">No labels. Your call.</h1>
           <p className="landing-lede">
-            Both parsers read the same sample document. Labels, versions, and
-            timing stay hidden until you vote. Votes stay on this device.
+            Every parser reads the same document. Names, versions, and timings
+            stay hidden until you vote, and only votes cast here are ranked.
           </p>
-          <div className="empty-result-actions">
-            <button className={buttonVariants({ size: "lg" })} type="button" onClick={startBattle}>
-              Start a sample battle
-            </button>
-            <Link className={buttonVariants({ variant: "outline", size: "lg" })} href="/">
-              Use my own document
-            </Link>
+
+          {error && (
+            <p className="arena-error" role="alert">
+              {error}
+            </p>
+          )}
+
+          {runner !== null && runner.status !== "ready" && (
+            <p className="empty-result-meta" role="status">
+              The local runner is not answering, so only documents with saved
+              runs can battle.
+            </p>
+          )}
+
+          <div className="arena-pick-group">
+            <h2>Samples</h2>
+            <div className="arena-pick-row">
+              {SAMPLE_DOCUMENTS.map((sample) => (
+                <button
+                  key={sample.id}
+                  type="button"
+                  className={cn(buttonVariants({ variant: "outline" }))}
+                  onClick={() =>
+                    startBattle({
+                      id: sample.id,
+                      name: sample.shortTitle,
+                      sample: true,
+                    })
+                  }
+                >
+                  {sample.shortTitle}
+                  <small>{sample.pageCount} pages</small>
+                </button>
+              ))}
+            </div>
           </div>
-          <span className="empty-result-meta">
-            Sample: attention-is-all-you-need.pdf · digital text
-          </span>
+
+          {uploads.length > 0 && (
+            <div className="arena-pick-group">
+              <h2>Your documents</h2>
+              <div className="arena-pick-row">
+                {uploads.map((upload) => (
+                  <button
+                    key={upload.id}
+                    type="button"
+                    className={cn(buttonVariants({ variant: "outline" }))}
+                    onClick={() =>
+                      startBattle({
+                        id: upload.id,
+                        name: upload.name,
+                        sample: false,
+                      })
+                    }
+                  >
+                    {upload.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Link
+            className={buttonVariants({ variant: "ghost", size: "sm" })}
+            href="/"
+          >
+            Upload another PDF
+          </Link>
         </section>
       )}
 
       {phase === "running" && (
         <section className="arena-intro" aria-live="polite">
-          <div className="running-orbit" aria-hidden="true"><span /></div>
+          <div className="running-orbit" aria-hidden="true">
+            <span />
+          </div>
           <p className="eyebrow">Preparing battle</p>
-          <h1>Two anonymous parsers are reading.</h1>
-          <p className="landing-lede">
-            Candidate order is randomized once and kept until your vote.
-          </p>
+          <h1>Anonymous parsers are reading.</h1>
+          <p className="landing-lede">{progress}</p>
         </section>
       )}
 
-      {(phase === "blind" || phase === "revealed") && (
+      {(phase === "blind" || revealed) && battleDocument && (
         <>
+          {/* Narrow screens cannot hold the source and every candidate at
+              once. One button per candidate, so this follows a two- or
+              three-way battle rather than assuming two. */}
           <div
             className="arena-mobile-pane-switcher"
             role="group"
@@ -162,27 +437,26 @@ export function ArenaBattle() {
             >
               Source
             </button>
-            <button
-              type="button"
-              aria-pressed={mobilePane === "candidate-a"}
-              aria-controls="arena-candidate-a"
-              onClick={() => setMobilePane("candidate-a")}
-            >
-              Candidate A
-            </button>
-            <button
-              type="button"
-              aria-pressed={mobilePane === "candidate-b"}
-              aria-controls="arena-candidate-b"
-              onClick={() => setMobilePane("candidate-b")}
-            >
-              Candidate B
-            </button>
+            {candidates.map((candidate, index) => (
+              <button
+                key={index}
+                type="button"
+                aria-pressed={mobilePane === index}
+                aria-controls={`arena-candidate-${index}`}
+                onClick={() => setMobilePane(index)}
+              >
+                {revealed
+                  ? PARSER_DISPLAY[candidate.parserId]
+                  : `Candidate ${POSITION_LETTERS[index]}`}
+              </button>
+            ))}
           </div>
 
           <div
             className="workspace-canvas arena-canvas"
-            data-mobile-pane={mobilePane}
+            data-mobile-pane={
+              typeof mobilePane === "number" ? `c${mobilePane}` : "source"
+            }
           >
             <section
               id="arena-source-pane"
@@ -192,7 +466,7 @@ export function ArenaBattle() {
               <div className="pane-toolbar">
                 <div>
                   <strong>Source</strong>
-                  <span className="native-pill">Sample PDF</span>
+                  <span className="native-pill">{battleDocument.name}</span>
                 </div>
                 <div className="source-controls" aria-label="Page controls">
                   <button
@@ -222,13 +496,15 @@ export function ArenaBattle() {
               </div>
               <div className="pdf-stage">
                 <PdfSourceViewer
-                  documentId="demo"
-                  sample
+                  documentId={battleDocument.id}
+                  sample={battleDocument.sample}
                   pageNumber={page}
                   zoom={92}
                   thumbnailsOpen={false}
+                  /* No source boxes while masked: the workspace tints each
+                     parser's regions by parser, which would name the columns. */
                   regions={[]}
-                  regionParserId="opendataloader"
+                  regionParserId="*"
                   activeEvidence={null}
                   pinnedEvidence={null}
                   comparing
@@ -244,35 +520,57 @@ export function ArenaBattle() {
             <section
               className="results-pane"
               aria-label={
-                phase === "blind"
-                  ? "Anonymous candidates"
-                  : "Revealed parser results"
+                revealed ? "Revealed parser results" : "Anonymous candidates"
               }
             >
               <div className="result-ready-shell">
                 <div className="pane-toolbar result-toolbar">
                   <div className="result-heading">
                     <strong>
-                      {phase === "blind" ? "Blind comparison" : "Identities revealed"}
+                      {revealed ? "Identities revealed" : "Blind comparison"}
                     </strong>
-                    <span className="mapping-status" data-unavailable={phase === "blind" || undefined}>
+                    <span
+                      className="mapping-status"
+                      data-unavailable={!revealed || undefined}
+                    >
                       <span aria-hidden="true" />
-                      {phase === "blind"
-                        ? "Labels masked · order randomized"
-                        : "Vote recorded on this device"}
+                      {revealed
+                        ? "Vote recorded on this device"
+                        : "Labels masked · order randomized"}
                     </span>
                   </div>
                 </div>
                 <div className="results-scroll">
-                  <div className="result-columns" data-columns={2}>
-                    {permutation.map((parser, index) => (
-                      <CandidateColumn
-                        key={parser}
-                        parser={parser}
-                        letter={index === 0 ? "A" : "B"}
-                        revealed={phase === "revealed"}
-                        winner={outcome === parser}
+                  <div
+                    className="result-columns"
+                    data-columns={candidates.length}
+                  >
+                    {candidates.map((candidate, index) => (
+                      <div
+                        key={index}
+                        id={`arena-candidate-${index}`}
+                        className="arena-candidate"
+                        data-candidate={index}
+                      >
+                      <BlockReadingView
+                        documentId={battleDocument.id}
+                        result={candidate.result}
+                        parserName={
+                          revealed
+                            ? PARSER_DISPLAY[candidate.parserId]
+                            : `Candidate ${POSITION_LETTERS[index]}`
+                        }
+                        letter={POSITION_LETTERS[index]}
+                        accent={POSITION_ACCENTS[index]}
+                        masked={!revealed}
+                        page={page}
+                        merge={false}
+                        evidence={null}
+                        pinned={null}
+                        onActivate={noopActivate}
+                        onPin={noop}
                       />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -280,136 +578,43 @@ export function ArenaBattle() {
             </section>
           </div>
 
-          <footer className="arena-vote-bar" aria-label="Vote">
-            {phase === "blind" ? (
-              <>
-                <span className="arena-vote-question">
-                  Which candidate parsed this page better?
-                </span>
-                <div className="arena-vote-actions">
-                  <button
-                    className={cn(buttonVariants({ size: "sm" }), "arena-candidate-vote")}
-                    type="button"
-                    onClick={() => castVote(permutation[0])}
-                  >
-                    Candidate A
-                  </button>
-                  <button
-                    className={cn(buttonVariants({ size: "sm" }), "arena-candidate-vote")}
-                    type="button"
-                    onClick={() => castVote(permutation[1])}
-                  >
-                    Candidate B
-                  </button>
-                  <button
-                    className={buttonVariants({ variant: "outline", size: "sm" })}
-                    type="button"
-                    onClick={() => castVote("tie")}
-                  >
-                    Tie
-                  </button>
-                  <button
-                    className={buttonVariants({ variant: "outline", size: "sm" })}
-                    type="button"
-                    onClick={() => castVote("both-poor")}
-                  >
-                    Both poor
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <span className="arena-vote-question">
-                  {outcome === "tie"
-                    ? "You called it a tie."
-                    : outcome === "both-poor"
-                      ? "You marked both results poor."
-                      : `You picked ${outcome ? parserMeta[outcome].name : ""}.`}
-                </span>
-                <div className="arena-vote-actions">
-                  <button className={buttonVariants({ size: "sm" })} type="button" onClick={startBattle}>
-                    Battle again
-                  </button>
-                  <Link className={buttonVariants({ variant: "outline", size: "sm" })} href="/leaderboard">
-                    View leaderboard
-                  </Link>
-                </div>
-              </>
-            )}
-          </footer>
+          {revealed ? (
+            <footer className="verdict-bar" aria-label="Recorded verdict">
+              <span className="verdict-label">Recorded</span>
+              <strong className="verdict-recorded">
+                {outcome === "tie"
+                  ? "You called it a tie."
+                  : outcome === "all-poor"
+                    ? "You marked them all poor."
+                    : `You picked ${outcome ? PARSER_DISPLAY[outcome as ParserId] : ""}.`}
+              </strong>
+              <button
+                className={buttonVariants({ size: "sm" })}
+                type="button"
+                onClick={() => setPhase("pick")}
+              >
+                Battle again
+              </button>
+              <Link
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                href="/leaderboard"
+              >
+                View leaderboard
+              </Link>
+            </footer>
+          ) : (
+            <VerdictBar
+              candidates={candidates.map((candidate, index) => ({
+                parserId: candidate.parserId,
+                label: `Candidate ${POSITION_LETTERS[index]}`,
+              }))}
+              votedOutcome={null}
+              disabledReason={null}
+              onVote={castVote}
+            />
+          )}
         </>
       )}
     </main>
-  );
-}
-
-function CandidateColumn({
-  parser,
-  letter,
-  revealed,
-  winner,
-}: {
-  parser: ArenaParserId;
-  letter: "A" | "B";
-  revealed: boolean;
-  winner: boolean;
-}) {
-  const meta = parserMeta[parser];
-  const alternate = parser === "mineru";
-  return (
-    <article
-      id={`arena-candidate-${letter.toLowerCase()}`}
-      className="parser-result"
-      data-arena-candidate={letter.toLowerCase()}
-      data-accent={revealed ? (alternate ? "amber" : "indigo") : "neutral"}
-      data-winner={winner || undefined}
-    >
-      <header className="parser-result-header">
-        <div>
-          <span className="parser-letter">{letter}</span>
-          <div>
-            <h2>{revealed ? meta.name : `Candidate ${letter}`}</h2>
-            <p>{revealed ? `v${meta.version}` : "Identity masked"}</p>
-          </div>
-        </div>
-        <span className="complete-badge">
-          {revealed ? (
-            <>
-              <span className="status-dot" data-status="complete" aria-hidden="true" />{" "}
-              {meta.timing}
-            </>
-          ) : (
-            "···"
-          )}
-        </span>
-      </header>
-      <div className="parsed-document">
-        <div className="parsed-block parsed-title" data-static>
-          <span className="block-type">Title</span>
-          <strong>Attention Is All You Need</strong>
-          <small>{alternate ? "Heading · level 1" : "Title · confidence 0.99"}</small>
-        </div>
-        <div className="parsed-block" data-static>
-          <span className="block-type">{alternate ? "Section" : "Paragraph"}</span>
-          <strong>Abstract</strong>
-          <p>
-            {alternate
-              ? "We compare structured document parsers through source-linked evidence, layout preservation and reading order quality."
-              : "We compare structured document parsers using source-linked evidence, layout preservation, and reading-order quality."}
-          </p>
-          <small>{alternate ? "Text block · page 1" : "Paragraph · 31 words"}</small>
-        </div>
-        <div className="parsed-block parsed-table" data-static>
-          <span className="block-type">Table</span>
-          <strong>Parser output comparison</strong>
-          <div className="mini-table" aria-hidden="true">
-            <span>Parser</span><span>Text</span><span>Layout</span>
-            <span>OpenDataLoader</span><span>0.96</span><span>0.91</span>
-            <span>MinerU</span><span>0.94</span><span>0.95</span>
-          </div>
-          <small>{alternate ? "Table · 3 columns · 3 rows" : "Table · native cells"}</small>
-        </div>
-      </div>
-    </article>
   );
 }
