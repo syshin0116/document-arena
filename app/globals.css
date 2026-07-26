@@ -3659,7 +3659,7 @@ body {
 
 .leaderboard-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 124px 150px 62px 48px 62px;
+  grid-template-columns: minmax(0, 1fr) 120px 150px 68px 52px 78px;
   align-items: center;
   gap: 12px;
   padding: 13px 18px;
@@ -3669,6 +3669,40 @@ body {
 
 .leaderboard-row:first-child {
   border-top: 0;
+}
+
+/* The whole header cell is the control, so the click target matches the label
+   a reader is aiming at rather than the text's own width. */
+.leaderboard-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+  white-space: nowrap;
+}
+
+.leaderboard-sort:hover {
+  color: var(--foreground);
+}
+
+.leaderboard-sort[data-active] {
+  color: var(--foreground);
+}
+
+.leaderboard-sort > span {
+  opacity: 0.45;
+}
+
+.leaderboard-sort[data-active] > span {
+  opacity: 1;
 }
 
 .leaderboard-head {

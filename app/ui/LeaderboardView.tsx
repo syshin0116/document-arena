@@ -5,6 +5,14 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { listParserSpeedSamples } from "../local-document-store";
 import { aggregateSpeed, type ParserSpeed } from "../parser-speed";
 import {
+  DEFAULT_DIRECTION,
+  SORT_LABELS,
+  sortRows,
+  type LeaderboardRow,
+  type Sort,
+  type SortKey,
+} from "../leaderboard-sort";
+import {
   aggregateStandings,
   getBlindVotesSnapshot,
   getLabeledVoteCount,
@@ -27,6 +35,16 @@ const parserNames: Record<string, { name: string; profile: string }> = {
     profile: "Hosted · layout + OCR · external service",
   },
 };
+
+/** Header order, which is also the grid column order. */
+const COLUMNS: readonly SortKey[] = [
+  "parser",
+  "winRate",
+  "speed",
+  "battles",
+  "ties",
+  "allPoor",
+];
 
 export function LeaderboardView() {
   const votes = useSyncExternalStore(
@@ -66,24 +84,42 @@ export function LeaderboardView() {
   // One row per parser that has either a verdict record or a timed run. The two
   // metrics have different denominators, so every cell carries its own sample
   // rather than borrowing the row's.
+  //
+  // `rank` is fixed to the standings, not to the row's position on screen: it
+  // means "where this parser stands", so sorting the table by speed or by ties
+  // must not renumber it.
   const rows = useMemo(() => {
     const speedFor = new Map((speeds ?? []).map((s) => [s.parserId, s]));
-    const merged: {
-      parserId: string;
-      standing: (typeof standings)[number] | null;
-      speed: ParserSpeed | null;
-    }[] = standings.map((standing) => ({
+    const merged: LeaderboardRow[] = standings.map((standing, index) => ({
       parserId: standing.parserId,
+      rank: index + 1,
       standing,
       speed: speedFor.get(standing.parserId) ?? null,
     }));
     const alreadyListed = new Set(standings.map((s) => s.parserId));
     for (const speed of speeds ?? []) {
       if (alreadyListed.has(speed.parserId)) continue;
-      merged.push({ parserId: speed.parserId, standing: null, speed });
+      merged.push({
+        parserId: speed.parserId,
+        rank: null,
+        standing: null,
+        speed,
+      });
     }
     return merged;
   }, [standings, speeds]);
+
+  const [sort, setSort] = useState<Sort>({ key: "default", direction: "asc" });
+
+  const sortedRows = useMemo(() => sortRows(rows, sort), [rows, sort]);
+
+  const toggleSort = (key: SortKey) => {
+    setSort((current) =>
+      current.key === key
+        ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
+        : { key, direction: DEFAULT_DIRECTION[key] },
+    );
+  };
 
   // Rank numbers claim an ordering. Only blind votes produce one, so when there
   // are none the table renders as a plain speed table instead of a podium.
@@ -181,21 +217,47 @@ export function LeaderboardView() {
         ) : (
           <div className="leaderboard-table" role="table" aria-label="Parser standings">
             <div className="leaderboard-row leaderboard-head" role="row">
-              <span role="columnheader">Parser</span>
-              <span role="columnheader">Win rate</span>
-              <span role="columnheader">Speed</span>
-              <span role="columnheader">Battles</span>
-              <span role="columnheader">Ties</span>
-              <span role="columnheader">All poor</span>
+              {COLUMNS.map((key) => (
+                <span
+                  key={key}
+                  role="columnheader"
+                  aria-sort={
+                    sort.key === key
+                      ? sort.direction === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
+                >
+                  <button
+                    type="button"
+                    className="leaderboard-sort"
+                    data-active={sort.key === key || undefined}
+                    onClick={() => toggleSort(key)}
+                  >
+                    {SORT_LABELS[key]}
+                    <span aria-hidden="true">
+                      {sort.key === key
+                        ? sort.direction === "asc"
+                          ? "\u2191"
+                          : "\u2193"
+                        : "\u2195"}
+                    </span>
+                  </button>
+                </span>
+              ))}
             </div>
-            {rows.map(({ parserId, standing, speed }, index) => {
+            {sortedRows.map(({ parserId, rank, standing, speed }) => {
               const meta = parserNames[parserId] ?? { name: parserId, profile: "" };
               return (
                 <div className="leaderboard-row" role="row" key={parserId}>
                   <span role="cell" className="leaderboard-parser">
                     {ranked && (
-                      <b className="leaderboard-rank" data-unranked={standing ? undefined : ""}>
-                        {standing ? index + 1 : "–"}
+                      <b
+                        className="leaderboard-rank"
+                        data-unranked={rank === null ? "" : undefined}
+                      >
+                        {rank ?? "–"}
                       </b>
                     )}
                     <span>
