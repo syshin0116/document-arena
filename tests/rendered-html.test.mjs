@@ -218,6 +218,19 @@ test("the arena never hands a parser identity to the page before the vote", () =
   assert.match(arenaSource, /blind: true/);
 });
 
+test("a second click cannot start a second battle", () => {
+  // The picker unmounts when the phase changes, but every click in a
+  // double-click lands before React re-renders, and each one would run the
+  // missing parsers again - twice the wait, and twice the bill for a remote
+  // component. The guard has to be set before the first await, and cleared in
+  // `finally` so a failed battle does not lock the picker forever.
+  assert.match(
+    arenaSource,
+    /async function startBattle\([\s\S]{0,120}?if \(battleInFlight\.current\) return;\s*battleInFlight\.current = true;/,
+  );
+  assert.match(arenaSource, /\} finally \{\s*battleInFlight\.current = false;/);
+});
+
 test("mobile Arena keeps the source and every candidate reachable", () => {
   assert.match(arenaSource, /aria-label="Arena view"/);
   assert.match(

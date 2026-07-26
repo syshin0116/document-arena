@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ModeToggle } from "@/components/mode-toggle";
 import { buttonVariants } from "@/components/ui/button";
@@ -97,6 +97,15 @@ export function ArenaBattle() {
   const [pageCount, setPageCount] = useState<number | null>(null);
   /** "source", or the index of the candidate column a narrow screen shows. */
   const [mobilePane, setMobilePane] = useState<"source" | number>(0);
+  /**
+   * Set before the first await so a second click cannot start a second battle.
+   *
+   * The picker unmounts once the phase changes, but every click in a
+   * double-click lands before React re-renders, and each one would run the
+   * missing parsers again - twice the wait, and twice the bill for a remote
+   * component.
+   */
+  const battleInFlight = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +151,8 @@ export function ArenaBattle() {
   }, [runner]);
 
   async function startBattle(document: BattleDocument) {
+    if (battleInFlight.current) return;
+    battleInFlight.current = true;
     setBattleDocument(document);
     setCandidates([]);
     setOutcome(null);
@@ -229,6 +240,8 @@ export function ArenaBattle() {
         caught instanceof Error ? caught.message : "The battle could not start.",
       );
       setPhase("pick");
+    } finally {
+      battleInFlight.current = false;
     }
   }
 
@@ -402,7 +415,7 @@ export function ArenaBattle() {
             </button>
             {candidates.map((candidate, index) => (
               <button
-                key={candidate.parserId}
+                key={index}
                 type="button"
                 aria-pressed={mobilePane === index}
                 aria-controls={`arena-candidate-${index}`}
@@ -510,7 +523,7 @@ export function ArenaBattle() {
                   >
                     {candidates.map((candidate, index) => (
                       <div
-                        key={candidate.parserId}
+                        key={index}
                         id={`arena-candidate-${index}`}
                         className="arena-candidate"
                         data-candidate={index}
