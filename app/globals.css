@@ -1217,6 +1217,40 @@ button:disabled {
   flex: 0 0 auto;
 }
 
+/* The verdict bar pins under the columns it judges. .result-ready-shell is
+   already a flex column with the scroller at flex:1, so this needs no grid
+   change - and it sits under the results rather than spanning the source. */
+.verdict-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: var(--bar-h);
+  padding: 6px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-subtle);
+}
+
+.verdict-label {
+  color: var(--ink-faint);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.verdict-recorded {
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.verdict-note {
+  color: var(--ink-faint);
+  font-size: var(--text-2xs);
+}
+
 .result-ready-shell > .result-view-toolbar {
   min-height: 58px;
 }
