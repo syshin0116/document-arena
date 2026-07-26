@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { pdfjs } from "react-pdf";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { loadLocalDocument } from "../local-document-store";
+import { loadDocumentFile } from "../document-file";
 import type { NormalizedBbox } from "../evidence-regions";
 import { PDF_OPTIONS } from "../pdf-options";
 
@@ -19,11 +19,8 @@ const documentCache = new Map<string, Promise<PDFDocumentProxy>>();
 function getCachedDocument(documentId: string): Promise<PDFDocumentProxy> {
   let cached = documentCache.get(documentId);
   if (!cached) {
-    cached = loadLocalDocument(documentId).then(async (document) => {
-      if (!document) {
-        throw new Error("This local PDF is no longer available.");
-      }
-      const data = await document.file.arrayBuffer();
+    cached = loadDocumentFile(documentId).then(async (file) => {
+      const data = await file.arrayBuffer();
       return pdfjs.getDocument({ ...PDF_OPTIONS, data }).promise;
     });
     documentCache.set(documentId, cached);

@@ -49,7 +49,6 @@ import {
   type LocalRunnerInfo,
 } from "../local-runner";
 import {
-  loadLocalDocument,
   loadLocalParseResults,
   saveLocalParseResult,
   type LocalDocument,
@@ -64,6 +63,7 @@ import {
   type RunAvailability,
 } from "../run-options";
 import { AppHeader } from "./AppHeader";
+import { loadDocumentFile } from "../document-file";
 import {
   LOCAL_COMPONENT_IDS,
   LOCAL_PARSER_ORDER,
@@ -617,31 +617,13 @@ export function Workspace({
    * browser store" - a message about a document that had never been stored.
    * Both paths land on the same `File` the runner takes.
    */
-  const loadRunDocument = useCallback(async (): Promise<LocalDocument> => {
-    if (sample) {
-      const response = await fetch(
-        `/v1/documents/${encodeURIComponent(documentId)}/content`,
-      );
-      if (!response.ok) {
-        throw new Error(
-          `The sample PDF could not be loaded (HTTP ${response.status}).`,
-        );
-      }
-      const blob = await response.blob();
-      return {
-        id: documentId,
-        file: new File([blob], fileName, { type: "application/pdf" }),
-      };
-    }
-
-    const stored = await loadLocalDocument(documentId);
-    if (!stored) {
-      throw new Error(
-        "This local PDF is no longer available in the browser store.",
-      );
-    }
-    return stored;
-  }, [documentId, fileName, sample]);
+  const loadRunDocument = useCallback(
+    async (): Promise<LocalDocument> => ({
+      id: documentId,
+      file: await loadDocumentFile(documentId),
+    }),
+    [documentId],
+  );
 
   const runLocalParse = useCallback(
     async (

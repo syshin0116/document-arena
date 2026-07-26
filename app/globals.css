@@ -1505,6 +1505,14 @@ button:disabled {
   grid-template-columns: repeat(2, minmax(290px, 1fr));
 }
 
+/* A three-way comparison is the arena's own feature. Without this the columns
+   fall back to the single-column base and stack, which is the one thing a
+   side-by-side comparison must not do - the reader finishes A before ever
+   seeing B. The floor drops because three columns share the same width. */
+.result-columns[data-columns="3"] {
+  grid-template-columns: repeat(3, minmax(230px, 1fr));
+}
+
 .parser-result {
   min-width: 0;
   /* `clip`, not `hidden`. Both clip the children to the radius, but `hidden`
@@ -2539,7 +2547,10 @@ button:disabled {
     grid-template-columns: minmax(360px, 43fr) minmax(430px, 57fr);
   }
 
-  .result-columns[data-columns="2"] {
+  /* Below this width three columns cannot each hold readable text, so both
+     multi-column layouts collapse to a horizontal scroll of one. */
+  .result-columns[data-columns="2"],
+  .result-columns[data-columns="3"] {
     grid-template-columns: minmax(280px, 1fr);
   }
 
@@ -2693,7 +2704,8 @@ button:disabled {
   .results-scroll { padding: 12px 10px 32px; }
   .evidence-hint { align-items: flex-start; }
   .evidence-hint kbd { display: none; }
-  .result-columns[data-columns="2"] { grid-template-columns: minmax(260px, 1fr); }
+  .result-columns[data-columns="2"],
+  .result-columns[data-columns="3"] { grid-template-columns: minmax(260px, 1fr); }
   .run-dock { padding: 0 8px; }
   .run-chip small { display: none; }
   .details-button { font-size: 0; }

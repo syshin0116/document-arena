@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ModeToggle } from "@/components/mode-toggle";
 import { buttonVariants } from "@/components/ui/button";
@@ -19,12 +19,11 @@ import {
 } from "../parsers";
 import {
   listLocalDocuments,
-  loadLocalDocument,
   loadLocalParseResults,
   saveLocalParseResult,
-  type LocalDocument,
   type LocalDocumentSummary,
 } from "../local-document-store";
+import { loadDocumentFile } from "../document-file";
 import {
   checkLocalRunner,
   parseWithLocalRunner,
@@ -106,11 +105,22 @@ export function ArenaBattle() {
    * component.
    */
   const battleInFlight = useRef(false);
+  /**
+   * The in-flight health probe.
+   *
+   * `runnableParsers` is read after an await inside `startBattle`, but the
+   * function is recreated per render, so the click captures whatever the probe
+   * had produced at click time - `null` for the first second or so. Clicking a
+   * sample that fast reported "This runner offers 0" about a healthy runner.
+   */
+  const runnerProbe = useRef<Promise<LocalRunnerProbe> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    checkLocalRunner().then((probe) => {
-      if (!cancelled) setRunner(probe);
+    const probe = checkLocalRunner();
+    runnerProbe.current = probe;
+    probe.then((result) => {
+      if (!cancelled) setRunner(result);
     });
     listLocalDocuments(6)
       .then((documents) => {
@@ -126,6 +136,11 @@ export function ArenaBattle() {
 
   const handlePageCountChange = useCallback((count: number) => {
     setPageCount(count);
+    // The previous battle's count is still in state while the new PDF loads, so
+    // Next stays enabled past the new document's end. Without this a 27-page
+    // battle followed by a 9-page one can leave the reader on page 13 of 9 -
+    // and a vote recorded there would cite a page that does not exist.
+    setPage((current) => Math.min(current, Math.max(1, count)));
   }, []);
   const handlePageChange = useCallback((next: number) => {
     setPage(Math.max(1, next));
@@ -134,21 +149,21 @@ export function ArenaBattle() {
   const noopActivate: (id: string | null) => void = noop;
 
   /**
-   * Parsers this runner can actually execute right now.
+   * Parsers a probed runner can actually execute right now.
    *
    * Presence is not enough: a component whose container image was never built
    * is still advertised, and asking it to run fails with "not runnable on this
    * runner" after the battle has already started.
    */
-  const runnableParsers = useMemo(() => {
-    if (runner?.status !== "ready") return [];
+  const runnableFrom = (probe: LocalRunnerProbe | null): ParserId[] => {
+    if (probe?.status !== "ready") return [];
     return LOCAL_PARSER_ORDER.filter(
       (parser) =>
         localComponentRunAvailability(
-          runnerComponent(runner.info, LOCAL_COMPONENT_IDS[parser]),
+          runnerComponent(probe.info, LOCAL_COMPONENT_IDS[parser]),
         ).available,
     );
-  }, [runner]);
+  };
 
   async function startBattle(document: BattleDocument) {
     if (battleInFlight.current) return;
@@ -158,6 +173,7 @@ export function ArenaBattle() {
     setOutcome(null);
     setError(null);
     setPage(1);
+    setPageCount(null);
     setMobilePane(0);
     setPhase("running");
 
@@ -165,10 +181,13 @@ export function ArenaBattle() {
       // Saved receipts first: a battle should not pay to re-run what this
       // browser already has, and a receipt is exactly what a vote points at.
       setProgress("Reading saved runs");
-      const restored = await loadLocalParseResults(
-        document.id,
-        LOCAL_PARSER_ORDER,
-      );
+      // Awaited, not read from render state: a click during the probe window
+      // would otherwise see no runnable parsers at all.
+      const [restored, probe] = await Promise.all([
+        loadLocalParseResults(document.id, LOCAL_PARSER_ORDER),
+        runnerProbe.current ?? checkLocalRunner(),
+      ]);
+      const runnableParsers = runnableFrom(probe);
 
       const found: Candidate[] = [];
       const missing: ParserId[] = [];
@@ -194,19 +213,24 @@ export function ArenaBattle() {
         );
       }
 
-      let file: LocalDocument | null = null;
+      let file: File | null = null;
       if (missing.length > 0) {
-        file = await loadBattleDocument(document);
+        file = await loadDocumentFile(document.id);
       }
 
       const failures: string[] = [];
-      for (const parser of missing) {
+      // Both ends fixed before the loop. `found` is pushed to inside it, so
+      // counting off it made the total climb as the battle went - "1 of 2",
+      // then "2 of 3" - and never reach itself.
+      const fromReceipts = found.length;
+      const total = fromReceipts + missing.length;
+      for (const [index, parser] of missing.entries()) {
         setProgress(
-          `Parsing with candidate ${found.length + 1} of ${found.length + missing.length}`,
+          `Parsing with candidate ${fromReceipts + index + 1} of ${total}`,
         );
         try {
           const result = await parseWithLocalRunner(
-            file!.file,
+            file!,
             LOCAL_COMPONENT_IDS[parser],
             () => {},
           );
@@ -593,30 +617,4 @@ export function ArenaBattle() {
       )}
     </main>
   );
-}
-
-async function loadBattleDocument(
-  document: BattleDocument,
-): Promise<LocalDocument> {
-  if (document.sample) {
-    const response = await fetch(
-      `/v1/documents/${encodeURIComponent(document.id)}/content`,
-    );
-    if (!response.ok) {
-      throw new Error(
-        `The sample PDF could not be loaded (HTTP ${response.status}).`,
-      );
-    }
-    const blob = await response.blob();
-    return {
-      id: document.id,
-      file: new File([blob], `${document.id}.pdf`, { type: "application/pdf" }),
-    };
-  }
-
-  const stored = await loadLocalDocument(document.id);
-  if (!stored) {
-    throw new Error("This PDF is no longer available in the browser store.");
-  }
-  return stored;
 }
