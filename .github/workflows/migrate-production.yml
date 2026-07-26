@@ -1,0 +1,44 @@
+name: Production database migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration:
+        description: Migration filename under services/orchestrator/db/migrations
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      DIRECT_DATABASE_URL: ${{ secrets.DIRECT_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate migration selection
+        env:
+          MIGRATION: ${{ inputs.migration }}
+        run: |
+          case "$MIGRATION" in
+            *[!0-9A-Za-z._-]*|"") exit 1 ;;
+          esac
+          test -f "services/orchestrator/db/migrations/$MIGRATION"
+      - name: Apply migration transaction
+        env:
+          MIGRATION: ${{ inputs.migration }}
+        run: |
+          test -n "$DIRECT_DATABASE_URL"
+          psql "$DIRECT_DATABASE_URL" \
+            -X \
+            -v ON_ERROR_STOP=1 \
+            -f "services/orchestrator/db/migrations/$MIGRATION"
