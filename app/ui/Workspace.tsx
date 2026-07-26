@@ -565,10 +565,12 @@ export function Workspace({
   // time (the pointed-at column, else the first); in single view it is the one
   // parser on screen. localRegions already scopes to shownParsers, so this only
   // narrows the compare case from all of them to one.
-  // The key carries the candidate set: a comparison that gains or loses a
-  // parser is a different comparison, and keying on document+page alone left
-  // the new one permanently unvotable and labelled with the old verdict.
-  const voteKey = `${documentId}:${state.page}:${completedParsers.join(",")}`;
+  // Keyed by document and candidate set, deliberately NOT by page: the compare
+  // view renders the whole document in one scroll, and `state.page` follows
+  // that scroll, so including it let one unchanged comparison be voted again
+  // every time the reader scrolled. The candidate set is in the key because a
+  // comparison that gains or loses a parser is a different comparison.
+  const voteKey = `${documentId}:${completedParsers.join(",")}`;
 
   /**
    * Records a verdict over the runs that actually produced these columns.
