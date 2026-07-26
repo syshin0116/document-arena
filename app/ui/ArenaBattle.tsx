@@ -3,7 +3,6 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type ArenaParserId } from "../vote-store";
 import { ModeToggle } from "@/components/mode-toggle";
 import { AppHeader } from "./AppHeader";
 import { buttonVariants } from "@/components/ui/button";
@@ -30,10 +29,12 @@ const parserMeta: Record<
   mineru: { name: "MinerU", version: "2.6.1", timing: "11.8s" },
 };
 
-/* The arena judges hardcoded JSX, so its verdict is a local UI state and is
+/* The arena judges hardcoded JSX, so its verdict is local UI state and is
    deliberately NOT persisted: a vote about static markup would pollute the
    standings. Real votes come from the workspace, over parsers that actually
-   ran. */
+   ran - which is also why these two ids are local to this file rather than
+   the vote store's parser union. */
+type ArenaParserId = "opendataloader" | "mineru";
 type BattleOutcome = ArenaParserId | "tie" | "both-poor";
 
 type BattlePhase = "intro" | "running" | "blind" | "revealed";
