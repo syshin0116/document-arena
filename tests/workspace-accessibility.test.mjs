@@ -113,10 +113,17 @@ test("secondary and primary ink clear AA wherever faint ink does", () => {
 test("programmatic evidence scrolling respects reduced motion", () => {
   assert.equal(preferredScrollBehavior(true), "auto");
   assert.equal(preferredScrollBehavior(false), "smooth");
-  assert.equal(
-    (workspaceSource.match(/behavior:\s*preferredScrollBehavior\(\)/g) ?? [])
-      .length,
-    2,
-  );
+  // The invariant is "every programmatic scroll asks the helper", not "there
+  // are exactly N of them" - a literal count went stale the moment a refactor
+  // merged two scroll sites into one, failing while the behaviour was correct.
+  const scrollCalls = workspaceSource.match(/scrollIntoView\(\{[^}]*\}/gs) ?? [];
+  assert.ok(scrollCalls.length > 0, "expected at least one scrollIntoView call");
+  for (const call of scrollCalls) {
+    assert.match(
+      call,
+      /behavior:\s*preferredScrollBehavior\(\)/,
+      `scrollIntoView must take its behavior from preferredScrollBehavior(): ${call}`,
+    );
+  }
   assert.doesNotMatch(workspaceSource, /scrollIntoView\([^)]*behavior:\s*"smooth"/s);
 });
