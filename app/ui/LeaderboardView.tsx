@@ -18,6 +18,10 @@ const parserNames: Record<string, { name: string; profile: string }> = {
     profile: "Deterministic · native geometry · CPU",
   },
   mineru: { name: "MinerU", profile: "Pipeline · layout + OCR · GPU optional" },
+  azuredi: {
+    name: "Azure DI",
+    profile: "Hosted · layout + OCR · external service",
+  },
 };
 
 export function LeaderboardView() {
@@ -51,29 +55,27 @@ export function LeaderboardView() {
       <section className="leaderboard-main" aria-labelledby="leaderboard-title">
         <aside className="leaderboard-aside">
           <div className="landing-copy">
-            <p className="eyebrow">
-              <span className="eyebrow-dot" aria-hidden="true" />
-              Digital text documents
-            </p>
             <h1 id="leaderboard-title">Who wins blind votes?</h1>
             <p className="landing-lede">
-              Rankings are grouped by document type and count only blind votes.
-              Labeled preferences never count. Until hosted battles exist, this
-              aggregates the votes cast on this device.
+              Only blind votes count. Labeled preferences are recorded but
+              never ranked. Until hosted battles exist, this aggregates the
+              votes cast on this device.
             </p>
           </div>
 
           <div className="leaderboard-method">
             <strong>Methodology</strong>
             <p>
-              Every battle randomizes candidate order and masks labels, versions,
-              timing, and runner details until the vote is cast. Each vote stores
-              the exact artifacts shown and the displayed permutation.
+              Each vote stores the runs it actually compared - the runner&apos;s job
+              id and the browser run-history key for every candidate - in the
+              order they were displayed.
               {voteCount > 0 && ` Based on ${voteCount} blind vote${voteCount === 1 ? "" : "s"}.`}
               {" "}
-              Win rate is wins over decisive battles; ties are shown separately.
-              One device is not a benchmark: treat this as your own verdict
-              history, not a global truth.
+              Win rate is wins over decisive battles; ties and all-poor
+              verdicts are excluded from that denominator and shown separately.
+              It mixes two- and three-way comparisons, so it is not comparable
+              across field sizes. One device is not a benchmark: treat this as
+              your own verdict history, not a global truth.
             </p>
           </div>
         </aside>
@@ -93,6 +95,7 @@ export function LeaderboardView() {
               <span role="columnheader">Win rate</span>
               <span role="columnheader">Battles</span>
               <span role="columnheader">Ties</span>
+              <span role="columnheader">All poor</span>
             </div>
             {standings.map((standing, index) => {
               const meta = parserNames[standing.parserId] ?? {
@@ -124,6 +127,7 @@ export function LeaderboardView() {
                   </span>
                   <span role="cell">{standing.battles}</span>
                   <span role="cell">{standing.ties}</span>
+                  <span role="cell">{standing.allPoor}</span>
                 </div>
               );
             })}

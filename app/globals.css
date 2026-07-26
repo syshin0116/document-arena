@@ -3643,7 +3643,7 @@ body {
 
 .leaderboard-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px 70px 60px;
+  grid-template-columns: minmax(0, 1fr) 150px 70px 60px 70px;
   align-items: center;
   gap: 12px;
   padding: 13px 18px;
@@ -3831,7 +3831,7 @@ body {
   }
 
   .leaderboard-row {
-    grid-template-columns: minmax(0, 1fr) 96px 52px 44px;
+    grid-template-columns: minmax(0, 1fr) 96px 52px 44px 56px;
     padding: 12px 13px;
   }
   .leaderboard-bar { width: 48px; }
