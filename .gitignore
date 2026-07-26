@@ -37,6 +37,8 @@ application_default_credentials.json
 /.wrangler/
 .dev.vars
 .dev.vars.*
+# neonctl writes the linked project/branch here
+.neon
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -66,10 +68,6 @@ tsconfig.tsbuildinfo
 /.agents/
 /.codex/
 /.claude/settings.local.json
-
-# Local agent skill installs (hallmark etc.)
-/skills-lock.json
-/.claude/skills/
 
 # Local agent skill installs (hallmark etc.)
 /skills-lock.json
