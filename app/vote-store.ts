@@ -118,6 +118,12 @@ export function loadVotes(): BlindVote[] {
 const listeners = new Set<() => void>();
 
 /**
+ * True while no subscriber is listening, so another tab could have written
+ * without this one hearing the storage event.
+ */
+let unobservedWrites = true;
+
+/**
  * Returns whether the vote was actually persisted.
  *
  * It used to swallow the failure and return void, so a blocked or full
@@ -133,13 +139,22 @@ export function saveVote(vote: BlindVote): boolean {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(votes));
     voteCache = null;
     labeledCountCache = null;
-    // The storage event never fires in the tab that wrote, so a same-page
-    // standings readout would otherwise stay stale until reload.
-    for (const listener of listeners) listener();
-    return true;
   } catch {
     return false;
   }
+  // Notifying is separate from persisting: a subscriber that throws must not
+  // make a stored vote look unsaved, or the caller re-arms the buttons and the
+  // user records the same battle twice.
+  // The storage event never fires in the tab that wrote, so a same-page
+  // standings readout would otherwise stay stale until reload.
+  for (const listener of listeners) {
+    try {
+      listener();
+    } catch {
+      // A broken subscriber is its own problem, not this write's.
+    }
+  }
+  return true;
 }
 
 const EMPTY_VOTES: readonly BlindVote[] = [];
@@ -151,18 +166,27 @@ export function subscribeToVotes(onChange: () => void): () => void {
     labeledCountCache = null;
     onChange();
   };
-  // Drop the caches on subscribe. The storage listener only exists while a
-  // subscriber is mounted, so a vote written by another tab in the meantime
-  // would otherwise never be seen: the stale snapshot survives the unmount and
-  // is returned verbatim on remount.
-  voteCache = null;
-  labeledCountCache = null;
+  // The storage listener exists only while something is subscribed, so a vote
+  // written by another tab in an unobserved gap would never be seen: the stale
+  // snapshot survives the unmount and is served again on remount.
+  //
+  // Invalidate only when re-entering an observed state, not on every subscribe.
+  // LeaderboardView subscribes twice for one mount, and invalidating on each
+  // would hand useSyncExternalStore a fresh array the second time and force an
+  // extra render. Tracked with an explicit flag rather than `listeners.size`,
+  // which a leaked subscription would pin above zero forever.
+  if (unobservedWrites) {
+    voteCache = null;
+    labeledCountCache = null;
+    unobservedWrites = false;
+  }
   listeners.add(onChange);
   if (typeof window !== "undefined") {
     window.addEventListener("storage", handle);
   }
   return () => {
     listeners.delete(onChange);
+    if (listeners.size === 0) unobservedWrites = true;
     if (typeof window !== "undefined") {
       window.removeEventListener("storage", handle);
     }
@@ -224,6 +248,8 @@ export function loadCastVerdicts(
 export function resetVoteCacheForTests(): void {
   voteCache = null;
   labeledCountCache = null;
+  listeners.clear();
+  unobservedWrites = true;
 }
 
 export type ParserStanding = {
