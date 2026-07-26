@@ -185,29 +185,50 @@ test("server-renders the source-linked demo workspace", async () => {
   assert.doesNotMatch(html, /aria-label="Highlight parsed Document title"/);
 });
 
-test("server-renders the blind arena intro", async () => {
+test("server-renders the blind arena picker", async () => {
   const response = await render("/arena");
   assert.equal(response.status, 200);
 
   const html = await response.text();
-  assert.match(html, /Two parsers\. No labels\. Your call\./);
-  assert.match(html, /Start a sample battle/);
+  assert.match(html, /No labels\. Your call\./);
+  // A battle starts from a document, so the picker offers the samples.
+  assert.match(html, /LLaMA/);
   assert.doesNotMatch(html, /Candidate A/);
 });
 
-test("mobile Arena keeps source and both candidates reachable before voting", () => {
+test("the arena never hands a parser identity to the page before the vote", () => {
+  // The column name is the only identity the reader sees, and it is a ternary
+  // on `revealed` - not a value that happens to be masked somewhere upstream.
+  assert.match(
+    arenaSource,
+    /parserName=\{\s*revealed\s*\?\s*PARSER_DISPLAY\[candidate\.parserId\]\s*:\s*`Candidate \$\{POSITION_LETTERS\[index\]\}`/,
+  );
+  // The vote buttons are labelled by position unconditionally: there is no
+  // branch in which the bar that takes the vote can name a parser.
+  assert.match(
+    arenaSource,
+    /candidates=\{candidates\.map\(\(candidate, index\) => \(\{[\s\S]{0,200}label: `Candidate \$\{POSITION_LETTERS\[index\]\}`/,
+  );
+  // Letters and hues come from the position, so the shuffle actually hides who
+  // is who; keying them on the parser would survive it.
+  assert.match(arenaSource, /letter=\{POSITION_LETTERS\[index\]\}/);
+  assert.match(arenaSource, /accent=\{POSITION_ACCENTS\[index\]\}/);
+  assert.match(arenaSource, /masked=\{!revealed\}/);
+  // And the vote it writes is the kind the leaderboard ranks.
+  assert.match(arenaSource, /blind: true/);
+});
+
+test("mobile Arena keeps the source and every candidate reachable", () => {
   assert.match(arenaSource, /aria-label="Arena view"/);
   assert.match(
     arenaSource,
     /aria-pressed=\{mobilePane === "source"\}[\s\S]*aria-controls="arena-source-pane"/,
   );
+  // One button per candidate rather than a fixed A/B pair: a battle can be
+  // two-way or three-way depending on what the runner offers.
   assert.match(
     arenaSource,
-    /aria-pressed=\{mobilePane === "candidate-a"\}[\s\S]*aria-controls="arena-candidate-a"/,
-  );
-  assert.match(
-    arenaSource,
-    /aria-pressed=\{mobilePane === "candidate-b"\}[\s\S]*aria-controls="arena-candidate-b"/,
+    /candidates\.map\(\(candidate, index\) => \([\s\S]*aria-pressed=\{mobilePane === index\}/,
   );
 
   assert.match(
@@ -220,11 +241,7 @@ test("mobile Arena keeps source and both candidates reachable before voting", ()
   );
   assert.match(
     globalCss,
-    /data-mobile-pane="candidate-a"[\s\S]*data-arena-candidate="b"/,
-  );
-  assert.match(
-    globalCss,
-    /data-phase="blind"\]\[data-mobile-pane="source"\][\s\S]*\.arena-vote-bar\s*\{\s*display:\s*none/,
+    /data-mobile-pane="c0"\]\s+\.arena-candidate:not\(\[data-candidate="0"\]\)/,
   );
 });
 

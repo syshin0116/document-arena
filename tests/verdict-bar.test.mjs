@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { VerdictBar } from "../app/ui/Workspace";
+import { VerdictBar } from "../app/ui/VerdictBar";
 
 function render(overrides = {}) {
   return renderToStaticMarkup(
@@ -78,12 +78,24 @@ test("an unsaved run disables every vote and says why", () => {
   assert.match(html, /One of these runs was not saved\./);
 });
 
-test("a recorded verdict replaces the buttons and is honest about ranking", () => {
+test("a recorded verdict replaces the buttons", () => {
   const html = render({ votedOutcome: "tie" });
   assert.equal(buttonOrder(html).length, 0);
   assert.match(html, /You called this a tie\./);
-  assert.match(html, /recorded but not ranked/);
   assert.match(html, /aria-label="Recorded verdict"/);
+});
+
+test("no button carries the parser id it stands for", () => {
+  // Under a mask the label reads "Candidate A"; an id left in an attribute
+  // would hand the answer to anyone who opened the inspector.
+  const html = render({
+    candidates: [
+      { parserId: "opendataloader", label: "Candidate A" },
+      { parserId: "mineru", label: "Candidate B" },
+    ],
+  });
+  assert.doesNotMatch(html, /opendataloader/);
+  assert.doesNotMatch(html, /mineru/);
 });
 
 test("a recorded winner is named by its display label", () => {

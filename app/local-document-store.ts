@@ -370,7 +370,7 @@ export async function loadLocalParseResults(
   documentId: string,
   parsers: readonly string[],
 ): Promise<Record<string, RestoredParseRun>> {
-  if (!documentId.startsWith("local_")) return {};
+  if (!isReceiptableDocumentId(documentId)) return {};
   const database = await openDatabase();
   if (!database.objectStoreNames.contains(RUNS_STORE)) {
     database.close();
@@ -507,7 +507,7 @@ export async function listLocalParseRunHistory(
   documentId: string,
   parser?: string,
 ): Promise<LocalParseRunSummary[]> {
-  if (!documentId.startsWith("local_")) return [];
+  if (!isReceiptableDocumentId(documentId)) return [];
   const database = await openDatabase();
   if (!database.objectStoreNames.contains(RUNS_STORE)) {
     database.close();

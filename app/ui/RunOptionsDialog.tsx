@@ -28,6 +28,7 @@ import {
   type RunAvailability,
 } from "../run-options";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type RunOptionsSchema = NonNullable<LocalRunnerComponent["optionsSchema"]>;
 
@@ -600,7 +601,7 @@ export function RunOptionsDialog({
           <div className="run-options-actions">
             <button
               ref={cancelRef}
-              className={buttonVariants({ variant: "outline" })}
+              className={cn(buttonVariants({ variant: "outline" }))}
               type="button"
               disabled={submitting}
               onClick={onCancel}

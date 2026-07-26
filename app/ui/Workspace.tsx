@@ -56,8 +56,6 @@ import {
   type RestoredParseRun,
 } from "../local-document-store";
 import { preferredScrollBehavior } from "../motion-preference";
-import { buildVote } from "../vote-builder";
-import { loadCastVerdicts, saveVote, type VoteOutcome } from "../vote-store";
 import {
   cleanRunOptionValues,
   defaultRunOptionValues,
@@ -66,6 +64,13 @@ import {
   type RunAvailability,
 } from "../run-options";
 import { AppHeader } from "./AppHeader";
+import {
+  LOCAL_COMPONENT_IDS,
+  LOCAL_PARSER_ORDER,
+  PARSER_ACCENT,
+  PARSER_DISPLAY,
+  PARSER_LETTER,
+} from "../parsers";
 import { buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -115,82 +120,6 @@ type PendingRunOptions = {
 
 type ResultContentView = "blocks" | "markdown";
 type ResultRenderMode = "rendered" | "raw";
-
-/**
- * The verdict bar under a comparison.
- *
- * Button order is the candidate order it is handed, which is the column order,
- * which is what the recorded vote claims - so this renders the array as given
- * rather than sorting it.
- */
-export function VerdictBar({
-  candidates,
-  votedOutcome,
-  disabledReason,
-  onVote,
-}: {
-  candidates: readonly { parserId: ParserId; label: string }[];
-  votedOutcome: VoteOutcome | null;
-  disabledReason: string | null;
-  onVote: (outcome: VoteOutcome) => void;
-}) {
-  const verdictLabel = (outcome: VoteOutcome) => {
-    if (outcome === "tie") return "a tie";
-    if (outcome === "all-poor") return "all poor";
-    return candidates.find((c) => c.parserId === outcome)?.label ?? outcome;
-  };
-
-  if (votedOutcome) {
-    return (
-      <footer className="verdict-bar" aria-label="Recorded verdict">
-        <span className="verdict-label">Recorded</span>
-        <strong className="verdict-recorded">
-          You called this {verdictLabel(votedOutcome)}.
-        </strong>
-        <span className="verdict-note">
-          Labels were visible, so this is recorded but not ranked.
-        </span>
-      </footer>
-    );
-  }
-
-  return (
-    <footer className="verdict-bar" aria-label="Vote on this comparison">
-      <span className="verdict-label">Which read it better?</span>
-      {candidates.map((candidate) => (
-        <button
-          key={candidate.parserId}
-          type="button"
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-          data-parser={candidate.parserId}
-          disabled={Boolean(disabledReason)}
-          onClick={() => onVote(candidate.parserId)}
-        >
-          {candidate.label}
-        </button>
-      ))}
-      <button
-        type="button"
-        className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-        disabled={Boolean(disabledReason)}
-        onClick={() => onVote("tie")}
-      >
-        Tie
-      </button>
-      <button
-        type="button"
-        className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-        disabled={Boolean(disabledReason)}
-        onClick={() => onVote("all-poor")}
-      >
-        All poor
-      </button>
-      {disabledReason && (
-        <span className="verdict-note">{disabledReason}</span>
-      )}
-    </footer>
-  );
-}
 
 export function ResultViewToolbar({
   mappingAvailable,
@@ -287,36 +216,6 @@ export function ResultViewToolbar({
   );
 }
 
-const LOCAL_COMPONENT_IDS: Record<ParserId, string> = {
-  opendataloader: "opendataloader-pdf",
-  mineru: "mineru-pipeline",
-  azuredi: "azure-di",
-};
-
-const LOCAL_PARSER_ORDER: readonly ParserId[] = [
-  "opendataloader",
-  "mineru",
-  "azuredi",
-];
-
-const PARSER_ACCENT: Record<ParserId, "indigo" | "amber" | "teal"> = {
-  opendataloader: "indigo",
-  mineru: "amber",
-  azuredi: "teal",
-};
-
-const PARSER_LETTER: Record<ParserId, string> = {
-  opendataloader: "A",
-  mineru: "B",
-  azuredi: "C",
-};
-
-const PARSER_DISPLAY: Record<ParserId, string> = {
-  opendataloader: "OpenDataLoader",
-  mineru: "MinerU",
-  azuredi: "Azure DI",
-};
-
 type EvidenceId = "title" | "abstract" | "introduction";
 
 const evidenceLabels: Record<EvidenceId, string> = {
@@ -401,6 +300,44 @@ const parserCards = [
   },
 ];
 
+/**
+ * The identity line above a parser's output.
+ *
+ * `masked` is for a blind comparison: it hides the elapsed time as well as the
+ * name, because the durations are far apart enough to name the parser on their
+ * own - one parser finishes this project's smoke fixture in half a second and
+ * another takes twenty-six.
+ */
+function ResultHeader({
+  letter,
+  parserName,
+  subtitle,
+  result,
+  masked = false,
+}: {
+  letter: string;
+  parserName: string;
+  subtitle: string;
+  result: LocalParseResult;
+  masked?: boolean;
+}) {
+  return (
+    <header className="parser-result-header">
+      <div>
+        <span className="parser-letter">{letter}</span>
+        <div>
+          <h2>{parserName}</h2>
+          <p>{subtitle}</p>
+        </div>
+      </div>
+      <span className="complete-badge">
+        <StatusDot status="complete" />{" "}
+        {masked ? "···" : `${(result.durationMs / 1000).toFixed(1)}s`}
+      </span>
+    </header>
+  );
+}
+
 function StatusDot({ status }: { status: string }) {
   return <span className="status-dot" data-status={status} aria-hidden="true" />;
 }
@@ -437,9 +374,6 @@ export function Workspace({
   // same battle be recorded again. Lazy initialiser rather than an effect,
   // since localStorage is unavailable during SSR and a setState in an effect
   // would cascade a render.
-  const [castVotes, setCastVotes] = useState<Record<string, VoteOutcome>>(
-    () => (demo ? {} : loadCastVerdicts(documentId)),
-  );
   const [zoom, setZoom] = useState(92);
   const [thumbnailsOpen, setThumbnailsOpen] = useState(true);
   const [displayFileName, setDisplayFileName] = useState(fileName);
@@ -482,16 +416,6 @@ export function Workspace({
       if (demo) return null;
       const run = localRuns[parser];
       return run?.status === "complete" ? run.result : null;
-    },
-    [demo, localRuns],
-  );
-
-  /** The key this run is stored under, so a vote can point back at it. */
-  const recordIdFor = useCallback(
-    (parser: ParserId): string | null => {
-      if (demo) return null;
-      const run = localRuns[parser];
-      return run?.status === "complete" ? run.recordId : null;
     },
     [demo, localRuns],
   );
@@ -572,65 +496,7 @@ export function Workspace({
   // time (the pointed-at column, else the first); in single view it is the one
   // parser on screen. localRegions already scopes to shownParsers, so this only
   // narrows the compare case from all of them to one.
-  // Keyed by document and candidate set, deliberately NOT by page: the compare
-  // view renders the whole document in one scroll, and `state.page` follows
-  // that scroll, so including it let one unchanged comparison be voted again
-  // every time the reader scrolled. The candidate set is in the key because a
-  // comparison that gains or loses a parser is a different comparison.
-  const voteKey = `${documentId}:${completedParsers.join(",")}`;
 
-  /**
-   * Records a verdict over the runs that actually produced these columns.
-   *
-   * Every invariant lives in buildVote, which throws rather than writing a
-   * plausible-but-wrong record - saveVote swallows errors and the standings
-   * show blind votes only, so a silent bad write would be invisible.
-   */
-  const castVote = useCallback(
-    (outcome: VoteOutcome) => {
-      try {
-        const candidates = completedParsers.map((parser) => {
-          const result = resultFor(parser);
-          if (!result) throw new Error(`${parser} has no completed run.`);
-          return {
-            parserId: parser,
-            runId: result.runId,
-            recordId: recordIdFor(parser) ?? "",
-          };
-        });
-        const vote = buildVote({
-          documentId,
-          page: state.page,
-          candidates,
-          outcome,
-          // Labels are visible in the workspace, so this is an honest labeled
-          // vote. Only blind votes rank; blind mode ships separately.
-          blind: false,
-          sourceArtifactId: resultFor(completedParsers[0])?.source?.artifactId,
-          id: crypto.randomUUID(),
-          now: new Date(),
-        });
-        if (!saveVote(vote)) {
-          // Blocked or full storage: say so rather than showing "recorded" for
-          // a verdict that was never written.
-          toast.error("That verdict could not be saved.", {
-            description:
-              "This browser refused to store it. Check that site data is allowed and that storage is not full.",
-          });
-          return;
-        }
-        setCastVotes((current) => ({ ...current, [voteKey]: outcome }));
-      } catch (error) {
-        toast.error("That verdict was not recorded.", {
-          description:
-            error instanceof Error
-              ? error.message
-              : "The vote could not be built.",
-        });
-      }
-    },
-    [completedParsers, documentId, recordIdFor, resultFor, state.page, voteKey],
-  );
 
   const sourceParserId: string = comparing
     ? focusedParser && completedParsers.includes(focusedParser)
@@ -1594,19 +1460,6 @@ export function Workspace({
                   })}
                 </div>
               </div>
-              <VerdictBar
-                candidates={completedParsers.map((parser) => ({
-                  parserId: parser,
-                  label: PARSER_DISPLAY[parser],
-                }))}
-                votedOutcome={castVotes[voteKey] ?? null}
-                disabledReason={
-                  completedParsers.some((parser) => recordIdFor(parser) === null)
-                    ? "One of these runs was not saved to browser history, so a vote could not be reopened."
-                    : null
-                }
-                onVote={castVote}
-              />
             </div>
           )}
 
@@ -1900,7 +1753,7 @@ export function RemoteRunConsentDialog({
         <div className="remote-consent-actions">
           <button
             ref={cancelRef}
-            className={buttonVariants({ variant: "outline" })}
+            className={cn(buttonVariants({ variant: "outline" }))}
             type="button"
             disabled={confirming}
             onClick={onCancel}
@@ -2426,18 +2279,20 @@ function MarkdownTable({
 // shows the string verbatim. This is not geometry-linked — hover lives in the
 // Blocks view — so it stays a faithful rendering of exactly what the parser
 // wrote, escapes and all (e.g. Azure DI's "2022\. 11\." renders as "2022. 11.").
-const MarkdownView = memo(function MarkdownView({
+export const MarkdownView = memo(function MarkdownView({
   mode,
   result,
   parserName = "OpenDataLoader",
   letter = "A",
   accent = "indigo",
+  masked = false,
 }: {
   mode: "rendered" | "raw";
   result: LocalParseResult;
   parserName?: string;
   letter?: string;
   accent?: "indigo" | "amber" | "teal";
+  masked?: boolean;
 }) {
   const markdown = (result.parsedDocument.markdown ?? "").trim();
   const pageChunks = useMemo(
@@ -2447,22 +2302,17 @@ const MarkdownView = memo(function MarkdownView({
 
   return (
     <article className="parser-result" data-accent={accent}>
-      <header className="parser-result-header">
-        <div>
-          <span className="parser-letter">{letter}</span>
-          <div>
-            <h2>{parserName}</h2>
-            <p>
-              {mode === "raw"
-                ? "Markdown · raw parser output"
-                : "Markdown · rendered from the parser's own Markdown"}
-            </p>
-          </div>
-        </div>
-        <span className="complete-badge">
-          <StatusDot status="complete" /> {(result.durationMs / 1000).toFixed(1)}s
-        </span>
-      </header>
+      <ResultHeader
+        letter={letter}
+        parserName={parserName}
+        masked={masked}
+        subtitle={
+          mode === "raw"
+            ? "Markdown · raw parser output"
+            : "Markdown · rendered from the parser's own Markdown"
+        }
+        result={result}
+      />
       {!markdown ? (
         <p className="local-empty-page">The parser emitted no Markdown output.</p>
       ) : mode === "raw" ? (
@@ -2496,16 +2346,18 @@ const MarkdownView = memo(function MarkdownView({
 // The Blocks · Raw view: the canonical blocks exactly as the adapter emitted
 // them, as pretty-printed JSON. This is the honest structured form behind the
 // Blocks · Rendered reading view.
-const BlockRawView = memo(function BlockRawView({
+export const BlockRawView = memo(function BlockRawView({
   result,
   parserName = "OpenDataLoader",
   letter = "A",
   accent = "indigo",
+  masked = false,
 }: {
   result: LocalParseResult;
   parserName?: string;
   letter?: string;
   accent?: "indigo" | "amber" | "teal";
+  masked?: boolean;
 }) {
   const json = useMemo(
     () => JSON.stringify(result.parsedDocument.pages, null, 2),
@@ -2513,18 +2365,13 @@ const BlockRawView = memo(function BlockRawView({
   );
   return (
     <article className="parser-result" data-accent={accent}>
-      <header className="parser-result-header">
-        <div>
-          <span className="parser-letter">{letter}</span>
-          <div>
-            <h2>{parserName}</h2>
-            <p>Blocks · raw · canonical JSON ({result.blockCount} blocks)</p>
-          </div>
-        </div>
-        <span className="complete-badge">
-          <StatusDot status="complete" /> {(result.durationMs / 1000).toFixed(1)}s
-        </span>
-      </header>
+      <ResultHeader
+        letter={letter}
+        parserName={parserName}
+        masked={masked}
+        subtitle={`Blocks · raw · canonical JSON (${result.blockCount} blocks)`}
+        result={result}
+      />
       <pre className="markdown-raw">{json}</pre>
     </article>
   );
@@ -2592,12 +2439,13 @@ const InlineMarkdown = memo(function InlineMarkdown({
 // source-region hover. This is a *block* render — the geometry-linked reading
 // of the structured output — as opposed to the Markdown view, which renders the
 // parser's own Markdown string.
-function BlockReadingView({
+export function BlockReadingView({
   documentId,
   result,
   parserName = "OpenDataLoader",
   letter = "A",
   accent = "indigo",
+  masked = false,
   page,
   merge,
   evidence,
@@ -2611,6 +2459,7 @@ function BlockReadingView({
   parserName?: string;
   letter?: string;
   accent?: "indigo" | "amber" | "teal";
+  masked?: boolean;
   page: number;
   merge: boolean;
   evidence: string | null;
@@ -2645,7 +2494,10 @@ function BlockReadingView({
   // the same page); pinning a block jumps the source to that block's page so
   // the highlight is always reachable without disorienting hover-navigation.
   const evidenceProps = (id: string | null, pageNumber: number) =>
-    id && mappedIds.has(id)
+    // Block ids carry the parser that produced them ("azuredi-p1-l0"), so under
+    // a mask they name the column to anyone who opens the inspector. Evidence
+    // linking is off in a blind comparison anyway, so the attributes go too.
+    id && mappedIds.has(id) && !masked
       ? {
           "data-evidence": true,
           "data-evidence-id": id,
@@ -2742,20 +2594,13 @@ function BlockReadingView({
 
   return (
     <article className="parser-result" data-accent={accent}>
-      <header className="parser-result-header">
-        <div>
-          <span className="parser-letter">{letter}</span>
-          <div>
-            <h2>{parserName}</h2>
-            <p>
-              Blocks · rendered · hover links to the source, click to jump the page
-            </p>
-          </div>
-        </div>
-        <span className="complete-badge">
-          <StatusDot status="complete" /> {(result.durationMs / 1000).toFixed(1)}s
-        </span>
-      </header>
+      <ResultHeader
+        letter={letter}
+        parserName={parserName}
+        masked={masked}
+        subtitle="Blocks · rendered · hover links to the source, click to jump the page"
+        result={result}
+      />
       <div className="markdown-view typeset-result">
         {!hasAnyNodes && (
           <p className="local-empty-page">
@@ -2805,7 +2650,7 @@ function EmptyResult({ onRun, onChoose }: { onRun: () => void; onChoose: () => v
         <button className={buttonVariants()} type="button" onClick={onRun}>
           Run OpenDataLoader
         </button>
-        <button className={buttonVariants({ variant: "outline" })} type="button" onClick={onChoose}>
+        <button className={cn(buttonVariants({ variant: "outline" }))} type="button" onClick={onChoose}>
           Choose parser
         </button>
       </div>

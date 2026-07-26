@@ -3404,13 +3404,6 @@ body {
   letter-spacing: -0.055em;
 }
 
-.arena-vote-bar {
-  border-color: var(--border);
-  background: color-mix(in oklab, var(--background) 92%, transparent);
-  box-shadow: 0 -10px 30px rgb(0 0 0 / 0.04);
-  backdrop-filter: blur(18px);
-}
-
 /* Framing left, standings right. The single centred column left a two-row
    table sitting in 450px of a 1440px viewport with two thirds of the screen
    empty, and pushed the caveats that make these numbers honest below the
@@ -3583,7 +3576,7 @@ body {
   background: var(--canvas-deep);
 }
 
-.arena-shell[data-phase="intro"],
+.arena-shell[data-phase="pick"],
 .arena-shell[data-phase="running"] {
   grid-template-rows: 64px minmax(0, 1fr);
 }
@@ -3618,29 +3611,10 @@ body {
   display: none;
 }
 
-.arena-vote-bar {
-  position: relative;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 10px 18px;
-  padding: 11px 16px;
-  border-top: 1px solid var(--line);
-  background: var(--surface-raised);
-  backdrop-filter: blur(10px);
-}
-
-.arena-vote-question {
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.arena-vote-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* The wrapper exists only so a narrow screen can hide the other candidates; it
+   must not become an extra box between the grid and the column. */
+.arena-candidate {
+  display: contents;
 }
 
 .parser-result[data-accent="neutral"] .parser-letter {
@@ -3850,7 +3824,7 @@ body {
     min-height: 0;
   }
 
-  .arena-shell[data-phase="intro"],
+  .arena-shell[data-phase="pick"],
   .arena-shell[data-phase="running"] {
     grid-template-rows: 58px minmax(0, 1fr);
   }
@@ -3861,8 +3835,7 @@ body {
   }
 
   .arena-mobile-pane-switcher {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
     gap: 4px;
     padding: 4px;
     border-bottom: 1px solid var(--line);
@@ -3871,6 +3844,7 @@ body {
 
   .arena-mobile-pane-switcher button {
     min-width: 0;
+    flex: 1;
     border: 0;
     border-radius: var(--radius-sm);
     background: transparent;
@@ -3878,6 +3852,9 @@ body {
     cursor: pointer;
     font-size: var(--text-2xs);
     font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .arena-mobile-pane-switcher button[aria-pressed="true"] {
@@ -3886,26 +3863,33 @@ body {
     box-shadow: 0 1px 3px oklch(0 0 0 / 0.09);
   }
 
-  .arena-canvas[data-mobile-pane="source"] .results-pane,
-  .arena-canvas[data-mobile-pane="candidate-a"] .source-pane,
-  .arena-canvas[data-mobile-pane="candidate-b"] .source-pane {
+  .arena-canvas[data-mobile-pane="source"] .results-pane {
     display: none;
   }
 
-  .arena-canvas[data-mobile-pane="candidate-a"]
-    [data-arena-candidate="b"],
-  .arena-canvas[data-mobile-pane="candidate-b"]
-    [data-arena-candidate="a"] {
+  .arena-canvas:not([data-mobile-pane="source"]) .source-pane {
     display: none;
   }
 
-  .arena-canvas .result-columns[data-columns="2"] {
+  /* Only the selected candidate. `display: contents` is dropped here so the
+     wrapper can be hidden at all. */
+  .arena-candidate {
+    display: block;
+    min-width: 0;
+  }
+
+  .arena-canvas[data-mobile-pane="c0"] .arena-candidate:not([data-candidate="0"]),
+  .arena-canvas[data-mobile-pane="c1"] .arena-candidate:not([data-candidate="1"]),
+  .arena-canvas[data-mobile-pane="c2"] .arena-candidate:not([data-candidate="2"]) {
+    display: none;
+  }
+
+  .arena-canvas.workspace-canvas {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .arena-shell[data-phase="blind"][data-mobile-pane="source"]
-    .arena-vote-bar {
-    display: none;
+  .arena-canvas .result-columns {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .leaderboard-row {
@@ -3918,9 +3902,6 @@ body {
   .leaderboard-row > :nth-child(n + 4) {
     display: none;
   }
-  .arena-vote-bar { justify-content: stretch; }
-  .arena-vote-actions { width: 100%; }
-  .arena-vote-actions > * { flex: 1; }
 }
 
 .arena-canvas.workspace-canvas {
@@ -4885,4 +4866,53 @@ button.strip-chip:hover { border-color: var(--line-strong); }
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* The battle picker. Documents are the only choice here: which parsers run is
+   decided by what the runner offers and what already has a receipt, and saying
+   so up front would name the candidates. */
+.arena-pick-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  width: min(720px, 100%);
+}
+
+.arena-pick-group h2 {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.arena-pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.arena-pick-row button {
+  height: auto;
+  flex-direction: column;
+  gap: 1px;
+  padding-block: 9px;
+}
+
+.arena-pick-row button small {
+  color: var(--muted-foreground);
+  font-size: var(--text-2xs);
+}
+
+.arena-error {
+  max-width: 52ch;
+  padding: 10px 14px;
+  border: 1px solid var(--amber-7, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--amber-soft, var(--muted));
+  color: var(--foreground);
+  font-size: var(--text-xs);
 }
