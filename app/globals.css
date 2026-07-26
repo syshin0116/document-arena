@@ -1251,6 +1251,14 @@ button:disabled {
   font-size: var(--text-2xs);
 }
 
+.leaderboard-labeled-note {
+  margin: 0;
+  padding: 11px 18px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-size: var(--text-2xs);
+}
+
 .result-ready-shell > .result-view-toolbar {
   min-height: 58px;
 }
