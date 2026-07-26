@@ -53,6 +53,7 @@ import {
   loadLocalParseResults,
   saveLocalParseResult,
   type LocalDocument,
+  type RestoredParseRun,
 } from "../local-document-store";
 import { preferredScrollBehavior } from "../motion-preference";
 import {
@@ -91,7 +92,7 @@ type LocalParserRun =
       stages?: StageProgress[];
       options?: Record<string, unknown>;
     }
-  | { status: "complete"; result: LocalParseResult }
+  | { status: "complete"; result: LocalParseResult; recordId: string | null }
   | { status: "failed"; error: string };
 
 type PendingRemoteRun = {
@@ -549,19 +550,23 @@ export function Workspace({
                 : "The browser store returned an unknown error.",
           });
         }
-        return {} as Record<string, LocalParseResult>;
+        return {} as Record<string, RestoredParseRun>;
       })
       .then((stored) => {
         if (cancelled) return;
         for (const parser of Object.keys(
           LOCAL_COMPONENT_IDS,
         ) as ParserId[]) {
-          const result = stored[parser] as LocalParseResult | undefined;
-          if (!result?.parsedDocument) continue;
+          const restored = stored[parser] as RestoredParseRun | undefined;
+          if (!restored?.result?.parsedDocument) continue;
+          const { result, recordId } = restored;
           setLocalRuns((current) =>
             current[parser]
               ? current
-              : { ...current, [parser]: { status: "complete", result } },
+              : {
+                  ...current,
+                  [parser]: { status: "complete", result, recordId },
+                },
           );
           dispatch({ type: "start-run", parser });
           dispatch({ type: "complete-run", parser });
@@ -639,12 +644,13 @@ export function Workspace({
           },
           options,
         );
-        setLocalRuns((current) => ({
-          ...current,
-          [parser]: { status: "complete", result },
-        }));
+        // Save first and keep the receipt: its recordId is the key this run is
+        // stored under, and a vote carries it so the comparison can be reopened
+        // later. It used to be discarded.
+        let recordId: string | null = null;
         try {
-          await saveLocalParseResult(documentId, parser, result);
+          const receipt = await saveLocalParseResult(documentId, parser, result);
+          recordId = receipt.recordId;
         } catch (error) {
           toast.error("Run finished, but browser history was not saved.", {
             description:
@@ -653,6 +659,10 @@ export function Workspace({
                 : "The browser store returned an unknown error.",
           });
         }
+        setLocalRuns((current) => ({
+          ...current,
+          [parser]: { status: "complete", result, recordId },
+        }));
         dispatch({ type: "complete-run", parser });
         dispatch({ type: "set-mobile-pane", pane: "results" });
       } catch (error) {
