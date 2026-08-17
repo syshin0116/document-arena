@@ -14,7 +14,7 @@ provider-neutral BlobStore bucket/key pair and must never persist a presigned
 URL.
 
 Apply migrations through a deployment job using a direct TLS Neon connection.
-Do not run DDL from a Vercel request handler:
+Do not run DDL from a Cloud Run request handler:
 
 ```bash
 psql "$DIRECT_DATABASE_URL" \
