@@ -48,6 +48,11 @@ same region. The Cloud Run runner gateway calls Batch with its attached
 least-privilege service account; neither the repository nor a container stores
 a service-account JSON key.
 
+Keep every Google API call in the orchestrator service. The web service talks
+only to the database and the orchestrator, which is what lets it be redeployed
+outside this GCP project without reintroducing a federated-identity setup. A web
+route that reaches for ambient Google credentials silently spends that option.
+
 ## Security baseline
 
 - Keep hosted execution disabled unless R2 policy verification, Better Auth
@@ -85,6 +90,32 @@ Presigned URLs are bearer capabilities: keep their lifetime short, scope them to
 one key and method, do not persist or log them, and issue a fresh URL after
 authorization when a retry needs one. A one-day R2 lifecycle rule is the orphan
 backstop, not the normal cleanup mechanism.
+
+### Staging around a network-denied parser
+
+Every parser manifest declares `requirements.network: "none"`, so the component
+container must reach neither R2 nor anything else. A Batch job therefore runs
+three sequential runnables and gives only the first and last an R2 destination:
+
+```text
+stage-in   presigned GET  --> shared job volume
+parser     no network, no credentials, reads and writes the volume
+stage-out  shared job volume --> presigned PUT
+```
+
+This is the shape the local runner already has. There, the host has network and
+the parser container runs under `--network none` with a bind-mounted directory;
+on Batch, the VM has network and the parser container has none. Staging is the
+runner's transport, not a pipeline stage, so it stays outside the component
+contract and needs no manifest or schema change.
+
+Batch controls networking per VM rather than per runnable, which is the one real
+difference from the local path: an escape from the parser container reaches a VM
+that holds this job's presigned URLs, whereas locally it would reach the user's
+own machine. The exact-key, method-scoped, short-lived URL rule above is what
+bounds that blast radius, so it is a requirement of this design rather than
+general hygiene. Do not hand the parser runnable the URLs "for convenience"; that
+single shortcut removes the whole boundary.
 
 ## Network-cost caveat
 
