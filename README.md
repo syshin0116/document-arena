@@ -209,6 +209,11 @@ anonymous; only hosted runs require a GitHub-authenticated session and quota.
 Each Cloud Run service uses an attached least-privilege service account, so no
 service-account JSON key is stored in a container or this repository.
 
+The manual [strict-$0 hosted preview checklist](infra/hosted/README.md) defines
+the non-commercial plan restrictions, server-only credentials, R2 usage gates,
+and GCP day-80/day-85 shutdown procedure. It is a provisioning runbook, not a
+claim that any external account is configured.
+
 Design decisions are logged one line at a time in [DECISIONS.md](DECISIONS.md).
 The planned service architecture (temporary BlobStore exchange, durable job
 orchestration, hosted runners) is documented in [docs/](docs/) and
