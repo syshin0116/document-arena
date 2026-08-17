@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Document Arena — GCP Hosted Architecture</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; background: #e9efec; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Noto Sans KR", sans-serif; color: #173238; }
+    .canvas { width: 1600px; height: 900px; padding: 34px; background: #f6f8f7; overflow: hidden; }
+    .sheet { height: 100%; border-radius: 26px; background: white; border: 1px solid #d8e3df; box-shadow: 0 22px 54px rgba(8,38,42,.12); overflow: hidden; position: relative; }
+    .accent { height: 9px; background: linear-gradient(90deg,#08262a 0 48%,#6aa013 75%,#d3f0a0); }
+    header { height: 128px; padding: 25px 42px 18px; display: flex; justify-content: space-between; align-items: flex-start; }
+    h1 { margin: 0; font-size: 38px; line-height: 1.15; letter-spacing: -1.5px; color: #08262a; }
+    h1 em { color: #6aa013; font-style: normal; }
+    .sub { margin-top: 10px; font-size: 17px; color: #597077; }
+    .status { background: #fff4da; color: #765115; border: 1px solid #f1d491; border-radius: 999px; padding: 11px 17px; font-weight: 750; font-size: 14px; }
+    main { height: 623px; padding: 0 42px 24px; display: grid; grid-template-columns: 270px 1fr 300px; gap: 22px; }
+    .zone { border-radius: 20px; border: 1px solid #dce6e2; padding: 20px; background: #fbfcfc; min-width: 0; }
+    .zone-title { display: flex; align-items: center; gap: 9px; margin-bottom: 15px; font-size: 14px; text-transform: uppercase; letter-spacing: .7px; font-weight: 800; color: #60767b; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #6aa013; }
+    .card { border-radius: 16px; background: white; border: 1px solid #dce6e2; padding: 16px; box-shadow: 0 7px 18px rgba(8,38,42,.055); }
+    .card + .card { margin-top: 13px; }
+    .card h2 { margin: 0 0 7px; color: #08262a; font-size: 18px; letter-spacing: -.3px; }
+    .card p { margin: 0; color: #60747a; font-size: 13px; line-height: 1.5; }
+    .pill { display: inline-block; margin-top: 10px; border-radius: 999px; padding: 5px 9px; background: #edf6db; color: #466d0a; font-size: 11px; font-weight: 800; }
+    .browser { height: 245px; border-color: #b9d4cb; }
+    .browser .screen { margin-top: 15px; padding: 13px; border-radius: 11px; color: #eaf4ef; background: #08262a; font-size: 12px; line-height: 1.6; }
+    .arrow-v { text-align: center; font-size: 22px; height: 40px; line-height: 40px; color: #6aa013; font-weight: 900; }
+    .consent { background: #f0f5f3; box-shadow: none; }
+    .gcp { background: #f3f8f5; border: 2px solid #96b9ae; padding: 18px; }
+    .gcp-head { height: 50px; display: flex; align-items: center; justify-content: space-between; }
+    .gcp-head strong { font-size: 21px; color: #08262a; }
+    .region { border-radius: 999px; background: #08262a; color: #d3f0a0; padding: 7px 12px; font-size: 12px; font-weight: 800; }
+    .cloud-row { display: grid; grid-template-columns: 1fr 54px 1fr; align-items: stretch; }
+    .cloud-row .connector { display: grid; place-items: center; color: #6aa013; font-size: 24px; font-weight: 900; }
+    .service { min-height: 128px; }
+    .num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #08262a; color: #d3f0a0; font-size: 13px; font-weight: 900; margin-bottom: 10px; }
+    .batch { margin-top: 17px; border: 2px solid #6aa013; background: #fcfff7; display: grid; grid-template-columns: 1fr 1.2fr; gap: 15px; min-height: 177px; }
+    .batch .big { font-size: 23px; }
+    .jobs { display: flex; gap: 9px; align-items: center; }
+    .job { flex: 1; border-radius: 12px; padding: 12px 10px; background: #edf6db; border: 1px solid #cbe49c; min-height: 93px; }
+    .job b { display: block; font-size: 14px; color: #33580b; margin-bottom: 5px; }
+    .job span { font-size: 11px; line-height: 1.4; color: #587132; }
+    .registry { margin-top: 13px; display: flex; justify-content: space-between; align-items: center; background: #08262a; color: white; }
+    .registry h2 { color: white; font-size: 16px; margin: 0; }
+    .registry p { color: #bdd0ca; font-size: 12px; }
+    .digest { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #d3f0a0; font-size: 11px; }
+    .external .card { box-shadow: none; }
+    .external .r2 { border-left: 5px solid #f3a847; min-height: 184px; }
+    .external .neon { border-left: 5px solid #53b69f; min-height: 152px; }
+    .external .rule { border-left: 5px solid #6aa013; background: #f7faef; min-height: 150px; }
+    .flow { position: absolute; left: 41px; right: 41px; bottom: 72px; height: 34px; display: flex; align-items: center; justify-content: center; gap: 12px; color: #456067; font-size: 13px; font-weight: 700; pointer-events: none; }
+    .flow span { background: #fff; border: 1px solid #dce6e2; padding: 6px 10px; border-radius: 999px; }
+    footer { height: 72px; padding: 0 42px; background: #08262a; color: #d9e6e1; display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+    footer b { color: #d3f0a0; }
+    .sources { color: #9fb6ae; }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    <section class="sheet">
+      <div class="accent"></div>
+      <header>
+        <div>
+          <h1>Document Arena의 <em>GCP 호스팅 구성</em></h1>
+          <div class="sub">브라우저가 원본과 결과를 보관하고, GCP는 실행이 필요할 때만 사용한다.</div>
+        </div>
+        <div class="status">설계 확정 · 인프라 프로비저닝은 아직 보류</div>
+      </header>
+      <main>
+        <section class="zone">
+          <div class="zone-title"><span class="dot"></span>사용자 기기</div>
+          <div class="card browser">
+            <h2>Browser workspace</h2>
+            <p>업로드 → 추천 파서 실행 → 근거 확인 → 비교</p>
+            <div class="screen">IndexedDB / OPFS<br><b>장기 보관의 기준</b><br>원본 PDF · 결과 · 작업공간</div>
+            <span class="pill">로컬 작업은 익명</span>
+          </div>
+          <div class="arrow-v">↕</div>
+          <div class="card consent">
+            <h2>명시적 동의</h2>
+            <p>비용이 드는 hosted run만 GitHub 로그인과 quota를 확인한다.</p>
+          </div>
+        </section>
+
+        <section class="zone gcp">
+          <div class="gcp-head">
+            <strong>Google Cloud 실행 영역</strong>
+            <span class="region">Seoul · asia-northeast3</span>
+          </div>
+          <div class="cloud-row">
+            <div class="card service">
+              <div class="num">1</div>
+              <h2>Cloud Run · Web/API</h2>
+              <p>Next.js 요청 접수, 인증 확인, presigned URL 발급</p>
+            </div>
+            <div class="connector">→</div>
+            <div class="card service">
+              <div class="num">2</div>
+              <h2>Cloud Run · Orchestrator</h2>
+              <p>내구성 작업 상태, 재시도, 취소, 실행 이벤트 관리</p>
+            </div>
+          </div>
+          <div class="card batch">
+            <div>
+              <div class="num">3</div>
+              <h2 class="big">GCP Batch</h2>
+              <p>파서별 격리된 OCI 작업. Spot·CPU·GPU와 실행 제한을 적용한다.</p>
+              <span class="pill">provider-neutral runner gateway</span>
+            </div>
+            <div class="jobs">
+              <div class="job"><b>CPU first</b><span>OpenDataLoader<br>첫 hosted job</span></div>
+              <div class="job"><b>GPU later</b><span>MinerU<br>측정 후 shape 확정</span></div>
+            </div>
+          </div>
+          <div class="card registry">
+            <div><h2>Artifact Registry</h2><p>검토된 parser image를 같은 리전에 mirror</p></div>
+            <div class="digest">image@sha256:…</div>
+          </div>
+        </section>
+
+        <section class="zone external">
+          <div class="zone-title"><span class="dot"></span>외부 관리 서비스</div>
+          <div class="card r2">
+            <h2>Cloudflare R2</h2>
+            <p>원본과 결과를 옮기는 임시 교환소. private bucket + 짧은 PUT/GET URL.</p>
+            <span class="pill">가져오면 즉시 삭제 · 최대 24h</span>
+          </div>
+          <div class="card neon">
+            <h2>Neon PostgreSQL</h2>
+            <p>서버 작업·시도·이벤트와 체크포인트. Neon Auth로 GitHub 로그인.</p>
+            <span class="pill">문서 바이트는 저장하지 않음</span>
+          </div>
+          <div class="card rule">
+            <h2>보안 경계</h2>
+            <p>서비스별 최소권한 계정. JSON key 없음. Batch 작업에는 짧은 URL만 전달.</p>
+          </div>
+        </section>
+      </main>
+      <div class="flow"><span>① R2에 임시 업로드</span> → <span>② Batch 실행</span> → <span>③ 결과 검증·로컬 반입</span> → <span>④ R2 삭제</span></div>
+      <footer>
+        <div><b>핵심:</b> 무료 GCP 크레딧은 Cloud Run 요청 처리 + Batch 파서 실행에 집중</div>
+        <div class="sources">근거: DECISIONS.md #50–55 · docs/CLOUD_RUNNER.md · README.md</div>
+      </footer>
+    </section>
+  </div>
+</body>
+</html>

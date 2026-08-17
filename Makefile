@@ -11,7 +11,7 @@ export DOCUMENT_ARENA_WEB_PORT
 export DOCUMENT_ARENA_UID
 export DOCUMENT_ARENA_GID
 
-.PHONY: help doctor deps dev up down logs ps test lint check parser-fixture parser-image parser-smoke runner-serve mineru-image azure-di-image
+.PHONY: help doctor deps dev dev-web orchestrator-serve up down logs ps test lint typecheck check parser-fixture parser-image parser-smoke runner-serve mineru-image azure-di-image cloud-build cloud-deploy
 
 help: ## Show available commands.
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -29,8 +29,14 @@ doctor: ## Verify the required local tools.
 deps: ## Install the locked JavaScript dependencies with Bun.
 	bun install --frozen-lockfile
 
-dev: deps ## Run the web app on the host with hot reload.
+dev: deps ## Run web HMR, the local OCI runner, and the orchestrator together.
+	sh infra/scripts/dev.sh
+
+dev-web: ## Run only the web app with host HMR.
 	bun run dev -- --hostname $(DEV_HOST) --port $(DOCUMENT_ARENA_WEB_PORT)
+
+orchestrator-serve: ## Run the provider-neutral orchestrator service locally.
+	bun services/orchestrator/serve.mjs
 
 up: ## Start the Compose development stack in the background.
 	$(COMPOSE) up --detach --build --wait --wait-timeout 120
@@ -51,7 +57,10 @@ test: ## Build the app and run the Bun test suite.
 lint: ## Run ESLint.
 	bun run lint
 
-check: test lint ## Run all local verification.
+typecheck: ## Run TypeScript without emitting files.
+	bun run typecheck
+
+check: test lint typecheck ## Run all local verification.
 
 parser-fixture: ## Generate the deterministic parser smoke PDF.
 	bun run parser:fixture
@@ -70,3 +79,9 @@ mineru-image: ## Build the pinned MinerU pipeline image (downloads models, sever
 
 azure-di-image: ## Build the Azure Document Intelligence adapter image (remote API; needs AZURE_DI_* in .env).
 	docker build -t document-arena/azure-di:0.1.0 extensions/azure-di
+
+cloud-build: ## Build the Cloud Run images with Cloud Build (requires GCP_PROJECT_ID).
+	sh infra/gcp/deploy.sh build
+
+cloud-deploy: ## Deploy the fail-closed Web/API and Orchestrator services to Cloud Run.
+	sh infra/gcp/deploy.sh deploy

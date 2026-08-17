@@ -1,0 +1,26 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file
+      - infra/docker/web-cloud-run.Dockerfile
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/web:${_REVISION}
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file
+      - infra/docker/orchestrator-cloud-run.Dockerfile
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/orchestrator:${_REVISION}
+      - .
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/web:${_REVISION}
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/orchestrator:${_REVISION}
+options:
+  logging: CLOUD_LOGGING_ONLY
+substitutions:
+  _REGION: asia-northeast3
+  _REPOSITORY: document-arena
+  _REVISION: manual

@@ -71,13 +71,11 @@ Requires [Node.js](https://nodejs.org) 24, [Bun](https://bun.sh) `>=1.3.10`,
 GNU Make, and a running Docker engine.
 
 ```bash
-# 1. Start the web app
-make dev                # http://localhost:3000
+# Start web HMR, the local runner, and the orchestrator together. The first run
+# builds the OpenDataLoader image if it is missing.
+make dev
 
-# 2. In another terminal: build the parser image and start the local runner
-make runner-serve       # http://localhost:8799
-
-# 3. Upload a PDF at http://localhost:3000 and press "Run OpenDataLoader"
+# Upload a PDF at http://localhost:3000 and press "Run OpenDataLoader"
 ```
 
 The browser is authoritative for the workspace: metadata lives in IndexedDB and
@@ -266,12 +264,17 @@ keys, and benchmark datasets are never committed.
 ## Development
 
 ```bash
-make dev            # host HMR dev server
+make dev            # web HMR + local runner + orchestrator
+make dev-web        # web HMR only
 make check          # production build + tests + lint
 make parser-smoke   # end-to-end parser run in Docker
 make runner-serve   # local runner service for the web app
 make help           # everything else
 ```
+
+Cloud Run image build and safe-shell deployment instructions live in
+[`infra/gcp/README.md`](infra/gcp/README.md). Hosted parser execution remains
+disabled until the authenticated job API and GCP Batch adapter are implemented.
 
 JavaScript/TypeScript uses Bun exclusively; Python extensions own a
 uv-managed `pyproject.toml`. The Compose stack (`make up`) contains only
