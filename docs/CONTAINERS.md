@@ -143,7 +143,8 @@ The implemented root `compose.yaml` is the lightweight developer stack. It
 starts only the Bun-managed web development service, binds it to localhost,
 uses named volumes for dependencies and cache, and exposes a healthcheck used by
 `make up`. It never mounts the Docker socket. `make dev` keeps the faster host
-HMR path, while `make up`, `make logs`, and `make down` exercise Compose. The
+HMR path and supervises the host-local runner and orchestrator; `make dev-web`
+starts only Next.js. `make up`, `make logs`, and `make down` exercise Compose. The
 Compose process uses the invoking user's UID and GID so Next.js-generated files
 do not become root-owned on Linux hosts.
 
